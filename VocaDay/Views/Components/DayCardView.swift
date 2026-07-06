@@ -5,7 +5,7 @@ struct DayCardView: View {
     let isSelected: Bool
 
     private var dueCount: Int {
-        day.words.filter { ReviewScheduler.isDue($0) }.count
+        day.wordList.filter { ReviewScheduler.isDue($0) }.count
     }
 
     var body: some View {
@@ -22,7 +22,7 @@ struct DayCardView: View {
 
             Spacer()
 
-            metric(title: "Words", value: day.words.count)
+            metric(title: "Words", value: day.wordList.count)
             metric(title: "Due", value: dueCount)
         }
         .padding(18)

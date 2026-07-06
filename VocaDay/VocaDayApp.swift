@@ -10,14 +10,19 @@ import SwiftData
 
 @main
 struct VocaDayApp: App {
+    private static let cloudKitContainerIdentifier = "iCloud.com.VocaDay.VocaDay"
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             VocabularyDay.self,
             VocaWord.self,
+            LCDictationDay.self,
+            LCDictationNote.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private(cloudKitContainerIdentifier)
         )
 
         do {

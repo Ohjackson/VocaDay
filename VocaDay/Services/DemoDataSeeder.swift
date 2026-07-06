@@ -2,14 +2,31 @@ import Foundation
 import SwiftData
 
 enum DemoDataSeeder {
+    private static let seededDemoDataKey = "hasSeededDemoData_v1"
+
     static func seedIfNeeded(existingDays: [VocabularyDay], in context: ModelContext) {
         if let demoDay = existingDays.first(where: { $0.title == demoDayTitle }) {
             seedMissingDemoWords(into: demoDay, in: context)
+            markSeeded()
+        } else if hasSeededDemoData {
+            return
         } else {
             seedDemoDay(in: context)
+            markSeeded()
         }
 
         try? context.save()
+    }
+
+    private static var hasSeededDemoData: Bool {
+        UserDefaults.standard.bool(forKey: seededDemoDataKey)
+            || NSUbiquitousKeyValueStore.default.bool(forKey: seededDemoDataKey)
+    }
+
+    private static func markSeeded() {
+        UserDefaults.standard.set(true, forKey: seededDemoDataKey)
+        NSUbiquitousKeyValueStore.default.set(true, forKey: seededDemoDataKey)
+        NSUbiquitousKeyValueStore.default.synchronize()
     }
 
     private static func seedDemoDay(in context: ModelContext) {
@@ -22,7 +39,7 @@ enum DemoDataSeeder {
     }
 
     private static func seedMissingDemoWords(into day: VocabularyDay, in context: ModelContext) {
-        let existingEnglish = Set(day.words.map(\.english.normalizedEnglish))
+        let existingEnglish = Set(day.wordList.map(\.english.normalizedEnglish))
         insert(
             words: demoWords.filter { !existingEnglish.contains($0.english.normalizedEnglish) },
             into: day,
@@ -50,7 +67,7 @@ enum DemoDataSeeder {
             )
 
             context.insert(word)
-            day.words.append(word)
+            day.appendWord(word)
         }
     }
 }

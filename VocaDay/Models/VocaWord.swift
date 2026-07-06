@@ -3,20 +3,20 @@ import SwiftData
 
 @Model
 final class VocaWord {
-    var id: UUID
-    var english: String
-    var meaningKo: String
-    var exampleEn: String
-    var exampleKo: String
-    var note: String
-    var toeicTag: String
-    var createdAt: Date
-    var reviewCount: Int
-    var correctCount: Int
-    var wrongCount: Int
-    var masteryLevel: Int
-    var status: String
-    var nextReviewAt: Date
+    var id: UUID = UUID()
+    var english: String = ""
+    var meaningKo: String = ""
+    var exampleEn: String = ""
+    var exampleKo: String = ""
+    var note: String = ""
+    var toeicTag: String = ""
+    var createdAt: Date = Date()
+    var reviewCount: Int = 0
+    var correctCount: Int = 0
+    var wrongCount: Int = 0
+    var masteryLevel: Int = 0
+    var status: String = WordStatus.new.rawValue
+    var nextReviewAt: Date = Date()
     var lastReviewedAt: Date?
     var day: VocabularyDay?
 

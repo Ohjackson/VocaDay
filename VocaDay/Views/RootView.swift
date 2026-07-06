@@ -5,6 +5,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     case days = "Days"
     case add = "Add"
     case review = "Review"
+    case lcDictation = "LC"
 
     var id: String { rawValue }
 
@@ -16,6 +17,8 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
             return "plus.circle"
         case .review:
             return "rectangle.stack"
+        case .lcDictation:
+            return "headphones"
         }
     }
 }
@@ -61,6 +64,12 @@ struct RootView: View {
                 }
                 .tabItem { Label(AppSection.review.rawValue, systemImage: AppSection.review.systemImage) }
                 .tag(AppSection.review)
+
+                NavigationStack {
+                    LCDictationView()
+                }
+                .tabItem { Label(AppSection.lcDictation.rawValue, systemImage: AppSection.lcDictation.systemImage) }
+                .tag(AppSection.lcDictation)
             }
             #endif
         }
@@ -81,6 +90,8 @@ struct RootView: View {
             AddWordsView(selectedDayID: $selectedDayID)
         case .review:
             ReviewView()
+        case .lcDictation:
+            LCDictationView()
         }
     }
 
@@ -105,5 +116,5 @@ struct RootView: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
+        .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self], inMemory: true)
 }

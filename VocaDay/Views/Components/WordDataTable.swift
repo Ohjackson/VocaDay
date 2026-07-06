@@ -8,23 +8,11 @@ struct WordDataTable: View {
     var showsTitle = true
     @Binding var selectedWordIDs: Set<UUID>
 
-    private let columns: [(title: String, width: CGFloat)] = [
-        ("#", 56),
-        ("English", 240),
-        ("Korean Meaning", 300),
-        ("Count", 90)
-    ]
-
     var body: some View {
-        #if os(iOS)
-        iOSTable
-        #else
-        macTable
-        #endif
+        fullWidthTable
     }
 
-    #if os(iOS)
-    private var iOSTable: some View {
+    private var fullWidthTable: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showsTitle {
                 HStack {
@@ -146,82 +134,6 @@ struct WordDataTable: View {
         }
 
         return .subheadline
-    }
-    #endif
-
-    #if os(macOS)
-    private var macTable: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-
-                Spacer()
-
-                Text("\(words.count)")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            if words.isEmpty {
-                EmptyStateView(
-                    title: "No saved words in this Day.",
-                    systemImage: "text.page"
-                )
-                .frame(maxWidth: .infinity)
-            } else {
-                ScrollView(.horizontal, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        tableRow(values: columns.map(\.title), isHeader: true)
-
-                        Divider()
-
-                        ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
-                            tableRow(
-                                values: [
-                                    "\(index + 1)",
-                                    word.english,
-                                    hideKoreanMeaning ? "••••" : display(word.meaningKo),
-                                    "\(word.wrongCount)"
-                                ],
-                                isHeader: false,
-                                isSelected: selectedWordIDs.contains(word.id)
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard allowsSelection else { return }
-                                if selectedWordIDs.contains(word.id) {
-                                    selectedWordIDs.remove(word.id)
-                                } else {
-                                    selectedWordIDs.insert(word.id)
-                                }
-                            }
-                            Divider()
-                        }
-                    }
-                    .frame(minWidth: columns.reduce(0) { $0 + $1.width }, alignment: .leading)
-                }
-            }
-        }
-        .padding(18)
-        .calmCard()
-    }
-    #endif
-
-    private func tableRow(values: [String], isHeader: Bool, isSelected: Bool = false) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                Text(value)
-                    .font(isHeader ? .subheadline.weight(.semibold) : .body)
-                    .font(index == 3 && !isHeader ? .caption.monospacedDigit() : nil)
-                    .foregroundStyle(isHeader ? .secondary : .primary)
-                    .lineLimit(2)
-                    .frame(width: columns[index].width, alignment: index == 0 || index == 3 ? .center : .leading)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 12)
-            }
-        }
-        .background(rowBackground(isHeader: isHeader, isSelected: isSelected))
     }
 
     private func rowBackground(isHeader: Bool, isSelected: Bool) -> Color {

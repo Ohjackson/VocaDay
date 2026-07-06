@@ -23,7 +23,7 @@ struct DayWordsDetailView: View {
 
     private var orderedWords: [VocaWord] {
         if sortsWordsByCount {
-            return currentDay.words.sorted {
+            return currentDay.wordList.sorted {
                 if $0.wrongCount == $1.wrongCount {
                     return $0.createdAt < $1.createdAt
                 }
@@ -32,7 +32,7 @@ struct DayWordsDetailView: View {
             }
         }
 
-        return currentDay.words.sorted { $0.createdAt < $1.createdAt }
+        return currentDay.wordList.sorted { $0.createdAt < $1.createdAt }
     }
 
     private var selectedWords: [VocaWord] {
@@ -50,21 +50,14 @@ struct DayWordsDetailView: View {
                     selectedWordIDs: $selectedWordIDs
                 )
             }
-            #if os(iOS)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            #else
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
-            .frame(maxWidth: 840, alignment: .topLeading)
-            #endif
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
         .navigationTitle(currentDay.title)
         .toolbar {
-            #if os(iOS)
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: toolbarPlacement) {
                 Text("\(orderedWords.count)")
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -100,36 +93,6 @@ struct DayWordsDetailView: View {
                 }
                 .accessibilityLabel("Count Order")
             }
-            #else
-            ToolbarItemGroup {
-                Button {
-                    togglePlayback()
-                } label: {
-                    Label(speechPlayer.isPlaying ? "Stop" : "Play", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
-                }
-                .disabled(orderedWords.isEmpty)
-
-                Button {
-                    editingWord = selectedWords.first
-                } label: {
-                    Label("Edit", systemImage: "square.and.pencil")
-                }
-                .disabled(selectedWords.count != 1)
-
-                Button(role: .destructive) {
-                    deleteSelectedWords()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(selectedWords.isEmpty)
-
-                Button {
-                    sortsWordsByCount.toggle()
-                } label: {
-                    Label("Count Order", systemImage: sortsWordsByCount ? "arrow.down.123" : "number")
-                }
-            }
-            #endif
         }
         .sheet(item: $editingWord) { word in
             EditWordSheet(word: word) {
@@ -169,14 +132,20 @@ struct DayWordsDetailView: View {
 
         let wordsToDelete = selectedWords
         for word in wordsToDelete {
-            if let index = currentDay.words.firstIndex(where: { $0.id == word.id }) {
-                currentDay.words.remove(at: index)
-            }
+            currentDay.removeWord(word)
             modelContext.delete(word)
         }
 
         selectedWordIDs.removeAll()
         try? modelContext.save()
+    }
+
+    private var toolbarPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
     }
 }
 

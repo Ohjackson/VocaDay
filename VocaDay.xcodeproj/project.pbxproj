@@ -82,6 +82,14 @@
 				TargetAttributes = {
 					D7AFCD7D2FFB8F9700F69564 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.CloudKit = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -246,6 +254,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VocaDay/VocaDay.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "VocaDay/VocaDay-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5UQJWXQTJD;
@@ -291,6 +301,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VocaDay/VocaDay.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "VocaDay/VocaDay-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5UQJWXQTJD;

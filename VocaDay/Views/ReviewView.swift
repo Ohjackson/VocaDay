@@ -2,7 +2,9 @@ import SwiftData
 import SwiftUI
 
 struct ReviewView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
+    @State private var isEditingDays = false
 
     var body: some View {
         ScrollView {
@@ -16,12 +18,7 @@ struct ReviewView: View {
                 } else {
                     LazyVStack(spacing: 12) {
                         ForEach(days) { day in
-                            NavigationLink {
-                                ReviewDayDetailView(day: day)
-                            } label: {
-                                DayCardView(day: day, isSelected: false)
-                            }
-                            .buttonStyle(.plain)
+                            dayRow(for: day)
                         }
                     }
                 }
@@ -33,6 +30,60 @@ struct ReviewView: View {
         }
         .background(AppTheme.background)
         .navigationTitle("Review")
+        .toolbar {
+            ToolbarItem(placement: toolbarPlacement) {
+                Button {
+                    isEditingDays.toggle()
+                } label: {
+                    Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
+                }
+                .accessibilityLabel(isEditingDays ? "Done Editing Days" : "Edit Days")
+                .disabled(days.isEmpty)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dayRow(for day: VocabularyDay) -> some View {
+        if isEditingDays {
+            HStack(spacing: 10) {
+                DayCardView(day: day, isSelected: false)
+
+                Button(role: .destructive) {
+                    delete(day)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.headline)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Delete \(day.title)")
+            }
+        } else {
+            NavigationLink {
+                ReviewDayDetailView(day: day)
+            } label: {
+                DayCardView(day: day, isSelected: false)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func delete(_ day: VocabularyDay) {
+        modelContext.delete(day)
+        try? modelContext.save()
+
+        if days.count <= 1 {
+            isEditingDays = false
+        }
+    }
+
+    private var toolbarPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
     }
 }
 
@@ -45,9 +96,10 @@ private struct ReviewDayDetailView: View {
     @State private var randomWordIDs: [UUID] = []
 
     private var reviewWords: [VocaWord] {
-        let wordsByID = Dictionary(uniqueKeysWithValues: day.words.map { ($0.id, $0) })
+        let dayWords = day.wordList
+        let wordsByID = Dictionary(uniqueKeysWithValues: dayWords.map { ($0.id, $0) })
         let orderedWords = randomWordIDs.compactMap { wordsByID[$0] }
-        let missingWords = day.words
+        let missingWords = dayWords
             .filter { !randomWordIDs.contains($0.id) }
             .sorted { $0.createdAt < $1.createdAt }
 
@@ -58,10 +110,6 @@ private struct ReviewDayDetailView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    #if os(macOS)
-                    reviewControls
-                    #endif
-
                     WordDataTable(
                         title: "\(day.title) Review",
                         words: reviewWords,
@@ -71,14 +119,8 @@ private struct ReviewDayDetailView: View {
                         selectedWordIDs: $selectedWordIDs
                     )
                 }
-                #if os(iOS)
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                #else
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
-                .frame(maxWidth: 840, alignment: .topLeading)
-                #endif
                 .frame(maxWidth: .infinity, alignment: .top)
             }
 
@@ -87,8 +129,7 @@ private struct ReviewDayDetailView: View {
         .background(AppTheme.background)
         .navigationTitle(day.title)
         .toolbar {
-            #if os(iOS)
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: toolbarPlacement) {
                 Text("\(reviewWords.count)")
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -107,32 +148,13 @@ private struct ReviewDayDetailView: View {
                 }
                 .accessibilityLabel("Shuffle")
             }
-            #endif
         }
         .onAppear {
             syncRandomOrder()
         }
-        .onChange(of: day.words.map(\.id)) { _, _ in
+        .onChange(of: day.wordList.map(\.id)) { _, _ in
             syncRandomOrder()
         }
-    }
-
-    private var reviewControls: some View {
-        HStack(spacing: 12) {
-            Toggle("Hide Korean", isOn: $hidesKoreanMeaning)
-                .toggleStyle(.switch)
-
-            Spacer()
-
-            Button {
-                shuffleWords()
-            } label: {
-                Label("Shuffle", systemImage: "shuffle")
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(18)
-        .calmCard()
     }
 
     private var submitBar: some View {
@@ -163,18 +185,19 @@ private struct ReviewDayDetailView: View {
     }
 
     private func shuffleWords() {
-        randomWordIDs = day.words.map(\.id).shuffled()
+        randomWordIDs = day.wordList.map(\.id).shuffled()
         selectedWordIDs = []
     }
 
     private func syncRandomOrder() {
-        let currentIDs = Set(day.words.map(\.id))
+        let dayWordIDs = day.wordList.map(\.id)
+        let currentIDs = Set(dayWordIDs)
 
         if randomWordIDs.isEmpty {
-            randomWordIDs = day.words.map(\.id).shuffled()
+            randomWordIDs = dayWordIDs.shuffled()
         } else {
             let orderedIDs = randomWordIDs.filter { currentIDs.contains($0) }
-            let missingIDs = day.words.map(\.id).filter { !orderedIDs.contains($0) }.shuffled()
+            let missingIDs = dayWordIDs.filter { !orderedIDs.contains($0) }.shuffled()
             randomWordIDs = orderedIDs + missingIDs
         }
 
@@ -190,6 +213,14 @@ private struct ReviewDayDetailView: View {
 
         try? modelContext.save()
         selectedWordIDs = []
+    }
+
+    private var toolbarPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
     }
 }
 

@@ -102,7 +102,6 @@ struct AddWordsView: View {
         VStack(spacing: 10) {
             Divider()
 
-            #if os(iOS)
             HStack(spacing: 20) {
                 Button {
                     pasteJSON()
@@ -113,6 +112,7 @@ struct AddWordsView: View {
                 .buttonStyle(.bordered)
                 .clipShape(Circle())
                 .accessibilityLabel("Paste JSON")
+                .help("Paste JSON")
 
                 Button {
                     copyJSON()
@@ -124,6 +124,7 @@ struct AddWordsView: View {
                 .clipShape(Circle())
                 .disabled(temporaryWords.isEmpty)
                 .accessibilityLabel("Copy JSON")
+                .help("Copy JSON")
 
                 Spacer(minLength: 0)
 
@@ -138,6 +139,7 @@ struct AddWordsView: View {
                 .clipShape(Circle())
                 .disabled(selectedTemporaryWordID == nil)
                 .accessibilityLabel("Delete")
+                .help("Delete")
 
                 Button {
                     saveToDay()
@@ -149,50 +151,11 @@ struct AddWordsView: View {
                 .clipShape(Circle())
                 .disabled(temporaryWords.isEmpty)
                 .accessibilityLabel("Save to Day")
+                .help("Save to Day")
             }
             .font(.title3.weight(.semibold))
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
-            #else
-            HStack(spacing: 10) {
-                Button {
-                    pasteJSON()
-                } label: {
-                    Label("Paste JSON", systemImage: "doc.on.clipboard")
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    copyJSON()
-                } label: {
-                    Label("Copy JSON", systemImage: "doc.on.doc")
-                }
-                .buttonStyle(.bordered)
-                .disabled(temporaryWords.isEmpty)
-
-                Spacer()
-
-                Button(role: .destructive) {
-                    deleteSelectedTemporaryWord()
-                    isInputFocused = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedTemporaryWordID == nil)
-
-                Button {
-                    saveToDay()
-                } label: {
-                    Label("Save to Day", systemImage: "tray.and.arrow.down")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(temporaryWords.isEmpty)
-            }
-            .controlSize(.large)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
-            #endif
         }
         .background(.regularMaterial)
     }
@@ -299,7 +262,7 @@ struct AddWordsView: View {
             return
         }
 
-        var existingEnglish = Set(selectedDay.words.map { $0.english.normalizedEnglish })
+        var existingEnglish = Set(selectedDay.wordList.map { $0.english.normalizedEnglish })
         var insertedCount = 0
 
         for temporaryWord in temporaryWords where !existingEnglish.contains(temporaryWord.english.normalizedEnglish) {
@@ -314,7 +277,7 @@ struct AddWordsView: View {
                 day: selectedDay
             )
             modelContext.insert(word)
-            selectedDay.words.append(word)
+            selectedDay.appendWord(word)
             existingEnglish.insert(temporaryWord.english.normalizedEnglish)
             insertedCount += 1
         }
