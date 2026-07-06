@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D7CFC7DD2FFBE06000D850F7 /* Translation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7CFC7DC2FFBE06000D850F7 /* Translation.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		D7AFCD7E2FFB8F9700F69564 /* VocaDay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VocaDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7CFC7DC2FFBE06000D850F7 /* Translation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Translation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/Translation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7CFC7DD2FFBE06000D850F7 /* Translation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +39,7 @@
 			isa = PBXGroup;
 			children = (
 				D7AFCD802FFB8F9700F69564 /* VocaDay */,
+				D7CFC7DB2FFBE05F00D850F7 /* Frameworks */,
 				D7AFCD7F2FFB8F9700F69564 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +50,14 @@
 				D7AFCD7E2FFB8F9700F69564 /* VocaDay.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D7CFC7DB2FFBE05F00D850F7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D7CFC7DC2FFBE06000D850F7 /* Translation.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

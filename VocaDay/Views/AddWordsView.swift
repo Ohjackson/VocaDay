@@ -1,5 +1,11 @@
 import SwiftData
 import SwiftUI
+import Translation
+
+private struct PendingTranslation: Identifiable, Equatable {
+    let id: UUID
+    let english: String
+}
 
 struct AddWordsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -11,6 +17,8 @@ struct AddWordsView: View {
     @State private var selectedTemporaryWordID: UUID?
     @State private var copiedMessage: String?
     @State private var alert: VocaAlert?
+    @State private var pendingTranslations: [PendingTranslation] = []
+    @State private var translationConfiguration: TranslationSession.Configuration?
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -67,6 +75,9 @@ struct AddWordsView: View {
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
+        }
+        .translationTask(translationConfiguration) { session in
+            await translatePendingWords(with: session)
         }
     }
 
@@ -170,11 +181,15 @@ struct AddWordsView: View {
             return
         }
 
-        let word = VocaWordJSON(english: english)
+        // Create immediately for responsiveness with a placeholder translation
+        var word = VocaWordJSON(english: english)
+        word.meaningKo = "(자동 번역 중…)"
         temporaryWords.append(word)
         selectedTemporaryWordID = word.id
         inputWord = ""
         isInputFocused = true
+
+        enqueueTranslation(for: word.id, english: english)
     }
 
     private func copyJSON() {
@@ -184,12 +199,78 @@ struct AddWordsView: View {
         }
 
         do {
-            let json = try JSONWordParser.encode(temporaryWords)
+            struct ExportWordJSON: Codable {
+                let id: UUID
+                let english: String
+                let meaningKo: String
+                let exampleEn: String?
+                let exampleKo: String?
+                let note: String?
+                let toeicTag: String?
+            }
+            let exportWords = temporaryWords.map { w in
+                ExportWordJSON(
+                    id: w.id,
+                    english: w.english,
+                    meaningKo: "",
+                    exampleEn: w.exampleEn,
+                    exampleKo: w.exampleKo,
+                    note: w.note,
+                    toeicTag: w.toeicTag
+                )
+            }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(exportWords)
+            let json = String(data: data, encoding: .utf8) ?? "[]"
             ClipboardService.copyText(json)
             showCopiedMessage()
         } catch {
             alert = VocaAlert(title: "Copy Failed", message: error.localizedDescription)
         }
+    }
+
+    private func enqueueTranslation(for id: UUID, english: String) {
+        pendingTranslations.removeAll { $0.id == id }
+        pendingTranslations.append(PendingTranslation(id: id, english: english))
+
+        if translationConfiguration == nil {
+            translationConfiguration = TranslationSession.Configuration(
+                source: Locale.Language(identifier: "en"),
+                target: Locale.Language(identifier: "ko")
+            )
+        } else {
+            translationConfiguration?.invalidate()
+        }
+    }
+
+    @MainActor
+    private func consumePendingTranslations() -> [PendingTranslation] {
+        let translations = pendingTranslations
+        pendingTranslations.removeAll()
+        return translations
+    }
+
+    private func translatePendingWords(with session: TranslationSession) async {
+        let translations = consumePendingTranslations()
+        guard !translations.isEmpty else { return }
+
+        for translation in translations {
+            do {
+                let response = try await session.translate(translation.english)
+                let korean = response.targetText.trimmingCharacters(in: .whitespacesAndNewlines)
+                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? "(자동 번역 실패)" : korean)
+            } catch {
+                updateTemporaryWord(id: translation.id, meaningKo: "(자동 번역 실패)")
+                print("[Translate] Apple Translation error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    @MainActor
+    private func updateTemporaryWord(id: UUID, meaningKo: String) {
+        guard let index = temporaryWords.firstIndex(where: { $0.id == id }) else { return }
+        temporaryWords[index].meaningKo = meaningKo
     }
 
     private func pasteJSON() {
