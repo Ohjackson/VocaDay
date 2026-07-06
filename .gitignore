@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Build outputs
+DerivedData/
+build/
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+*.result
+*.xcresult
+
+# Swift Package Manager
+.build/
+
+# CocoaPods / Carthage
+Pods/
+Carthage/Build/
+
+# Local configuration and secrets
+*.xcconfig
+*.env
+*.env.*
+!.env.example
+GoogleService-Info.plist
+Secrets.plist
+secrets.plist
+
+# Editor and tooling
+.vscode/
+.idea/
+*.swp
+*.tmp
