@@ -4,10 +4,6 @@ struct DayCardView: View {
     let day: VocabularyDay
     let isSelected: Bool
 
-    private var dueCount: Int {
-        day.wordList.filter { ReviewScheduler.isDue($0) }.count
-    }
-
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
@@ -15,15 +11,17 @@ struct DayCardView: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
 
-                Text("Created \(day.createdAt, format: .dateTime.month().day().year())")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text("Created")
+                    Text(day.createdAt, format: .dateTime.month().day().year())
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             metric(title: "Words", value: day.wordList.count)
-            metric(title: "Due", value: dueCount)
         }
         .padding(18)
         .frame(maxWidth: .infinity)
@@ -36,7 +34,7 @@ struct DayCardView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func metric(title: String, value: Int) -> some View {
+    private func metric(title: LocalizedStringKey, value: Int) -> some View {
         VStack(alignment: .trailing, spacing: 4) {
             Text("\(value)")
                 .font(.title3.weight(.semibold))

@@ -4,13 +4,18 @@ struct TemporaryWordTable: View {
     let words: [VocaWordJSON]
     @Binding var selectedWordID: UUID?
 
-    private let columns: [(title: String, width: CGFloat)] = [
-        ("#", 56),
-        ("English", 180),
-        ("Korean Meaning", 220),
-        ("Note", 180),
-        ("TOEIC Tag", 150),
-        ("Check Point", 130)
+    private struct Column {
+        let title: LocalizedStringKey
+        let width: CGFloat
+    }
+
+    private let columns: [Column] = [
+        Column(title: "#", width: 56),
+        Column(title: "English", width: 180),
+        Column(title: "Korean Meaning", width: 220),
+        Column(title: "Note", width: 180),
+        Column(title: "TOEIC Tag", width: 150),
+        Column(title: "Check Point", width: 130)
     ]
 
     var body: some View {
@@ -68,6 +73,21 @@ struct TemporaryWordTable: View {
         }
         .padding(18)
         .calmCard()
+    }
+
+    private func tableRow(values: [LocalizedStringKey], isHeader: Bool, isSelected: Bool = false) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                Text(value)
+                    .font(isHeader ? .subheadline.weight(.semibold) : .body)
+                    .foregroundStyle(isHeader ? .secondary : .primary)
+                    .lineLimit(2)
+                    .frame(width: columns[index].width, alignment: index == 0 ? .center : .leading)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+            }
+        }
+        .background(rowBackground(isHeader: isHeader, isSelected: isSelected))
     }
 
     private func tableRow(values: [String], isHeader: Bool, isSelected: Bool = false) -> some View {

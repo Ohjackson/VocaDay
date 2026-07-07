@@ -1,13 +1,29 @@
 import SwiftData
 import SwiftUI
 
-enum AppSection: String, CaseIterable, Identifiable, Hashable {
-    case days = "Days"
-    case add = "Add"
-    case review = "Review"
-    case lcDictation = "LC"
+enum AppSection: CaseIterable, Identifiable, Hashable {
+    case days
+    case add
+    case review
+    case lcDictation
+    case settings
 
-    var id: String { rawValue }
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .days:
+            return "Days"
+        case .add:
+            return "Add"
+        case .review:
+            return "Review"
+        case .lcDictation:
+            return "Study"
+        case .settings:
+            return "Settings"
+        }
+    }
 
     var systemImage: String {
         switch self {
@@ -19,6 +35,8 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
             return "rectangle.stack"
         case .lcDictation:
             return "headphones"
+        case .settings:
+            return "gearshape"
         }
     }
 }
@@ -35,7 +53,7 @@ struct RootView: View {
             #if os(macOS)
             NavigationSplitView {
                 List(AppSection.allCases, selection: $selectedSection) { section in
-                    Label(section.rawValue, systemImage: section.systemImage)
+                    Label(section.title, systemImage: section.systemImage)
                         .tag(section)
                 }
                 .navigationTitle("VocaDay")
@@ -50,25 +68,25 @@ struct RootView: View {
                 NavigationStack {
                     DaysView(selectedDayID: $selectedDayID)
                 }
-                .tabItem { Label(AppSection.days.rawValue, systemImage: AppSection.days.systemImage) }
+                .tabItem { Label(AppSection.days.title, systemImage: AppSection.days.systemImage) }
                 .tag(AppSection.days)
 
                 NavigationStack {
                     AddWordsView(selectedDayID: $selectedDayID)
                 }
-                .tabItem { Label(AppSection.add.rawValue, systemImage: AppSection.add.systemImage) }
+                .tabItem { Label(AppSection.add.title, systemImage: AppSection.add.systemImage) }
                 .tag(AppSection.add)
 
                 NavigationStack {
                     ReviewView()
                 }
-                .tabItem { Label(AppSection.review.rawValue, systemImage: AppSection.review.systemImage) }
+                .tabItem { Label(AppSection.review.title, systemImage: AppSection.review.systemImage) }
                 .tag(AppSection.review)
 
                 NavigationStack {
                     LCDictationView()
                 }
-                .tabItem { Label(AppSection.lcDictation.rawValue, systemImage: AppSection.lcDictation.systemImage) }
+                .tabItem { Label(AppSection.lcDictation.title, systemImage: AppSection.lcDictation.systemImage) }
                 .tag(AppSection.lcDictation)
             }
             #endif
@@ -92,6 +110,8 @@ struct RootView: View {
             ReviewView()
         case .lcDictation:
             LCDictationView()
+        case .settings:
+            SettingsView()
         }
     }
 

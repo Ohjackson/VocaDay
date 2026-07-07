@@ -6,6 +6,8 @@ struct WordDataTable: View {
     var hideKoreanMeaning = false
     var allowsSelection = false
     var showsTitle = true
+    var showsWordDetails = false
+    var emptyTitle: LocalizedStringKey = "No saved words in this Day."
     @Binding var selectedWordIDs: Set<UUID>
 
     var body: some View {
@@ -31,7 +33,7 @@ struct WordDataTable: View {
 
             if words.isEmpty {
                 EmptyStateView(
-                    title: "No saved words in this Day.",
+                    title: emptyTitle,
                     systemImage: "text.page"
                 )
                 .frame(maxWidth: .infinity)
@@ -50,17 +52,7 @@ struct WordDataTable: View {
                         Divider()
 
                         ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
-                            proportionalRow(
-                                values: [
-                                    "\(index + 1)",
-                                    word.english,
-                                    hideKoreanMeaning ? "••••" : display(word.meaningKo)
-                                ],
-                                count: word.wrongCount,
-                                widths: widths,
-                                isHeader: false,
-                                isSelected: selectedWordIDs.contains(word.id)
-                            )
+                            wordRow(index: index, word: word, widths: widths)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 guard allowsSelection else { return }
@@ -74,7 +66,7 @@ struct WordDataTable: View {
                         }
                     }
                 }
-                .frame(height: CGFloat(words.count + 1) * 45)
+                .frame(height: tableHeight)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -87,6 +79,33 @@ struct WordDataTable: View {
             totalWidth * 0.45,
             totalWidth * 0.45
         ]
+    }
+
+    private var tableHeight: CGFloat {
+        let headerHeight: CGFloat = 45
+        let rowHeight: CGFloat = showsWordDetails ? 134 : 45
+        return headerHeight + (CGFloat(words.count) * rowHeight)
+    }
+
+    private func wordRow(index: Int, word: VocaWord, widths: [CGFloat]) -> some View {
+        VStack(spacing: 0) {
+            proportionalRow(
+                values: [
+                    "\(index + 1)",
+                    word.english,
+                    hideKoreanMeaning ? "••••" : display(word.meaningKo)
+                ],
+                count: word.wrongCount,
+                widths: widths,
+                isHeader: false,
+                isSelected: selectedWordIDs.contains(word.id)
+            )
+
+            if showsWordDetails {
+                wordDetailLines(for: word)
+            }
+        }
+        .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
     }
 
     private func proportionalRow(values: [String], count: Int? = nil, widths: [CGFloat], isHeader: Bool, isSelected: Bool = false) -> some View {
@@ -107,15 +126,55 @@ struct WordDataTable: View {
         .background(rowBackground(isHeader: isHeader, isSelected: isSelected))
     }
 
-    private func cell(value: String, count: Int?, index: Int, isHeader: Bool) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            Text(value)
-                .font(isHeader ? .caption.weight(.semibold) : compactFont(for: index, value: value))
-                .minimumScaleFactor(0.45)
-                .foregroundStyle(isHeader ? .secondary : .primary)
+    private func wordDetailLines(for word: VocaWord) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            detailLine(label: "Example", value: word.exampleEn)
+            detailLine(label: "Korean", value: word.exampleKo)
+            detailLine(label: "Note", value: word.note)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 9)
+        .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+        .background(Color.secondary.opacity(0.035))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.32))
+                .frame(height: 1)
+        }
+    }
+
+    private func detailLine(label: LocalizedStringKey, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+
+            Text(display(value))
+                .font(.caption)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: index == 0 ? .center : .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func cell(value: String, count: Int?, index: Int, isHeader: Bool) -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if isHeader {
+                    Text(LocalizedStringKey(value))
+                } else {
+                    Text(value)
+                }
+            }
+            .font(isHeader ? .caption.weight(.semibold) : compactFont(for: index, value: value))
+            .minimumScaleFactor(0.45)
+            .foregroundStyle(isHeader ? .secondary : .primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: index == 0 ? .center : .leading)
 
             if let count, count > 0 {
                 Text("\(count)")

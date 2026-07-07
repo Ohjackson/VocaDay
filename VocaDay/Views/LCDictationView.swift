@@ -15,7 +15,7 @@ struct LCDictationView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
-                        title: "No LC dictation day exists yet.",
+                        title: "No LC note exists yet.",
                         systemImage: "headphones"
                     )
                     .padding(.top, 48)
@@ -33,7 +33,7 @@ struct LCDictationView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .navigationTitle("LC Dictation")
+        .navigationTitle("Study")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
                 Button {
@@ -41,7 +41,7 @@ struct LCDictationView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingDays ? "Done Editing LC Days" : "Edit LC Days")
+                .accessibilityLabel(isEditingDays ? "Done Editing LC Notes" : "Edit LC Notes")
                 .disabled(days.isEmpty)
 
                 Button {
@@ -49,11 +49,11 @@ struct LCDictationView: View {
                     editingDay = nil
                     isShowingNewDayAlert = true
                 } label: {
-                    Label("New LC Day", systemImage: "plus")
+                    Label("New LC Note", systemImage: "plus")
                 }
             }
         }
-        .alert(editingDay == nil ? "New LC Day" : "Edit LC Day", isPresented: $isShowingNewDayAlert) {
+        .alert(editingDay == nil ? "New LC Note" : "Edit LC Note", isPresented: $isShowingNewDayAlert) {
             TextField("Title", text: $newDayTitle)
 
             Button("Cancel", role: .cancel) {
@@ -65,7 +65,7 @@ struct LCDictationView: View {
             }
             .disabled(newDayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Enter a title for this dictation note.")
+            Text("Enter a title for this LC note.")
         }
     }
 
@@ -324,9 +324,12 @@ private struct LCDictationDayCardView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text("Created \(day.createdAt, format: .dateTime.month().day().year())")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text("Created")
+                    Text(day.createdAt, format: .dateTime.month().day().year())
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
 
             Spacer()

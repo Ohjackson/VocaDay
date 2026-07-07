@@ -9,8 +9,10 @@ struct DayWordsDetailView: View {
     @StateObject private var speechPlayer = DaySpeechPlayer()
     @State private var currentDayID: UUID
     @State private var sortsWordsByCount = false
+    @State private var showsWordDetails = false
     @State private var selectedWordIDs: Set<UUID> = []
     @State private var editingWord: VocaWord?
+    @State private var searchText = ""
 
     init(initialDay: VocabularyDay) {
         self.initialDay = initialDay
@@ -36,7 +38,25 @@ struct DayWordsDetailView: View {
     }
 
     private var selectedWords: [VocaWord] {
-        orderedWords.filter { selectedWordIDs.contains($0.id) }
+        visibleWords.filter { selectedWordIDs.contains($0.id) }
+    }
+
+    private var visibleWords: [VocaWord] {
+        let query = normalizedSearchText
+        guard !query.isEmpty else { return orderedWords }
+
+        return orderedWords.filter { word in
+            word.english.localizedCaseInsensitiveContains(query) ||
+            word.meaningKo.localizedCaseInsensitiveContains(query) ||
+            word.exampleEn.localizedCaseInsensitiveContains(query) ||
+            word.exampleKo.localizedCaseInsensitiveContains(query) ||
+            word.note.localizedCaseInsensitiveContains(query) ||
+            word.toeicTag.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -44,9 +64,11 @@ struct DayWordsDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 WordDataTable(
                     title: "\(currentDay.title) Words",
-                    words: orderedWords,
+                    words: visibleWords,
                     allowsSelection: true,
                     showsTitle: false,
+                    showsWordDetails: showsWordDetails,
+                    emptyTitle: normalizedSearchText.isEmpty ? "No saved words in this Day." : "No matching words.",
                     selectedWordIDs: $selectedWordIDs
                 )
             }
@@ -56,18 +78,26 @@ struct DayWordsDetailView: View {
         }
         .background(AppTheme.background)
         .navigationTitle(currentDay.title)
+        .searchable(text: $searchText, prompt: "Search Words")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
-                Text("\(orderedWords.count)")
+                Text(countText)
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
+
+                Toggle(isOn: $showsWordDetails) {
+                    Image(systemName: "text.justify")
+                }
+                .toggleStyle(.button)
+                .accessibilityLabel(showsWordDetails ? "Hide Word Details" : "Show Word Details")
+                .disabled(visibleWords.isEmpty)
 
                 Button {
                     togglePlayback()
                 } label: {
                     Image(systemName: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
                 }
-                .disabled(orderedWords.isEmpty)
+                .disabled(visibleWords.isEmpty)
                 .accessibilityLabel(speechPlayer.isPlaying ? "Stop" : "Play")
 
                 Button {
@@ -103,9 +133,16 @@ struct DayWordsDetailView: View {
         .onChange(of: currentDayID) { _, _ in
             selectedWordIDs.removeAll()
         }
+        .onChange(of: searchText) { _, _ in
+            selectedWordIDs = selectedWordIDs.intersection(Set(visibleWords.map(\.id)))
+        }
         .onDisappear {
             speechPlayer.stop()
         }
+    }
+
+    private var countText: String {
+        normalizedSearchText.isEmpty ? "\(orderedWords.count)" : "\(visibleWords.count)/\(orderedWords.count)"
     }
 
     private func togglePlayback() {
@@ -115,7 +152,7 @@ struct DayWordsDetailView: View {
         }
 
         let playingDay = currentDay
-        speechPlayer.play(words: orderedWords) {
+        speechPlayer.play(words: visibleWords) {
             moveToNextDay(after: playingDay)
         }
     }

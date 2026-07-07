@@ -93,6 +93,7 @@ private struct ReviewDayDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedWordIDs: Set<UUID> = []
     @State private var hidesKoreanMeaning = true
+    @State private var showsWordDetails = false
     @State private var randomWordIDs: [UUID] = []
 
     private var reviewWords: [VocaWord] {
@@ -116,6 +117,7 @@ private struct ReviewDayDetailView: View {
                         hideKoreanMeaning: hidesKoreanMeaning,
                         allowsSelection: true,
                         showsTitle: false,
+                        showsWordDetails: showsWordDetails,
                         selectedWordIDs: $selectedWordIDs
                     )
                 }
@@ -133,6 +135,13 @@ private struct ReviewDayDetailView: View {
                 Text("\(reviewWords.count)")
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
+
+                Toggle(isOn: $showsWordDetails) {
+                    Image(systemName: "text.justify")
+                }
+                .toggleStyle(.button)
+                .accessibilityLabel(showsWordDetails ? "Hide Word Details" : "Show Word Details")
+                .disabled(reviewWords.isEmpty)
 
                 Button {
                     hidesKoreanMeaning.toggle()

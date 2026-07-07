@@ -7,6 +7,29 @@ private struct PendingTranslation: Identifiable, Equatable {
     let english: String
 }
 
+private struct DuplicateWordLocation: Identifiable, Hashable {
+    var id: String { english.normalizedEnglish }
+    let english: String
+    let dayTitles: [String]
+}
+
+private struct DuplicateSaveConfirmation: Identifiable {
+    let id = UUID()
+    let locations: [DuplicateWordLocation]
+
+    var normalizedEnglishSet: Set<String> {
+        Set(locations.map { $0.english.normalizedEnglish })
+    }
+
+    var message: String {
+        let locationText = locations
+            .map { "\($0.english): \($0.dayTitles.joined(separator: ", "))" }
+            .joined(separator: "\n")
+
+        return locationText + "\n\n" + String(localized: "This word is already saved. You can still add it, or save without the duplicates.")
+    }
+}
+
 struct AddWordsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
@@ -17,6 +40,7 @@ struct AddWordsView: View {
     @State private var selectedTemporaryWordID: UUID?
     @State private var copiedMessage: String?
     @State private var alert: VocaAlert?
+    @State private var duplicateSaveConfirmation: DuplicateSaveConfirmation?
     @State private var pendingTranslations: [PendingTranslation] = []
     @State private var translationConfiguration: TranslationSession.Configuration?
     @FocusState private var isInputFocused: Bool
@@ -68,6 +92,19 @@ struct AddWordsView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .alert("Saved word already exists", isPresented: isDuplicateSaveConfirmationPresented) {
+            Button("Add Anyway") {
+                saveAllowingDuplicateEnglish()
+            }
+
+            Button("Save Without Duplicates") {
+                saveSkippingDuplicateEnglish()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(duplicateSaveConfirmation?.message ?? "")
         }
         .onAppear {
             ensureSelectedDay()
@@ -173,7 +210,18 @@ struct AddWordsView: View {
 
     private func addInputWord() {
         let english = inputWord.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !english.isEmpty else { return }
+        guard !english.isEmpty else {
+            importJSONFromClipboard(showAlerts: false)
+            return
+        }
+
+        if english.looksLikeJSONArray {
+            if importJSON(from: english) {
+                inputWord = ""
+                isInputFocused = true
+            }
+            return
+        }
 
         guard !temporaryWords.contains(where: { $0.english.normalizedEnglish == english.normalizedEnglish }) else {
             inputWord = ""
@@ -183,7 +231,7 @@ struct AddWordsView: View {
 
         // Create immediately for responsiveness with a placeholder translation
         var word = VocaWordJSON(english: english)
-        word.meaningKo = "(자동 번역 중…)"
+        word.meaningKo = String(localized: "(Translating...)")
         temporaryWords.append(word)
         selectedTemporaryWordID = word.id
         inputWord = ""
@@ -194,13 +242,12 @@ struct AddWordsView: View {
 
     private func copyJSON() {
         guard !temporaryWords.isEmpty else {
-            alert = VocaAlert(title: "No Words", message: "No words yet. Start by typing an English word.")
+            alert = VocaAlert(title: String(localized: "No Words"), message: String(localized: "No words yet. Start by typing an English word."))
             return
         }
 
         do {
             struct ExportWordJSON: Codable {
-                let id: UUID
                 let english: String
                 let meaningKo: String
                 let exampleEn: String?
@@ -210,7 +257,6 @@ struct AddWordsView: View {
             }
             let exportWords = temporaryWords.map { w in
                 ExportWordJSON(
-                    id: w.id,
                     english: w.english,
                     meaningKo: "",
                     exampleEn: w.exampleEn,
@@ -226,7 +272,7 @@ struct AddWordsView: View {
             ClipboardService.copyText(json)
             showCopiedMessage()
         } catch {
-            alert = VocaAlert(title: "Copy Failed", message: error.localizedDescription)
+            alert = VocaAlert(title: String(localized: "Copy Failed"), message: error.localizedDescription)
         }
     }
 
@@ -259,9 +305,9 @@ struct AddWordsView: View {
             do {
                 let response = try await session.translate(translation.english)
                 let korean = response.targetText.trimmingCharacters(in: .whitespacesAndNewlines)
-                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? "(자동 번역 실패)" : korean)
+                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? String(localized: "(Translation failed)") : korean)
             } catch {
-                updateTemporaryWord(id: translation.id, meaningKo: "(자동 번역 실패)")
+                updateTemporaryWord(id: translation.id, meaningKo: String(localized: "(Translation failed)"))
                 print("[Translate] Apple Translation error: \(error.localizedDescription)")
             }
         }
@@ -274,48 +320,80 @@ struct AddWordsView: View {
     }
 
     private func pasteJSON() {
-        guard let text = ClipboardService.readText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            alert = VocaAlert(title: "Clipboard Empty", message: "Copy enriched JSON first, then paste it here.")
-            return
-        }
-
-        importJSON(from: text)
+        importJSONFromClipboard(showAlerts: true)
     }
 
-    private func importJSON(from text: String) {
+    @discardableResult
+    private func importJSONFromClipboard(showAlerts: Bool) -> Bool {
+        guard let text = ClipboardService.readText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            if showAlerts {
+                alert = VocaAlert(title: String(localized: "Clipboard Empty"), message: String(localized: "Copy enriched JSON first, then paste it here."))
+            }
+            return false
+        }
+
+        return importJSON(from: text, showAlerts: showAlerts)
+    }
+
+    @discardableResult
+    private func importJSON(from text: String, showAlerts: Bool = true) -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            alert = VocaAlert(title: "JSON Empty", message: "Paste a JSON array before importing.")
-            return
+            if showAlerts {
+                alert = VocaAlert(title: String(localized: "JSON Empty"), message: String(localized: "Paste a JSON array before importing."))
+            }
+            return false
         }
 
         do {
             let decodedWords = try JSONWordParser.decode(text)
             let firstDecodedEnglish = decodedWords.first?.english.normalizedEnglish
+            let decodedEnglishSet = Set(decodedWords.map { $0.english.normalizedEnglish })
+            var existingWordsByEnglish: [String: VocaWordJSON] = [:]
+            for temporaryWord in temporaryWords {
+                existingWordsByEnglish[temporaryWord.english.normalizedEnglish] = temporaryWord
+            }
+            let remainingWords = temporaryWords.filter {
+                !decodedEnglishSet.contains($0.english.normalizedEnglish)
+            }
+            var importedWords: [VocaWordJSON] = []
+
             for decodedWord in decodedWords {
-                if let index = temporaryWords.firstIndex(where: { $0.english.normalizedEnglish == decodedWord.english.normalizedEnglish }) {
-                    temporaryWords[index].meaningKo = decodedWord.meaningKo
-                    temporaryWords[index].exampleEn = decodedWord.exampleEn
-                    temporaryWords[index].exampleKo = decodedWord.exampleKo
-                    temporaryWords[index].note = decodedWord.note
-                    temporaryWords[index].toeicTag = decodedWord.toeicTag
+                let normalizedEnglish = decodedWord.english.normalizedEnglish
+                if var existingWord = existingWordsByEnglish.removeValue(forKey: normalizedEnglish) {
+                    existingWord.meaningKo = decodedWord.meaningKo
+                    existingWord.exampleEn = decodedWord.exampleEn
+                    existingWord.exampleKo = decodedWord.exampleKo
+                    existingWord.note = decodedWord.note
+                    existingWord.toeicTag = decodedWord.toeicTag
+                    importedWords.append(existingWord)
                 } else {
-                    temporaryWords.append(decodedWord)
+                    importedWords.append(decodedWord)
                 }
             }
+            temporaryWords = importedWords + remainingWords
 
             if let firstDecodedEnglish,
                let importedWord = temporaryWords.first(where: { $0.english.normalizedEnglish == firstDecodedEnglish }) {
                 selectedTemporaryWordID = importedWord.id
             }
-            alert = VocaAlert(title: "JSON Imported", message: "\(decodedWords.count) word\(decodedWords.count == 1 ? "" : "s") processed.")
+            if showAlerts {
+                let message = decodedWords.count == 1
+                    ? String(localized: "1 word processed.")
+                    : String(format: String(localized: "%lld words processed."), decodedWords.count)
+                alert = VocaAlert(title: String(localized: "JSON Imported"), message: message)
+            }
+            return true
         } catch {
-            alert = VocaAlert(title: "Invalid JSON", message: "Paste a JSON array using english, meaningKo, exampleEn, exampleKo, note, and toeicTag fields.")
+            if showAlerts {
+                alert = VocaAlert(title: String(localized: "Invalid JSON"), message: String(localized: "Paste a JSON array using english, meaningKo, exampleEn, exampleKo, note, and toeicTag fields."))
+            }
+            return false
         }
     }
 
     private func showCopiedMessage() {
         withAnimation(.easeInOut(duration: 0.18)) {
-            copiedMessage = "JSON copied"
+            copiedMessage = String(localized: "JSON copied")
         }
 
         Task { @MainActor in
@@ -333,20 +411,61 @@ struct AddWordsView: View {
     }
 
     private func saveToDay() {
-        guard let selectedDay = selectedDay else {
-            alert = VocaAlert(title: "No Selected Day", message: "Create or select a Day before saving words.")
+        guard selectedDay != nil else {
+            alert = VocaAlert(title: String(localized: "No Selected Day"), message: String(localized: "Create or select a Day before saving words."))
             return
         }
 
         guard !temporaryWords.isEmpty else {
-            alert = VocaAlert(title: "No Words", message: "No words yet. Start by typing an English word.")
+            alert = VocaAlert(title: String(localized: "No Words"), message: String(localized: "No words yet. Start by typing an English word."))
             return
         }
 
-        var existingEnglish = Set(selectedDay.wordList.map { $0.english.normalizedEnglish })
+        let duplicateLocations = existingWordLocations(for: temporaryWords)
+        guard duplicateLocations.isEmpty else {
+            duplicateSaveConfirmation = DuplicateSaveConfirmation(locations: duplicateLocations)
+            return
+        }
+
+        saveTemporaryWords(skippingNormalizedEnglish: [], allowDuplicateEnglish: false)
+    }
+
+    private func saveAllowingDuplicateEnglish() {
+        duplicateSaveConfirmation = nil
+        saveTemporaryWords(
+            skippingNormalizedEnglish: [],
+            allowDuplicateEnglish: true
+        )
+    }
+
+    private func saveSkippingDuplicateEnglish() {
+        let skippingEnglish = duplicateSaveConfirmation?.normalizedEnglishSet ?? []
+        duplicateSaveConfirmation = nil
+        saveTemporaryWords(
+            skippingNormalizedEnglish: skippingEnglish,
+            allowDuplicateEnglish: false
+        )
+    }
+
+    private func saveTemporaryWords(
+        skippingNormalizedEnglish: Set<String>,
+        allowDuplicateEnglish: Bool
+    ) {
+        guard let selectedDay = selectedDay else {
+            alert = VocaAlert(title: String(localized: "No Selected Day"), message: String(localized: "Create or select a Day before saving words."))
+            return
+        }
+
+        var existingEnglish = allowDuplicateEnglish
+            ? Set<String>()
+            : Set(selectedDay.wordList.map { $0.english.normalizedEnglish })
         var insertedCount = 0
 
-        for temporaryWord in temporaryWords where !existingEnglish.contains(temporaryWord.english.normalizedEnglish) {
+        for temporaryWord in temporaryWords {
+            let normalizedEnglish = temporaryWord.english.normalizedEnglish
+            guard !skippingNormalizedEnglish.contains(normalizedEnglish) else { continue }
+            guard allowDuplicateEnglish || !existingEnglish.contains(normalizedEnglish) else { continue }
+
             let word = VocaWord(
                 english: temporaryWord.english,
                 meaningKo: temporaryWord.meaningKo,
@@ -359,7 +478,7 @@ struct AddWordsView: View {
             )
             modelContext.insert(word)
             selectedDay.appendWord(word)
-            existingEnglish.insert(temporaryWord.english.normalizedEnglish)
+            existingEnglish.insert(normalizedEnglish)
             insertedCount += 1
         }
 
@@ -367,16 +486,59 @@ struct AddWordsView: View {
             try modelContext.save()
             temporaryWords.removeAll()
             selectedTemporaryWordID = nil
-            alert = VocaAlert(title: "Saved", message: "\(insertedCount) new word\(insertedCount == 1 ? "" : "s") saved to \(selectedDay.title).")
+            let message = insertedCount == 1
+                ? String(format: String(localized: "1 word saved to %@."), selectedDay.title)
+                : String(format: String(localized: "%lld words saved to %@."), insertedCount, selectedDay.title)
+            alert = VocaAlert(title: String(localized: "Saved"), message: message)
             isInputFocused = true
         } catch {
-            alert = VocaAlert(title: "Save Failed", message: error.localizedDescription)
+            alert = VocaAlert(title: String(localized: "Save Failed"), message: error.localizedDescription)
+        }
+    }
+
+    private func existingWordLocations(for words: [VocaWordJSON]) -> [DuplicateWordLocation] {
+        let targetEnglish = Set(words.map { $0.english.normalizedEnglish }.filter { !$0.isEmpty })
+        guard !targetEnglish.isEmpty else { return [] }
+
+        var titlesByEnglish: [String: Set<String>] = [:]
+        for day in days {
+            for word in day.wordList {
+                let normalizedEnglish = word.english.normalizedEnglish
+                guard targetEnglish.contains(normalizedEnglish) else { continue }
+                titlesByEnglish[normalizedEnglish, default: []].insert(day.title)
+            }
+        }
+
+        var seenEnglish: Set<String> = []
+        return words.compactMap { word in
+            let normalizedEnglish = word.english.normalizedEnglish
+            guard !seenEnglish.contains(normalizedEnglish),
+                  let dayTitles = titlesByEnglish[normalizedEnglish] else {
+                return nil
+            }
+
+            seenEnglish.insert(normalizedEnglish)
+            return DuplicateWordLocation(
+                english: word.english,
+                dayTitles: dayTitles.sorted()
+            )
         }
     }
 
     private var selectedDay: VocabularyDay? {
         guard let selectedDayID else { return days.first }
         return days.first { $0.id == selectedDayID } ?? days.first
+    }
+
+    private var isDuplicateSaveConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { duplicateSaveConfirmation != nil },
+            set: { isPresented in
+                if !isPresented {
+                    duplicateSaveConfirmation = nil
+                }
+            }
+        )
     }
 
     private func ensureSelectedDay() {
@@ -402,6 +564,10 @@ struct VocaAlert: Identifiable {
 extension String {
     var normalizedEnglish: String {
         trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var looksLikeJSONArray: Bool {
+        trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[")
     }
 }
 

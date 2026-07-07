@@ -7,6 +7,29 @@ struct DaysView: View {
 
     @Binding var selectedDayID: UUID?
     @State private var isEditingDays = false
+    @State private var isShowingDayTitleAlert = false
+    @State private var dayTitle = ""
+    @State private var editingDay: VocabularyDay?
+    @State private var searchText = ""
+
+    private var filteredDays: [VocabularyDay] {
+        let query = normalizedSearchText
+        guard !query.isEmpty else { return days }
+
+        return days.filter { day in
+            day.title.localizedCaseInsensitiveContains(query) ||
+            day.wordList.contains { word in
+                word.english.localizedCaseInsensitiveContains(query) ||
+                word.meaningKo.localizedCaseInsensitiveContains(query) ||
+                word.note.localizedCaseInsensitiveContains(query) ||
+                word.toeicTag.localizedCaseInsensitiveContains(query)
+            }
+        }
+    }
+
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         ScrollView {
@@ -16,9 +39,14 @@ struct DaysView: View {
                         title: "No Day exists yet. Create Day 1.",
                         systemImage: "calendar.badge.plus"
                     )
+                } else if filteredDays.isEmpty {
+                    EmptyStateView(
+                        title: "No matching Days.",
+                        systemImage: "magnifyingglass"
+                    )
                 } else {
                     LazyVStack(spacing: 12) {
-                        ForEach(days) { day in
+                        ForEach(filteredDays) { day in
                             dayRow(for: day)
                         }
                     }
@@ -31,8 +59,18 @@ struct DaysView: View {
         }
         .background(AppTheme.background)
         .navigationTitle("VocaDay")
+        .searchable(text: $searchText, prompt: "Search Days")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
+                #if os(iOS)
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("Settings")
+                #endif
+
                 Button {
                     isEditingDays.toggle()
                 } label: {
@@ -42,12 +80,27 @@ struct DaysView: View {
                 .disabled(days.isEmpty)
 
                 Button {
-                    let day = DayFactory.createNextDay(existingDays: days, in: modelContext)
-                    selectedDayID = day.id
+                    editingDay = nil
+                    dayTitle = DayFactory.nextDayTitle(existingDays: days)
+                    isShowingDayTitleAlert = true
                 } label: {
                     Label("New Day", systemImage: "plus")
                 }
             }
+        }
+        .alert(editingDay == nil ? "New Day" : "Rename Day", isPresented: $isShowingDayTitleAlert) {
+            TextField("Title", text: $dayTitle)
+
+            Button("Cancel", role: .cancel) {
+                resetDayTitleEditor()
+            }
+
+            Button(editingDay == nil ? "Create" : "Save") {
+                saveDayTitle()
+            }
+            .disabled(dayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("Enter a title for this Day.")
         }
     }
 
@@ -59,6 +112,18 @@ struct DaysView: View {
                     day: day,
                     isSelected: selectedDayID == day.id
                 )
+
+                Button {
+                    editingDay = day
+                    dayTitle = day.title
+                    isShowingDayTitleAlert = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.headline)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Rename \(day.title)")
 
                 Button(role: .destructive) {
                     delete(day)
@@ -84,6 +149,27 @@ struct DaysView: View {
                 selectedDayID = day.id
             })
         }
+    }
+
+    private func saveDayTitle() {
+        let title = dayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+
+        if let editingDay {
+            editingDay.title = title
+            selectedDayID = editingDay.id
+        } else {
+            let day = DayFactory.createDay(title: title, in: modelContext)
+            selectedDayID = day.id
+        }
+
+        try? modelContext.save()
+        resetDayTitleEditor()
+    }
+
+    private func resetDayTitleEditor() {
+        editingDay = nil
+        dayTitle = ""
     }
 
     private func delete(_ day: VocabularyDay) {
@@ -112,5 +198,5 @@ struct DaysView: View {
     NavigationStack {
         DaysView(selectedDayID: .constant(nil))
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self], inMemory: true)
 }
