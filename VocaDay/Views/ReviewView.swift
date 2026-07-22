@@ -90,7 +90,9 @@ struct ReviewView: View {
 private struct ReviewDayDetailView: View {
     let day: VocabularyDay
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var speechPlayer = DaySpeechPlayer()
     @State private var selectedWordIDs: Set<UUID> = []
     @State private var hidesKoreanMeaning = true
     @State private var showsWordDetails = false
@@ -118,6 +120,10 @@ private struct ReviewDayDetailView: View {
                         allowsSelection: true,
                         showsTitle: false,
                         showsWordDetails: showsWordDetails,
+                        revealsHiddenKoreanWhilePressing: true,
+                        onEnglishLongPress: { word in
+                            speechPlayer.speakEnglishWord(word.english)
+                        },
                         selectedWordIDs: $selectedWordIDs
                     )
                 }
@@ -131,38 +137,16 @@ private struct ReviewDayDetailView: View {
         .background(AppTheme.background)
         .navigationTitle(day.title)
         .toolbar {
-            ToolbarItemGroup(placement: toolbarPlacement) {
-                Text("\(reviewWords.count)")
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Toggle(isOn: $showsWordDetails) {
-                    Image(systemName: "text.justify")
-                }
-                .toggleStyle(.button)
-                .accessibilityLabel(showsWordDetails ? "Hide Word Details" : "Show Word Details")
-                .disabled(reviewWords.isEmpty)
-
-                Button {
-                    hidesKoreanMeaning.toggle()
-                } label: {
-                    Image(systemName: hidesKoreanMeaning ? "eye.slash" : "eye")
-                }
-                .accessibilityLabel(hidesKoreanMeaning ? "Show Korean" : "Hide Korean")
-
-                Button {
-                    shuffleWords()
-                } label: {
-                    Image(systemName: "shuffle")
-                }
-                .accessibilityLabel("Shuffle")
-            }
+            toolbarContent
         }
         .onAppear {
             syncRandomOrder()
         }
         .onChange(of: day.wordList.map(\.id)) { _, _ in
             syncRandomOrder()
+        }
+        .onDisappear {
+            speechPlayer.stop()
         }
     }
 
@@ -171,21 +155,21 @@ private struct ReviewDayDetailView: View {
             Divider()
 
             HStack {
-                Text("\(selectedWordIDs.count) selected")
+                Text("\(selectedWordIDs.count) selected as Again")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Button {
-                    submitSelectedWords()
+                    finishReview()
                 } label: {
-                    Label("Submit", systemImage: "checkmark.circle")
+                    Label("Finish Review", systemImage: "checkmark.circle")
                         .frame(minWidth: 180)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(selectedWordIDs.isEmpty)
+                .disabled(reviewWords.isEmpty)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
@@ -213,23 +197,109 @@ private struct ReviewDayDetailView: View {
         selectedWordIDs = selectedWordIDs.intersection(currentIDs)
     }
 
-    private func submitSelectedWords() {
-        guard !selectedWordIDs.isEmpty else { return }
+    private func finishReview() {
+        guard !reviewWords.isEmpty else { return }
 
-        for word in reviewWords where selectedWordIDs.contains(word.id) {
-            word.wrongCount += 1
+        let now = Date()
+
+        for word in reviewWords {
+            if selectedWordIDs.contains(word.id) {
+                ReviewScheduler.markAgain(word, now: now)
+            } else {
+                ReviewScheduler.markKnown(word, now: now)
+            }
         }
+
+        day.reviewSessionCount += 1
+        day.reviewedWordCount += reviewWords.count
+        day.lastReviewedAt = now
 
         try? modelContext.save()
         selectedWordIDs = []
+        dismiss()
     }
 
-    private var toolbarPlacement: ToolbarItemPlacement {
+    private func deleteSelectedWords() {
+        let selectedIDs = selectedWordIDs
+        guard !selectedIDs.isEmpty else { return }
+
+        speechPlayer.stop()
+
+        for word in day.wordList where selectedIDs.contains(word.id) {
+            day.removeWord(word)
+            modelContext.delete(word)
+        }
+
+        randomWordIDs.removeAll { selectedIDs.contains($0) }
+        selectedWordIDs.removeAll()
+        try? modelContext.save()
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
         #if os(iOS)
-        .topBarTrailing
+        ToolbarItem(placement: .topBarTrailing) {
+            Text("\(reviewWords.count)")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                detailToggle
+                koreanVisibilityButton
+                shuffleButton
+                deleteButton
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("More Actions")
+            .disabled(reviewWords.isEmpty)
+        }
         #else
-        .primaryAction
+        ToolbarItemGroup(placement: .primaryAction) {
+            Text("\(reviewWords.count)")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+            detailToggle
+            koreanVisibilityButton
+            shuffleButton
+            deleteButton
+        }
         #endif
+    }
+
+    private var detailToggle: some View {
+        Toggle(isOn: $showsWordDetails) {
+            Label(showsWordDetails ? "Hide Word Details" : "Show Word Details", systemImage: "text.justify")
+        }
+        .toggleStyle(.button)
+        .disabled(reviewWords.isEmpty)
+    }
+
+    private var koreanVisibilityButton: some View {
+        Button {
+            hidesKoreanMeaning.toggle()
+        } label: {
+            Label(hidesKoreanMeaning ? "Show Korean" : "Hide Korean", systemImage: hidesKoreanMeaning ? "eye.slash" : "eye")
+        }
+    }
+
+    private var shuffleButton: some View {
+        Button {
+            shuffleWords()
+        } label: {
+            Label("Shuffle", systemImage: "shuffle")
+        }
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            deleteSelectedWords()
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .disabled(selectedWordIDs.isEmpty)
     }
 }
 

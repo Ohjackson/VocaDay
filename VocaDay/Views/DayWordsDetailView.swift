@@ -9,6 +9,7 @@ struct DayWordsDetailView: View {
     @StateObject private var speechPlayer = DaySpeechPlayer()
     @State private var currentDayID: UUID
     @State private var sortsWordsByCount = false
+    @State private var isEditingWords = false
     @State private var showsWordDetails = false
     @State private var selectedWordIDs: Set<UUID> = []
     @State private var editingWord: VocaWord?
@@ -65,10 +66,20 @@ struct DayWordsDetailView: View {
                 WordDataTable(
                     title: "\(currentDay.title) Words",
                     words: visibleWords,
-                    allowsSelection: true,
+                    allowsSelection: false,
                     showsTitle: false,
                     showsWordDetails: showsWordDetails,
                     emptyTitle: normalizedSearchText.isEmpty ? "No saved words in this Day." : "No matching words.",
+                    isEditingRows: isEditingWords,
+                    onEnglishTap: { word in
+                        speechPlayer.speakEnglishWord(word.english)
+                    },
+                    onEditWord: { word in
+                        editingWord = word
+                    },
+                    onDeleteWord: { word in
+                        delete(word)
+                    },
                     selectedWordIDs: $selectedWordIDs
                 )
             }
@@ -80,49 +91,7 @@ struct DayWordsDetailView: View {
         .navigationTitle(currentDay.title)
         .searchable(text: $searchText, prompt: "Search Words")
         .toolbar {
-            ToolbarItemGroup(placement: toolbarPlacement) {
-                Text(countText)
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Toggle(isOn: $showsWordDetails) {
-                    Image(systemName: "text.justify")
-                }
-                .toggleStyle(.button)
-                .accessibilityLabel(showsWordDetails ? "Hide Word Details" : "Show Word Details")
-                .disabled(visibleWords.isEmpty)
-
-                Button {
-                    togglePlayback()
-                } label: {
-                    Image(systemName: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
-                }
-                .disabled(visibleWords.isEmpty)
-                .accessibilityLabel(speechPlayer.isPlaying ? "Stop" : "Play")
-
-                Button {
-                    editingWord = selectedWords.first
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                }
-                .disabled(selectedWords.count != 1)
-                .accessibilityLabel("Edit")
-
-                Button(role: .destructive) {
-                    deleteSelectedWords()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .disabled(selectedWords.isEmpty)
-                .accessibilityLabel("Delete")
-
-                Button {
-                    sortsWordsByCount.toggle()
-                } label: {
-                    Image(systemName: sortsWordsByCount ? "arrow.down.123" : "number")
-                }
-                .accessibilityLabel("Count Order")
-            }
+            toolbarContent
         }
         .sheet(item: $editingWord) { word in
             EditWordSheet(word: word) {
@@ -132,6 +101,7 @@ struct DayWordsDetailView: View {
         }
         .onChange(of: currentDayID) { _, _ in
             selectedWordIDs.removeAll()
+            isEditingWords = false
         }
         .onChange(of: searchText) { _, _ in
             selectedWordIDs = selectedWordIDs.intersection(Set(visibleWords.map(\.id)))
@@ -169,20 +139,96 @@ struct DayWordsDetailView: View {
 
         let wordsToDelete = selectedWords
         for word in wordsToDelete {
-            currentDay.removeWord(word)
-            modelContext.delete(word)
+            delete(word, savesImmediately: false)
         }
 
         selectedWordIDs.removeAll()
         try? modelContext.save()
     }
 
-    private var toolbarPlacement: ToolbarItemPlacement {
+    private func delete(_ word: VocaWord, savesImmediately: Bool = true) {
+        speechPlayer.stop()
+        currentDay.removeWord(word)
+        modelContext.delete(word)
+        selectedWordIDs.remove(word.id)
+
+        if savesImmediately {
+            try? modelContext.save()
+            if visibleWords.count <= 1 {
+                isEditingWords = false
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
         #if os(iOS)
-        .topBarTrailing
+        ToolbarItem(placement: .topBarTrailing) {
+            Text(countText)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                detailToggle
+                playButton
+                editModeButton
+                sortButton
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("More Actions")
+            .disabled(visibleWords.isEmpty)
+        }
         #else
-        .primaryAction
+        ToolbarItemGroup(placement: .primaryAction) {
+            Text(countText)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+            detailToggle
+            playButton
+            editModeButton
+            sortButton
+        }
         #endif
+    }
+
+    private var detailToggle: some View {
+        Toggle(isOn: $showsWordDetails) {
+            Label(showsWordDetails ? "Hide Word Details" : "Show Word Details", systemImage: "text.justify")
+        }
+        .toggleStyle(.button)
+        .disabled(visibleWords.isEmpty)
+    }
+
+    private var playButton: some View {
+        Button {
+            togglePlayback()
+        } label: {
+            Label(speechPlayer.isPlaying ? "Stop" : "Play", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
+        }
+        .disabled(visibleWords.isEmpty)
+    }
+
+    private var editModeButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isEditingWords.toggle()
+                selectedWordIDs.removeAll()
+            }
+        } label: {
+            Label(isEditingWords ? "Done Editing" : "Edit Words", systemImage: isEditingWords ? "checkmark" : "square.and.pencil")
+        }
+        .disabled(visibleWords.isEmpty)
+    }
+
+    private var sortButton: some View {
+        Button {
+            sortsWordsByCount.toggle()
+        } label: {
+            Label("Count Order", systemImage: sortsWordsByCount ? "arrow.down.123" : "number")
+        }
     }
 }
 

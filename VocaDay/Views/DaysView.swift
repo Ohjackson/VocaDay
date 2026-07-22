@@ -198,5 +198,5 @@ struct DaysView: View {
     NavigationStack {
         DaysView(selectedDayID: .constant(nil))
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self, GrammarNote.self], inMemory: true)
 }

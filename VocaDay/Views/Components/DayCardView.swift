@@ -10,6 +10,8 @@ struct DayCardView: View {
                 Text(day.title)
                     .font(.headline)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
                 HStack(spacing: 4) {
                     Text("Created")
@@ -17,14 +19,29 @@ struct DayCardView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+                HStack(spacing: 4) {
+                    Text("Last reviewed")
+                    if let lastReviewedAt = day.lastReviewedAt {
+                        Text(lastReviewedAt, format: .dateTime.month().day().year())
+                    } else {
+                        Text("-")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
 
-            metric(title: "Words", value: day.wordList.count)
+            HStack(spacing: 18) {
+                metric(title: "Words", value: day.wordList.count)
+                metric(title: "Reviews", value: day.reviewSessionCount)
+            }
         }
         .padding(18)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 116, maxHeight: 116)
         .calmCard()
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)

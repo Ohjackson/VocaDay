@@ -7,6 +7,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
     @Published private(set) var isPlaying = false
 
     private let speechRate = AVSpeechUtteranceDefaultSpeechRate * 0.8
+    private let singleWordSpeechRate = AVSpeechUtteranceDefaultSpeechRate * 0.72
     private let synthesizer = AVSpeechSynthesizer()
     private var playbackTask: Task<Void, Never>?
     private var continuation: CheckedContinuation<Void, Never>?
@@ -51,6 +52,19 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         }
     }
 
+    func speakEnglishWord(_ english: String) {
+        stop()
+
+        let trimmed = english.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isPlaying = true
+        playbackTask = Task { @MainActor in
+            await speak(trimmed, language: "en-US", rate: singleWordSpeechRate)
+            stop()
+        }
+    }
+
     func stop() {
         playbackTask?.cancel()
         playbackTask = nil
@@ -60,7 +74,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         isPlaying = false
     }
 
-    private func speak(_ text: String, language: String) async {
+    private func speak(_ text: String, language: String, rate: Float? = nil) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -68,7 +82,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
             self.continuation = continuation
             let utterance = AVSpeechUtterance(string: trimmed)
             utterance.voice = preferredVoice(for: language)
-            utterance.rate = speechRate
+            utterance.rate = rate ?? speechRate
             utterance.pitchMultiplier = 1
             utterance.preUtteranceDelay = 0.08
             utterance.postUtteranceDelay = 0.14
