@@ -2,7 +2,9 @@ import SwiftUI
 
 enum OnboardingSpotlightTarget: Hashable {
     case days
+    case addMode
     case addInput
+    case jsonInput
     case addActions
     case review
     case study

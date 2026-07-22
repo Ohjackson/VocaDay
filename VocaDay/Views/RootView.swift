@@ -46,7 +46,9 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
 
 private enum OnboardingStep: Int, CaseIterable {
     case days
+    case addMode
     case addInput
+    case jsonInput
     case addActions
     case review
     case study
@@ -54,7 +56,9 @@ private enum OnboardingStep: Int, CaseIterable {
     var target: OnboardingSpotlightTarget {
         switch self {
         case .days: .days
+        case .addMode: .addMode
         case .addInput: .addInput
+        case .jsonInput: .jsonInput
         case .addActions: .addActions
         case .review: .review
         case .study: .study
@@ -64,7 +68,9 @@ private enum OnboardingStep: Int, CaseIterable {
     var title: LocalizedStringKey {
         switch self {
         case .days: "Build your vocabulary by Day"
+        case .addMode: "Choose how you want to add words"
         case .addInput: "Add a word in seconds"
+        case .jsonInput: "Import multiple words with JSON"
         case .addActions: "Use clear actions to manage your list"
         case .review: "Review words when you are ready"
         case .study: "Keep grammar and listening notes together"
@@ -74,7 +80,9 @@ private enum OnboardingStep: Int, CaseIterable {
     var message: LocalizedStringKey {
         switch self {
         case .days: "Create a Day for each study session, then open it to see every saved word."
+        case .addMode: "Use Manual Input for one word at a time, or switch to JSON to bring in a prepared word list."
         case .addInput: "Type an English word and VocaDay adds it to your temporary list with a Korean translation."
+        case .jsonInput: "Paste a JSON array, import it into the temporary list, then review and save it to your Day."
         case .addActions: "Paste or copy JSON, remove a selected word, and save the completed list to your Day."
         case .review: "Hide meanings, mark difficult words as Again, and finish a review to update your progress."
         case .study: "Use Study for LC dictation and Markdown grammar notes alongside your vocabulary."
@@ -84,7 +92,7 @@ private enum OnboardingStep: Int, CaseIterable {
     var section: AppSection {
         switch self {
         case .days: .days
-        case .addInput, .addActions: .add
+        case .addMode, .addInput, .jsonInput, .addActions: .add
         case .review: .review
         case .study: .lcDictation
         }
@@ -100,6 +108,7 @@ struct RootView: View {
     @State private var isShowingQuickAdd = false
     @State private var quickAddText = ""
     @State private var quickAddWord: String?
+    @State private var addEntryMode: AddEntryMode = .manual
     @AppStorage("hasCompletedSpotlightOnboarding") private var hasCompletedSpotlightOnboarding = false
     @State private var onboardingStep: OnboardingStep?
 
@@ -127,7 +136,7 @@ struct RootView: View {
                 .tag(AppSection.days)
 
                 NavigationStack {
-                    AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord)
+                    AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
                 }
                 .tabItem { Label(AppSection.add.title, systemImage: AppSection.add.systemImage) }
                 .tag(AppSection.add)
@@ -200,7 +209,7 @@ struct RootView: View {
         case .days:
             DaysView(selectedDayID: $selectedDayID)
         case .add:
-            AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord)
+            AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
         case .review:
             ReviewView()
         case .lcDictation:
@@ -266,6 +275,7 @@ struct RootView: View {
         let targetDay = mostRecentDay() ?? DayFactory.createNextDay(existingDays: days, in: modelContext)
         selectedDayID = targetDay.id
         selectedSection = .add
+        addEntryMode = .manual
         quickAddWord = english
         closeQuickAdd()
     }
@@ -289,7 +299,7 @@ struct RootView: View {
     private func showPreviousOnboardingStep() {
         guard let onboardingStep,
               let previous = OnboardingStep(rawValue: onboardingStep.rawValue - 1) else { return }
-        selectedSection = previous.section
+        presentOnboardingStep(previous)
         withAnimation(.easeInOut(duration: 0.2)) {
             self.onboardingStep = previous
         }
@@ -301,9 +311,21 @@ struct RootView: View {
             finishOnboarding()
             return
         }
-        selectedSection = next.section
+        presentOnboardingStep(next)
         withAnimation(.easeInOut(duration: 0.2)) {
             self.onboardingStep = next
+        }
+    }
+
+    private func presentOnboardingStep(_ step: OnboardingStep) {
+        selectedSection = step.section
+        switch step {
+        case .jsonInput:
+            addEntryMode = .json
+        case .addMode, .addInput:
+            addEntryMode = .manual
+        default:
+            break
         }
     }
 

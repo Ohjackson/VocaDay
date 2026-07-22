@@ -13,13 +13,29 @@ private struct DuplicateWordLocation: Identifiable, Hashable {
     let dayTitles: [String]
 }
 
+enum AddEntryMode: String, CaseIterable, Identifiable {
+    case manual
+    case json
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .manual: "Manual Input"
+        case .json: "JSON"
+        }
+    }
+}
+
 struct AddWordsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
 
     @Binding var selectedDayID: UUID?
     @Binding var quickAddWord: String?
+    @Binding var entryMode: AddEntryMode
     @State private var inputWord = ""
+    @State private var jsonInput = ""
     @State private var temporaryWords: [VocaWordJSON] = []
     @State private var selectedTemporaryWordID: UUID?
     @State private var copiedMessage: String?
@@ -34,17 +50,14 @@ struct AddWordsView: View {
                 VStack(spacing: 22) {
                     selectedDayPicker
 
+                    entryModePicker
+
                     TemporaryWordTable(
                         words: temporaryWords,
                         selectedWordID: $selectedTemporaryWordID
                     )
 
-                    WordInputCard(
-                        inputWord: $inputWord,
-                        isInputFocused: $isInputFocused,
-                        onSubmit: addInputWord
-                    )
-                    .padding(.top, 18)
+                    entryInputCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 24)
@@ -118,6 +131,74 @@ struct AddWordsView: View {
 
             Spacer()
         }
+    }
+
+    private var entryModePicker: some View {
+        Picker("Input Method", selection: $entryMode) {
+            ForEach(AddEntryMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onboardingSpotlight(.addMode)
+    }
+
+    @ViewBuilder
+    private var entryInputCard: some View {
+        switch entryMode {
+        case .manual:
+            WordInputCard(
+                inputWord: $inputWord,
+                isInputFocused: $isInputFocused,
+                onSubmit: addInputWord
+            )
+            .padding(.top, 18)
+        case .json:
+            jsonInputCard
+                .padding(.top, 18)
+        }
+    }
+
+    private var jsonInputCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("JSON Input", systemImage: "curlybraces.square")
+                    .font(.headline)
+
+                Spacer()
+
+                Button("Paste JSON") {
+                    pasteJSONIntoEditor()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Text("Paste a JSON array with english, meaningKo, examples, notes, and tags.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $jsonInput)
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 180)
+                .padding(8)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+#if os(iOS)
+                .textInputAutocapitalization(.never)
+#endif
+                .autocorrectionDisabled()
+
+            Button {
+                importJSONFromEditor()
+            } label: {
+                Label("Import JSON", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(jsonInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(18)
+        .calmCard()
+        .onboardingSpotlight(.jsonInput)
     }
 
     private var actionBar: some View {
@@ -372,7 +453,26 @@ struct AddWordsView: View {
     }
 
     private func pasteJSON() {
-        importJSONFromClipboard(showAlerts: true)
+        if entryMode == .json {
+            pasteJSONIntoEditor()
+        } else {
+            importJSONFromClipboard(showAlerts: true)
+        }
+    }
+
+    private func pasteJSONIntoEditor() {
+        guard let text = ClipboardService.readText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            alert = VocaAlert(title: String(localized: "Clipboard Empty"), message: String(localized: "Copy enriched JSON first, then paste it here."))
+            return
+        }
+
+        jsonInput = text
+    }
+
+    private func importJSONFromEditor() {
+        if importJSON(from: jsonInput) {
+            jsonInput = ""
+        }
     }
 
     @discardableResult
@@ -619,7 +719,7 @@ extension String {
 
 #Preview {
     NavigationStack {
-        AddWordsView(selectedDayID: .constant(nil), quickAddWord: .constant(nil))
+        AddWordsView(selectedDayID: .constant(nil), quickAddWord: .constant(nil), entryMode: .constant(.manual))
     }
     .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
 }
