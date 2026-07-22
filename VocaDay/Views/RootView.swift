@@ -44,6 +44,53 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     }
 }
 
+private enum OnboardingStep: Int, CaseIterable {
+    case days
+    case addInput
+    case addActions
+    case review
+    case study
+
+    var target: OnboardingSpotlightTarget {
+        switch self {
+        case .days: .days
+        case .addInput: .addInput
+        case .addActions: .addActions
+        case .review: .review
+        case .study: .study
+        }
+    }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .days: "Build your vocabulary by Day"
+        case .addInput: "Add a word in seconds"
+        case .addActions: "Use clear actions to manage your list"
+        case .review: "Review words when you are ready"
+        case .study: "Keep grammar and listening notes together"
+        }
+    }
+
+    var message: LocalizedStringKey {
+        switch self {
+        case .days: "Create a Day for each study session, then open it to see every saved word."
+        case .addInput: "Type an English word and VocaDay adds it to your temporary list with a Korean translation."
+        case .addActions: "Paste or copy JSON, remove a selected word, and save the completed list to your Day."
+        case .review: "Hide meanings, mark difficult words as Again, and finish a review to update your progress."
+        case .study: "Use Study for LC dictation and Markdown grammar notes alongside your vocabulary."
+        }
+    }
+
+    var section: AppSection {
+        switch self {
+        case .days: .days
+        case .addInput, .addActions: .add
+        case .review: .review
+        case .study: .lcDictation
+        }
+    }
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
@@ -53,6 +100,8 @@ struct RootView: View {
     @State private var isShowingQuickAdd = false
     @State private var quickAddText = ""
     @State private var quickAddWord: String?
+    @AppStorage("hasCompletedSpotlightOnboarding") private var hasCompletedSpotlightOnboarding = false
+    @State private var onboardingStep: OnboardingStep?
 
     var body: some View {
         Group {
@@ -102,6 +151,25 @@ struct RootView: View {
                 quickAddOverlay
             }
         }
+        #if os(iOS)
+        .overlayPreferenceValue(OnboardingSpotlightPreferenceKey.self) { anchors in
+            GeometryReader { proxy in
+                if let onboardingStep {
+                    SpotlightOnboardingOverlay(
+                        title: onboardingStep.title,
+                        message: onboardingStep.message,
+                        step: onboardingStep.rawValue + 1,
+                        totalSteps: OnboardingStep.allCases.count,
+                        spotlightRect: anchors[onboardingStep.target].map { proxy[$0] },
+                        canGoBack: onboardingStep != .days,
+                        onBack: showPreviousOnboardingStep,
+                        onNext: showNextOnboardingStep,
+                        onSkip: finishOnboarding
+                    )
+                }
+            }
+        }
+        #endif
         .background {
             Button("Quick Add Word") {
                 openQuickAdd()
@@ -113,6 +181,7 @@ struct RootView: View {
         }
         .task {
             ensureInitialDay()
+            await presentOnboardingIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
@@ -203,6 +272,46 @@ struct RootView: View {
 
     private func mostRecentDay() -> VocabularyDay? {
         days.sorted { $0.createdAt < $1.createdAt }.last
+    }
+
+    @MainActor
+    private func presentOnboardingIfNeeded() async {
+        #if os(iOS)
+        guard !hasCompletedSpotlightOnboarding else { return }
+        try? await Task.sleep(for: .milliseconds(450))
+        guard !Task.isCancelled, !hasCompletedSpotlightOnboarding else { return }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            onboardingStep = .days
+        }
+        #endif
+    }
+
+    private func showPreviousOnboardingStep() {
+        guard let onboardingStep,
+              let previous = OnboardingStep(rawValue: onboardingStep.rawValue - 1) else { return }
+        selectedSection = previous.section
+        withAnimation(.easeInOut(duration: 0.2)) {
+            self.onboardingStep = previous
+        }
+    }
+
+    private func showNextOnboardingStep() {
+        guard let onboardingStep else { return }
+        guard let next = OnboardingStep(rawValue: onboardingStep.rawValue + 1) else {
+            finishOnboarding()
+            return
+        }
+        selectedSection = next.section
+        withAnimation(.easeInOut(duration: 0.2)) {
+            self.onboardingStep = next
+        }
+    }
+
+    private func finishOnboarding() {
+        hasCompletedSpotlightOnboarding = true
+        withAnimation(.easeInOut(duration: 0.2)) {
+            onboardingStep = nil
+        }
     }
 }
 

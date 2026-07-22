@@ -64,6 +64,7 @@ struct StudyView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
+        .onboardingSpotlight(.study)
         .navigationTitle("Study")
     }
 

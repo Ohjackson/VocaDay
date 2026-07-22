@@ -124,6 +124,22 @@ struct AddWordsView: View {
         VStack(spacing: 10) {
             Divider()
 
+            #if os(iOS)
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                spacing: 10
+            ) {
+                actionButton(title: "Paste JSON", systemImage: "doc.on.clipboard", action: pasteJSON)
+                actionButton(title: "Copy JSON", systemImage: "doc.on.doc", isDisabled: temporaryWords.isEmpty, action: copyJSON)
+                actionButton(title: "Delete", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
+                    deleteSelectedTemporaryWord()
+                    isInputFocused = true
+                }
+                actionButton(title: "Save", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+            #else
             HStack(spacing: 20) {
                 Button {
                     pasteJSON()
@@ -178,8 +194,42 @@ struct AddWordsView: View {
             .font(.title3.weight(.semibold))
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
+            #endif
         }
         .background(.regularMaterial)
+        .onboardingSpotlight(.addActions)
+    }
+
+    @ViewBuilder
+    private func actionButton(
+        title: LocalizedStringKey,
+        systemImage: String,
+        role: ButtonRole? = nil,
+        isProminent: Bool = false,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        if isProminent {
+            Button(role: role, action: action) {
+                actionButtonLabel(title: title, systemImage: systemImage)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isDisabled)
+            .accessibilityLabel(Text(title))
+        } else {
+            Button(role: role, action: action) {
+                actionButtonLabel(title: title, systemImage: systemImage)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isDisabled)
+            .accessibilityLabel(Text(title))
+        }
+    }
+
+    private func actionButtonLabel(title: LocalizedStringKey, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 46)
     }
 
     private func addInputWord() {

@@ -58,6 +58,7 @@ struct DaysView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
+        .onboardingSpotlight(.days)
         .navigationTitle("VocaDay")
         .searchable(text: $searchText, prompt: "Search Days")
         .toolbar {

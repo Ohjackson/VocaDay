@@ -29,6 +29,7 @@ struct ReviewView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
+        .onboardingSpotlight(.review)
         .navigationTitle("Review")
         .toolbar {
             ToolbarItem(placement: toolbarPlacement) {
