@@ -5,6 +5,7 @@ enum AppDataArchiveType: String, Codable {
     case allAppData
     case vocabularyDay
     case lcDictationDay
+    case grammarNote
 }
 
 struct AppDataArchive: Codable {
@@ -12,17 +13,29 @@ struct AppDataArchive: Codable {
     var type: AppDataArchiveType
     var vocabularyDays: [VocabularyDayArchive]
     var lcDictationDays: [LCDictationDayArchive]
+    var grammarNotes: [GrammarNoteArchive]
 
     init(
         schemaVersion: Int = 1,
         type: AppDataArchiveType,
         vocabularyDays: [VocabularyDayArchive] = [],
-        lcDictationDays: [LCDictationDayArchive] = []
+        lcDictationDays: [LCDictationDayArchive] = [],
+        grammarNotes: [GrammarNoteArchive] = []
     ) {
         self.schemaVersion = schemaVersion
         self.type = type
         self.vocabularyDays = vocabularyDays
         self.lcDictationDays = lcDictationDays
+        self.grammarNotes = grammarNotes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        type = try container.decodeIfPresent(AppDataArchiveType.self, forKey: .type) ?? .allAppData
+        vocabularyDays = try container.decodeIfPresent([VocabularyDayArchive].self, forKey: .vocabularyDays) ?? []
+        lcDictationDays = try container.decodeIfPresent([LCDictationDayArchive].self, forKey: .lcDictationDays) ?? []
+        grammarNotes = try container.decodeIfPresent([GrammarNoteArchive].self, forKey: .grammarNotes) ?? []
     }
 }
 
@@ -30,12 +43,26 @@ struct VocabularyDayArchive: Codable, Identifiable {
     var id: UUID
     var title: String
     var createdAt: Date
+    var reviewSessionCount: Int
+    var reviewedWordCount: Int
+    var lastReviewedAt: Date?
     var words: [VocaWordArchive]
 
-    init(id: UUID = UUID(), title: String, createdAt: Date = Date(), words: [VocaWordArchive] = []) {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        createdAt: Date = Date(),
+        reviewSessionCount: Int = 0,
+        reviewedWordCount: Int = 0,
+        lastReviewedAt: Date? = nil,
+        words: [VocaWordArchive] = []
+    ) {
         self.id = id
         self.title = title
         self.createdAt = createdAt
+        self.reviewSessionCount = reviewSessionCount
+        self.reviewedWordCount = reviewedWordCount
+        self.lastReviewedAt = lastReviewedAt
         self.words = words
     }
 
@@ -44,6 +71,9 @@ struct VocabularyDayArchive: Codable, Identifiable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Imported Day"
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        reviewSessionCount = try container.decodeIfPresent(Int.self, forKey: .reviewSessionCount) ?? 0
+        reviewedWordCount = try container.decodeIfPresent(Int.self, forKey: .reviewedWordCount) ?? 0
+        lastReviewedAt = try container.decodeIfPresent(Date.self, forKey: .lastReviewedAt)
         words = try container.decodeIfPresent([VocaWordArchive].self, forKey: .words) ?? []
     }
 }
@@ -160,6 +190,45 @@ struct LCDictationNoteArchive: Codable, Identifiable {
     }
 }
 
+struct GrammarNoteArchive: Codable, Identifiable {
+    var id: UUID
+    var title: String
+    var markdown: String
+    var createdAt: Date
+    var updatedAt: Date
+    var isFavorite: Bool
+    var isCompleted: Bool
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        markdown: String = "",
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        isFavorite: Bool = false,
+        isCompleted: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.markdown = markdown
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isFavorite = isFavorite
+        self.isCompleted = isCompleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Imported Grammar Note"
+        markdown = try container.decodeIfPresent(String.self, forKey: .markdown) ?? ""
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+        isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
+    }
+}
+
 struct AppDataImportPreview {
     let vocabularyDaysToCreate: Int
     let vocabularyDaysToUpdate: Int
@@ -169,6 +238,8 @@ struct AppDataImportPreview {
     let lcDaysToUpdate: Int
     let notesToCreate: Int
     let notesToUpdate: Int
+    let grammarNotesToCreate: Int
+    let grammarNotesToUpdate: Int
 
     var isEmpty: Bool {
         vocabularyDaysToCreate == 0 &&
@@ -178,7 +249,9 @@ struct AppDataImportPreview {
         lcDaysToCreate == 0 &&
         lcDaysToUpdate == 0 &&
         notesToCreate == 0 &&
-        notesToUpdate == 0
+        notesToUpdate == 0 &&
+        grammarNotesToCreate == 0 &&
+        grammarNotesToUpdate == 0
     }
 
     var summary: String {
@@ -189,19 +262,25 @@ struct AppDataImportPreview {
         return [
             String(format: String(localized: "Vocabulary Days: %lld new, %lld update"), vocabularyDaysToCreate, vocabularyDaysToUpdate),
             String(format: String(localized: "Words: %lld new, %lld update"), wordsToCreate, wordsToUpdate),
-            String(format: String(localized: "LC Dictation Days: %lld new, %lld update"), lcDaysToCreate, lcDaysToUpdate),
-            String(format: String(localized: "LC Notes: %lld new, %lld update"), notesToCreate, notesToUpdate)
+            String(format: String(localized: "LC Notes: %lld new, %lld update"), lcDaysToCreate, lcDaysToUpdate),
+            String(format: String(localized: "Dictation Lines: %lld new, %lld update"), notesToCreate, notesToUpdate),
+            String(format: String(localized: "Grammar Notes: %lld new, %lld update"), grammarNotesToCreate, grammarNotesToUpdate)
         ].joined(separator: "\n")
     }
 }
 
 @MainActor
 enum AppDataBackupService {
-    static func archiveAll(vocabularyDays: [VocabularyDay], lcDays: [LCDictationDay]) -> AppDataArchive {
+    static func archiveAll(
+        vocabularyDays: [VocabularyDay],
+        lcDays: [LCDictationDay],
+        grammarNotes: [GrammarNote]
+    ) -> AppDataArchive {
         AppDataArchive(
             type: .allAppData,
             vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.archiveVocabularyDay),
-            lcDictationDays: lcDays.sortedByCreatedAt().map(Self.archiveLCDictationDay)
+            lcDictationDays: lcDays.sortedByCreatedAt().map(Self.archiveLCDictationDay),
+            grammarNotes: grammarNotes.sortedByUpdatedAt().map(Self.archiveGrammarNoteRecord)
         )
     }
 
@@ -211,6 +290,10 @@ enum AppDataBackupService {
 
     static func archiveLCDictationDay(_ day: LCDictationDay) -> AppDataArchive {
         AppDataArchive(type: .lcDictationDay, lcDictationDays: [archiveLCDictationDay(day)])
+    }
+
+    static func archiveGrammarNote(_ note: GrammarNote) -> AppDataArchive {
+        AppDataArchive(type: .grammarNote, grammarNotes: [archiveGrammarNoteRecord(note)])
     }
 
     static func encode(_ archive: AppDataArchive) throws -> String {
@@ -231,12 +314,14 @@ enum AppDataBackupService {
     static func preview(
         _ archive: AppDataArchive,
         vocabularyDays: [VocabularyDay],
-        lcDays: [LCDictationDay]
+        lcDays: [LCDictationDay],
+        grammarNotes: [GrammarNote]
     ) -> AppDataImportPreview {
         let existingVocabularyDayIDs = Set(vocabularyDays.map(\.id))
         let existingWordIDs = Set(vocabularyDays.flatMap { $0.wordList.map(\.id) })
         let existingLCDayIDs = Set(lcDays.map(\.id))
         let existingNoteIDs = Set(lcDays.flatMap { $0.noteList.map(\.id) })
+        let existingGrammarNoteIDs = Set(grammarNotes.map(\.id))
 
         let incomingWordIDs = archive.vocabularyDays.flatMap { $0.words.map(\.id) }
         let incomingNoteIDs = archive.lcDictationDays.flatMap { $0.notes.map(\.id) }
@@ -249,7 +334,9 @@ enum AppDataBackupService {
             lcDaysToCreate: archive.lcDictationDays.filter { !existingLCDayIDs.contains($0.id) }.count,
             lcDaysToUpdate: archive.lcDictationDays.filter { existingLCDayIDs.contains($0.id) }.count,
             notesToCreate: incomingNoteIDs.filter { !existingNoteIDs.contains($0) }.count,
-            notesToUpdate: incomingNoteIDs.filter { existingNoteIDs.contains($0) }.count
+            notesToUpdate: incomingNoteIDs.filter { existingNoteIDs.contains($0) }.count,
+            grammarNotesToCreate: archive.grammarNotes.filter { !existingGrammarNoteIDs.contains($0.id) }.count,
+            grammarNotesToUpdate: archive.grammarNotes.filter { existingGrammarNoteIDs.contains($0.id) }.count
         )
     }
 
@@ -257,7 +344,8 @@ enum AppDataBackupService {
         _ archive: AppDataArchive,
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
-        lcDays: [LCDictationDay]
+        lcDays: [LCDictationDay],
+        grammarNotes: [GrammarNote]
     ) throws {
         var vocabularyDaysByID = Dictionary(uniqueKeysWithValues: vocabularyDays.map { ($0.id, $0) })
         var wordsByID = Dictionary(uniqueKeysWithValues: vocabularyDays.flatMap { day in
@@ -267,6 +355,7 @@ enum AppDataBackupService {
         var notesByID = Dictionary(uniqueKeysWithValues: lcDays.flatMap { day in
             day.noteList.map { ($0.id, $0) }
         })
+        var grammarNotesByID = Dictionary(uniqueKeysWithValues: grammarNotes.map { ($0.id, $0) })
 
         for dayArchive in archive.vocabularyDays {
             let day = vocabularyDaysByID[dayArchive.id] ?? {
@@ -278,6 +367,9 @@ enum AppDataBackupService {
 
             day.title = dayArchive.title
             day.createdAt = dayArchive.createdAt
+            day.reviewSessionCount = dayArchive.reviewSessionCount
+            day.reviewedWordCount = dayArchive.reviewedWordCount
+            day.lastReviewedAt = dayArchive.lastReviewedAt
 
             for wordArchive in dayArchive.words {
                 let word = wordsByID[wordArchive.id] ?? {
@@ -329,19 +421,34 @@ enum AppDataBackupService {
             }
         }
 
+        for noteArchive in archive.grammarNotes {
+            let note = grammarNotesByID[noteArchive.id] ?? {
+                let newNote = GrammarNote(id: noteArchive.id, title: noteArchive.title)
+                context.insert(newNote)
+                grammarNotesByID[noteArchive.id] = newNote
+                return newNote
+            }()
+
+            apply(noteArchive, to: note)
+        }
+
         try context.save()
     }
 
     static func deleteAll(
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
-        lcDays: [LCDictationDay]
+        lcDays: [LCDictationDay],
+        grammarNotes: [GrammarNote]
     ) throws {
         for day in vocabularyDays {
             context.delete(day)
         }
         for day in lcDays {
             context.delete(day)
+        }
+        for note in grammarNotes {
+            context.delete(note)
         }
         try context.save()
     }
@@ -351,6 +458,9 @@ enum AppDataBackupService {
             id: day.id,
             title: day.title,
             createdAt: day.createdAt,
+            reviewSessionCount: day.reviewSessionCount,
+            reviewedWordCount: day.reviewedWordCount,
+            lastReviewedAt: day.lastReviewedAt,
             words: day.wordList.sortedByCreatedAt().map { word in
                 VocaWordArchive(
                     id: word.id,
@@ -388,6 +498,18 @@ enum AppDataBackupService {
         )
     }
 
+    private static func archiveGrammarNoteRecord(_ note: GrammarNote) -> GrammarNoteArchive {
+        GrammarNoteArchive(
+            id: note.id,
+            title: note.title,
+            markdown: note.markdown,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+            isFavorite: note.isFavorite,
+            isCompleted: note.isCompleted
+        )
+    }
+
     private static func apply(_ archive: VocaWordArchive, to word: VocaWord) {
         word.english = archive.english
         word.meaningKo = archive.meaningKo
@@ -403,6 +525,16 @@ enum AppDataBackupService {
         word.status = WordStatus(rawValue: archive.status)?.rawValue ?? WordStatus.new.rawValue
         word.nextReviewAt = archive.nextReviewAt
         word.lastReviewedAt = archive.lastReviewedAt
+    }
+
+    private static func apply(_ archive: GrammarNoteArchive, to note: GrammarNote) {
+        note.id = archive.id
+        note.title = archive.title
+        note.markdown = archive.markdown
+        note.createdAt = archive.createdAt
+        note.updatedAt = archive.updatedAt
+        note.isFavorite = archive.isFavorite
+        note.isCompleted = archive.isCompleted
     }
 }
 
@@ -427,5 +559,11 @@ private extension Array where Element == LCDictationDay {
 private extension Array where Element == LCDictationNote {
     func sortedByCreatedAt() -> [LCDictationNote] {
         sorted { $0.createdAt < $1.createdAt }
+    }
+}
+
+private extension Array where Element == GrammarNote {
+    func sortedByUpdatedAt() -> [GrammarNote] {
+        sorted { $0.updatedAt > $1.updatedAt }
     }
 }

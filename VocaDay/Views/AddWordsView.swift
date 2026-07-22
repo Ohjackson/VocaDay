@@ -13,34 +13,17 @@ private struct DuplicateWordLocation: Identifiable, Hashable {
     let dayTitles: [String]
 }
 
-private struct DuplicateSaveConfirmation: Identifiable {
-    let id = UUID()
-    let locations: [DuplicateWordLocation]
-
-    var normalizedEnglishSet: Set<String> {
-        Set(locations.map { $0.english.normalizedEnglish })
-    }
-
-    var message: String {
-        let locationText = locations
-            .map { "\($0.english): \($0.dayTitles.joined(separator: ", "))" }
-            .joined(separator: "\n")
-
-        return locationText + "\n\n" + String(localized: "This word is already saved. You can still add it, or save without the duplicates.")
-    }
-}
-
 struct AddWordsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
 
     @Binding var selectedDayID: UUID?
+    @Binding var quickAddWord: String?
     @State private var inputWord = ""
     @State private var temporaryWords: [VocaWordJSON] = []
     @State private var selectedTemporaryWordID: UUID?
     @State private var copiedMessage: String?
     @State private var alert: VocaAlert?
-    @State private var duplicateSaveConfirmation: DuplicateSaveConfirmation?
     @State private var pendingTranslations: [PendingTranslation] = []
     @State private var translationConfiguration: TranslationSession.Configuration?
     @FocusState private var isInputFocused: Bool
@@ -93,25 +76,16 @@ struct AddWordsView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
-        .alert("Saved word already exists", isPresented: isDuplicateSaveConfirmationPresented) {
-            Button("Add Anyway") {
-                saveAllowingDuplicateEnglish()
-            }
-
-            Button("Save Without Duplicates") {
-                saveSkippingDuplicateEnglish()
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(duplicateSaveConfirmation?.message ?? "")
-        }
         .onAppear {
             ensureSelectedDay()
+            consumeQuickAddWord()
             isInputFocused = true
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
+        }
+        .onChange(of: quickAddWord) { _, _ in
+            consumeQuickAddWord()
         }
         .translationTask(translationConfiguration) { session in
             await translatePendingWords(with: session)
@@ -223,7 +197,25 @@ struct AddWordsView: View {
             return
         }
 
+        addEnglishWord(english)
+    }
+
+    private func addEnglishWord(_ english: String) {
         guard !temporaryWords.contains(where: { $0.english.normalizedEnglish == english.normalizedEnglish }) else {
+            alert = VocaAlert(
+                title: String(localized: "Duplicate Word"),
+                message: String(format: String(localized: "\"%@\" is already in the temporary list."), english)
+            )
+            inputWord = ""
+            isInputFocused = true
+            return
+        }
+
+        if let duplicateLocation = existingWordLocation(forNormalizedEnglish: english.normalizedEnglish) {
+            alert = VocaAlert(
+                title: String(localized: "Duplicate Word"),
+                message: String(format: String(localized: "\"%@\" already exists in %@."), english, duplicateLocation.dayTitles.joined(separator: ", "))
+            )
             inputWord = ""
             isInputFocused = true
             return
@@ -238,6 +230,16 @@ struct AddWordsView: View {
         isInputFocused = true
 
         enqueueTranslation(for: word.id, english: english)
+    }
+
+    private func consumeQuickAddWord() {
+        guard let word = quickAddWord?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !word.isEmpty else {
+            return
+        }
+
+        quickAddWord = nil
+        addEnglishWord(word)
     }
 
     private func copyJSON() {
@@ -423,28 +425,14 @@ struct AddWordsView: View {
 
         let duplicateLocations = existingWordLocations(for: temporaryWords)
         guard duplicateLocations.isEmpty else {
-            duplicateSaveConfirmation = DuplicateSaveConfirmation(locations: duplicateLocations)
+            alert = VocaAlert(
+                title: String(localized: "Duplicate Word"),
+                message: duplicateMessage(for: duplicateLocations)
+            )
             return
         }
 
         saveTemporaryWords(skippingNormalizedEnglish: [], allowDuplicateEnglish: false)
-    }
-
-    private func saveAllowingDuplicateEnglish() {
-        duplicateSaveConfirmation = nil
-        saveTemporaryWords(
-            skippingNormalizedEnglish: [],
-            allowDuplicateEnglish: true
-        )
-    }
-
-    private func saveSkippingDuplicateEnglish() {
-        let skippingEnglish = duplicateSaveConfirmation?.normalizedEnglishSet ?? []
-        duplicateSaveConfirmation = nil
-        saveTemporaryWords(
-            skippingNormalizedEnglish: skippingEnglish,
-            allowDuplicateEnglish: false
-        )
     }
 
     private func saveTemporaryWords(
@@ -530,17 +518,6 @@ struct AddWordsView: View {
         return days.first { $0.id == selectedDayID } ?? days.first
     }
 
-    private var isDuplicateSaveConfirmationPresented: Binding<Bool> {
-        Binding(
-            get: { duplicateSaveConfirmation != nil },
-            set: { isPresented in
-                if !isPresented {
-                    duplicateSaveConfirmation = nil
-                }
-            }
-        )
-    }
-
     private func ensureSelectedDay() {
         guard !days.isEmpty else {
             selectedDayID = nil
@@ -552,6 +529,25 @@ struct AddWordsView: View {
         }
 
         selectedDayID = days.first?.id
+    }
+
+    private func existingWordLocation(forNormalizedEnglish normalizedEnglish: String) -> DuplicateWordLocation? {
+        guard !normalizedEnglish.isEmpty else { return nil }
+
+        let dayTitles = days.compactMap { day in
+            day.wordList.contains { $0.english.normalizedEnglish == normalizedEnglish } ? day.title : nil
+        }
+
+        guard !dayTitles.isEmpty else { return nil }
+        return DuplicateWordLocation(english: normalizedEnglish, dayTitles: dayTitles)
+    }
+
+    private func duplicateMessage(for locations: [DuplicateWordLocation]) -> String {
+        let locationText = locations
+            .map { "\($0.english): \($0.dayTitles.joined(separator: ", "))" }
+            .joined(separator: "\n")
+
+        return locationText + "\n\n" + String(localized: "Same spelling words cannot be added twice.")
     }
 }
 
@@ -573,7 +569,7 @@ extension String {
 
 #Preview {
     NavigationStack {
-        AddWordsView(selectedDayID: .constant(nil))
+        AddWordsView(selectedDayID: .constant(nil), quickAddWord: .constant(nil))
     }
     .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
 }

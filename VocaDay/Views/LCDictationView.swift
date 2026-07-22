@@ -356,5 +356,5 @@ private struct LCDictationDayCardView: View {
     NavigationStack {
         LCDictationView()
     }
-    .modelContainer(for: [LCDictationDay.self, LCDictationNote.self], inMemory: true)
+    .modelContainer(for: [LCDictationDay.self, LCDictationNote.self, GrammarNote.self], inMemory: true)
 }

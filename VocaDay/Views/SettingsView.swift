@@ -5,6 +5,7 @@ private enum SettingsExportScope: String, CaseIterable, Identifiable {
     case all = "All App Data"
     case vocabularyDay = "Vocabulary Day"
     case lcDictationDay = "LC Note"
+    case grammarNote = "Grammar Note"
 
     var id: String { rawValue }
 
@@ -16,6 +17,8 @@ private enum SettingsExportScope: String, CaseIterable, Identifiable {
             return "Vocabulary Day"
         case .lcDictationDay:
             return "LC Note"
+        case .grammarNote:
+            return "Grammar Note"
         }
     }
 }
@@ -24,6 +27,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
+    @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
 
     @State private var showsDeleteConfirmation = false
     @State private var statusMessage: String?
@@ -67,6 +71,7 @@ struct SettingsView: View {
                 summaryItem(title: "Words", value: wordCount, systemImage: "textformat.abc")
                 summaryItem(title: "LC Note Groups", value: lcDays.count, systemImage: "headphones")
                 summaryItem(title: "Dictation Lines", value: noteCount, systemImage: "note.text")
+                summaryItem(title: "Grammar Notes", value: grammarNotes.count, systemImage: "text.book.closed")
             }
         }
     }
@@ -110,7 +115,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Delete all app data")
                         .font(.headline)
-                    Text("Removes Vocabulary Days, Words, LC Notes, and dictation lines.")
+                    Text("Removes Vocabulary Days, Words, LC Notes, dictation lines, and Grammar Notes.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -123,7 +128,7 @@ struct SettingsView: View {
                     Label("Delete All", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
-                .disabled(vocabularyDays.isEmpty && lcDays.isEmpty)
+                .disabled(vocabularyDays.isEmpty && lcDays.isEmpty && grammarNotes.isEmpty)
             }
 
             if let statusMessage {
@@ -163,7 +168,12 @@ struct SettingsView: View {
 
     private func deleteAllData() {
         do {
-            try AppDataBackupService.deleteAll(in: modelContext, vocabularyDays: vocabularyDays, lcDays: lcDays)
+            try AppDataBackupService.deleteAll(
+                in: modelContext,
+                vocabularyDays: vocabularyDays,
+                lcDays: lcDays,
+                grammarNotes: grammarNotes
+            )
             statusMessage = String(localized: "All app data deleted.")
         } catch {
             statusMessage = String(format: String(localized: "Delete failed: %@"), error.localizedDescription)
@@ -175,10 +185,12 @@ private struct AppDataManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
+    @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
 
     @State private var exportScope: SettingsExportScope = .all
     @State private var selectedVocabularyDayID: UUID?
     @State private var selectedLCDayID: UUID?
+    @State private var selectedGrammarNoteID: UUID?
     @State private var jsonText = ""
     @State private var statusMessage: String?
     @State private var previewSummary: String?
@@ -205,6 +217,9 @@ private struct AppDataManagementView: View {
             syncDefaultSelections()
         }
         .onChange(of: lcDays.map(\.id)) { _, _ in
+            syncDefaultSelections()
+        }
+        .onChange(of: grammarNotes.map(\.id)) { _, _ in
             syncDefaultSelections()
         }
         .onChange(of: jsonText) { _, _ in
@@ -247,6 +262,15 @@ private struct AppDataManagementView: View {
                         }
                     }
                     .disabled(lcDays.isEmpty)
+                }
+
+                if exportScope == .grammarNote {
+                    Picker("Grammar Note", selection: grammarNoteSelection) {
+                        ForEach(grammarNotes) { note in
+                            Text(note.title).tag(note.id)
+                        }
+                    }
+                    .disabled(grammarNotes.isEmpty)
                 }
 
                 HStack {
@@ -345,6 +369,14 @@ private struct AppDataManagementView: View {
         }
     }
 
+    private var grammarNoteSelection: Binding<UUID> {
+        Binding {
+            selectedGrammarNoteID ?? grammarNotes.first?.id ?? UUID()
+        } set: { newValue in
+            selectedGrammarNoteID = newValue
+        }
+    }
+
     private var canCopyCurrentScope: Bool {
         switch exportScope {
         case .all:
@@ -353,6 +385,8 @@ private struct AppDataManagementView: View {
             return selectedVocabularyDay != nil
         case .lcDictationDay:
             return selectedLCDay != nil
+        case .grammarNote:
+            return selectedGrammarNote != nil
         }
     }
 
@@ -366,6 +400,11 @@ private struct AppDataManagementView: View {
         return lcDays.first { $0.id == selectedLCDayID }
     }
 
+    private var selectedGrammarNote: GrammarNote? {
+        guard let selectedGrammarNoteID else { return grammarNotes.first }
+        return grammarNotes.first { $0.id == selectedGrammarNoteID }
+    }
+
     private func syncDefaultSelections() {
         if selectedVocabularyDayID == nil || !vocabularyDays.contains(where: { $0.id == selectedVocabularyDayID }) {
             selectedVocabularyDayID = vocabularyDays.first?.id
@@ -374,18 +413,25 @@ private struct AppDataManagementView: View {
         if selectedLCDayID == nil || !lcDays.contains(where: { $0.id == selectedLCDayID }) {
             selectedLCDayID = lcDays.first?.id
         }
+
+        if selectedGrammarNoteID == nil || !grammarNotes.contains(where: { $0.id == selectedGrammarNoteID }) {
+            selectedGrammarNoteID = grammarNotes.first?.id
+        }
     }
 
     private func makeArchiveForCurrentScope() -> AppDataArchive? {
         switch exportScope {
         case .all:
-            return AppDataBackupService.archiveAll(vocabularyDays: vocabularyDays, lcDays: lcDays)
+            return AppDataBackupService.archiveAll(vocabularyDays: vocabularyDays, lcDays: lcDays, grammarNotes: grammarNotes)
         case .vocabularyDay:
             guard let selectedVocabularyDay else { return nil }
             return AppDataBackupService.archiveVocabularyDay(selectedVocabularyDay)
         case .lcDictationDay:
             guard let selectedLCDay else { return nil }
             return AppDataBackupService.archiveLCDictationDay(selectedLCDay)
+        case .grammarNote:
+            guard let selectedGrammarNote else { return nil }
+            return AppDataBackupService.archiveGrammarNote(selectedGrammarNote)
         }
     }
 
@@ -419,7 +465,12 @@ private struct AppDataManagementView: View {
     private func previewJSON() {
         do {
             let archive = try AppDataBackupService.decode(jsonText)
-            let preview = AppDataBackupService.preview(archive, vocabularyDays: vocabularyDays, lcDays: lcDays)
+            let preview = AppDataBackupService.preview(
+                archive,
+                vocabularyDays: vocabularyDays,
+                lcDays: lcDays,
+                grammarNotes: grammarNotes
+            )
             pendingArchive = archive
             previewSummary = preview.summary
             statusMessage = String(localized: "Preview ready.")
@@ -441,7 +492,8 @@ private struct AppDataManagementView: View {
                 pendingArchive,
                 in: modelContext,
                 vocabularyDays: vocabularyDays,
-                lcDays: lcDays
+                lcDays: lcDays,
+                grammarNotes: grammarNotes
             )
             statusMessage = String(localized: "Changes applied.")
             previewSummary = nil
@@ -466,5 +518,5 @@ private func settingsSection<Content: View>(title: LocalizedStringKey, @ViewBuil
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self, GrammarNote.self], inMemory: true)
 }
