@@ -7,7 +7,7 @@ struct WordDataTable: View {
     var allowsSelection = false
     var showsTitle = true
     var showsWordDetails = false
-    var emptyTitle: LocalizedStringKey = "No saved words in this Day."
+    var emptyTitle: String = "이 데이에 저장된 단어가 없습니다."
     var isEditingRows = false
     var revealsHiddenKoreanWhilePressing = false
     var onEnglishTap: (VocaWord) -> Void = { _ in }
@@ -58,7 +58,7 @@ struct WordDataTable: View {
                             }
 
                             proportionalRow(
-                                values: ["#", "English", "Korean Meaning"],
+                                values: ["#", "영단어", "한국어 뜻"],
                                 widths: widths,
                                 isHeader: true
                             )
@@ -167,7 +167,7 @@ struct WordDataTable: View {
                     .frame(width: 38, height: 38)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Edit \(word.english)")
+            .accessibilityLabel("\(word.english) 편집")
 
             Button(role: .destructive) {
                 onDeleteWord(word)
@@ -177,7 +177,7 @@ struct WordDataTable: View {
                     .frame(width: 38, height: 38)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Delete \(word.english)")
+            .accessibilityLabel("\(word.english) 삭제")
         }
         .padding(.top, 3)
         .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
@@ -203,9 +203,9 @@ struct WordDataTable: View {
 
     private func wordDetailLines(for word: VocaWord) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            detailLine(label: "Example", value: word.exampleEn)
-            detailLine(label: "Korean", value: word.exampleKo)
-            detailLine(label: "Note", value: word.note)
+            detailLine(label: "영어 예문", value: word.exampleEn)
+            detailLine(label: "한국어 예문", value: word.exampleKo)
+            detailLine(label: "메모", value: word.note)
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
@@ -219,7 +219,7 @@ struct WordDataTable: View {
         }
     }
 
-    private func detailLine(label: LocalizedStringKey, value: String) -> some View {
+    private func detailLine(label: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
                 .font(.caption.weight(.semibold))
@@ -238,11 +238,7 @@ struct WordDataTable: View {
     private func cell(value: String, count: Int?, index: Int, isHeader: Bool) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
-                if isHeader {
-                    Text(LocalizedStringKey(value))
-                } else {
-                    Text(value)
-                }
+                Text(value)
             }
             .font(isHeader ? .caption.weight(.semibold) : compactFont(for: index, value: value))
             .minimumScaleFactor(0.45)

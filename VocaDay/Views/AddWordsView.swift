@@ -19,10 +19,10 @@ enum AddEntryMode: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: LocalizedStringKey {
+    var title: String {
         switch self {
-        case .manual: "Manual Input"
-        case .json: "JSON"
+        case .manual: "직접 입력"
+        case .json: "JSON 가져오기"
         }
     }
 }
@@ -68,7 +68,7 @@ struct AddWordsView: View {
             actionBar
         }
         .background(AppTheme.background)
-        .navigationTitle("Add Words")
+        .navigationTitle("단어 추가")
         .overlay(alignment: .top) {
             if let copiedMessage {
                 Text(copiedMessage)
@@ -86,7 +86,7 @@ struct AddWordsView: View {
             Alert(
                 title: Text(alert.title),
                 message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
+                dismissButton: .default(Text("확인"))
             )
         }
         .onAppear {
@@ -107,7 +107,7 @@ struct AddWordsView: View {
 
     private var selectedDayPicker: some View {
         HStack(spacing: 14) {
-            Text("Selected Day")
+            Text("선택한 데이")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -116,11 +116,11 @@ struct AddWordsView: View {
                     let day = DayFactory.createNextDay(existingDays: days, in: modelContext)
                     selectedDayID = day.id
                 } label: {
-                    Label("Create Day 1", systemImage: "plus")
+                    Label("첫 데이 만들기", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             } else {
-                Picker("Selected Day", selection: $selectedDayID) {
+                Picker("선택한 데이", selection: $selectedDayID) {
                     ForEach(days) { day in
                         Text(day.title).tag(Optional(day.id))
                     }
@@ -134,7 +134,7 @@ struct AddWordsView: View {
     }
 
     private var entryModePicker: some View {
-        Picker("Input Method", selection: $entryMode) {
+        Picker("입력 방식", selection: $entryMode) {
             ForEach(AddEntryMode.allCases) { mode in
                 Text(mode.title).tag(mode)
             }
@@ -162,18 +162,18 @@ struct AddWordsView: View {
     private var jsonInputCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("JSON Input", systemImage: "curlybraces.square")
+                Label("JSON 입력", systemImage: "curlybraces.square")
                     .font(.headline)
 
                 Spacer()
 
-                Button("Paste JSON") {
+                Button("JSON 붙여넣기") {
                     pasteJSONIntoEditor()
                 }
                 .buttonStyle(.bordered)
             }
 
-            Text("Paste a JSON array with english, meaningKo, examples, notes, and tags.")
+            Text("english, meaningKo, 예문, 메모, 태그를 포함한 JSON 배열을 붙여넣으세요.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -190,7 +190,7 @@ struct AddWordsView: View {
             Button {
                 importJSONFromEditor()
             } label: {
-                Label("Import JSON", systemImage: "square.and.arrow.down")
+                Label("JSON 가져오기", systemImage: "square.and.arrow.down")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -210,13 +210,13 @@ struct AddWordsView: View {
                 columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                 spacing: 10
             ) {
-                actionButton(title: "Paste JSON", systemImage: "doc.on.clipboard", action: pasteJSON)
-                actionButton(title: "Copy JSON", systemImage: "doc.on.doc", isDisabled: temporaryWords.isEmpty, action: copyJSON)
-                actionButton(title: "Delete", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
+                actionButton(title: "JSON 붙여넣기", systemImage: "doc.on.clipboard", action: pasteJSON)
+                actionButton(title: "JSON 복사", systemImage: "doc.on.doc", isDisabled: temporaryWords.isEmpty, action: copyJSON)
+                actionButton(title: "삭제", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
                     deleteSelectedTemporaryWord()
                     isInputFocused = true
                 }
-                actionButton(title: "Save", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
+                actionButton(title: "데이에 저장", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
@@ -230,8 +230,8 @@ struct AddWordsView: View {
                 }
                 .buttonStyle(.bordered)
                 .clipShape(Circle())
-                .accessibilityLabel("Paste JSON")
-                .help("Paste JSON")
+                .accessibilityLabel("JSON 붙여넣기")
+                .help("JSON 붙여넣기")
 
                 Button {
                     copyJSON()
@@ -242,8 +242,8 @@ struct AddWordsView: View {
                 .buttonStyle(.bordered)
                 .clipShape(Circle())
                 .disabled(temporaryWords.isEmpty)
-                .accessibilityLabel("Copy JSON")
-                .help("Copy JSON")
+                .accessibilityLabel("JSON 복사")
+                .help("JSON 복사")
 
                 Spacer(minLength: 0)
 
@@ -257,8 +257,8 @@ struct AddWordsView: View {
                 .buttonStyle(.bordered)
                 .clipShape(Circle())
                 .disabled(selectedTemporaryWordID == nil)
-                .accessibilityLabel("Delete")
-                .help("Delete")
+                .accessibilityLabel("삭제")
+                .help("삭제")
 
                 Button {
                     saveToDay()
@@ -269,8 +269,8 @@ struct AddWordsView: View {
                 .buttonStyle(.borderedProminent)
                 .clipShape(Circle())
                 .disabled(temporaryWords.isEmpty)
-                .accessibilityLabel("Save to Day")
-                .help("Save to Day")
+                .accessibilityLabel("데이에 저장")
+                .help("데이에 저장")
             }
             .font(.title3.weight(.semibold))
             .padding(.horizontal, 20)
@@ -283,7 +283,7 @@ struct AddWordsView: View {
 
     @ViewBuilder
     private func actionButton(
-        title: LocalizedStringKey,
+        title: String,
         systemImage: String,
         role: ButtonRole? = nil,
         isProminent: Bool = false,
@@ -307,7 +307,7 @@ struct AddWordsView: View {
         }
     }
 
-    private func actionButtonLabel(title: LocalizedStringKey, systemImage: String) -> some View {
+    private func actionButtonLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.subheadline.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: 46)
@@ -334,8 +334,8 @@ struct AddWordsView: View {
     private func addEnglishWord(_ english: String) {
         guard !temporaryWords.contains(where: { $0.english.normalizedEnglish == english.normalizedEnglish }) else {
             alert = VocaAlert(
-                title: String(localized: "Duplicate Word"),
-                message: String(format: String(localized: "\"%@\" is already in the temporary list."), english)
+                title: "중복 단어",
+                message: "\"\(english)\"은(는) 이미 임시 목록에 있습니다."
             )
             inputWord = ""
             isInputFocused = true
@@ -344,8 +344,8 @@ struct AddWordsView: View {
 
         if let duplicateLocation = existingWordLocation(forNormalizedEnglish: english.normalizedEnglish) {
             alert = VocaAlert(
-                title: String(localized: "Duplicate Word"),
-                message: String(format: String(localized: "\"%@\" already exists in %@."), english, duplicateLocation.dayTitles.joined(separator: ", "))
+                title: "중복 단어",
+                message: "\"\(english)\"은(는) 이미 \(duplicateLocation.dayTitles.joined(separator: ", "))에 있습니다."
             )
             inputWord = ""
             isInputFocused = true
@@ -354,7 +354,7 @@ struct AddWordsView: View {
 
         // Create immediately for responsiveness with a placeholder translation
         var word = VocaWordJSON(english: english)
-        word.meaningKo = String(localized: "(Translating...)")
+        word.meaningKo = "(번역 중...)"
         temporaryWords.append(word)
         selectedTemporaryWordID = word.id
         inputWord = ""
@@ -375,7 +375,7 @@ struct AddWordsView: View {
 
     private func copyJSON() {
         guard !temporaryWords.isEmpty else {
-            alert = VocaAlert(title: String(localized: "No Words"), message: String(localized: "No words yet. Start by typing an English word."))
+            alert = VocaAlert(title: "단어 없음", message: "아직 단어가 없습니다. 영단어를 입력해 시작하세요.")
             return
         }
 
@@ -405,7 +405,7 @@ struct AddWordsView: View {
             ClipboardService.copyText(json)
             showCopiedMessage()
         } catch {
-            alert = VocaAlert(title: String(localized: "Copy Failed"), message: error.localizedDescription)
+            alert = VocaAlert(title: "복사 실패", message: error.localizedDescription)
         }
     }
 
@@ -438,9 +438,9 @@ struct AddWordsView: View {
             do {
                 let response = try await session.translate(translation.english)
                 let korean = response.targetText.trimmingCharacters(in: .whitespacesAndNewlines)
-                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? String(localized: "(Translation failed)") : korean)
+                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? "(번역 실패)" : korean)
             } catch {
-                updateTemporaryWord(id: translation.id, meaningKo: String(localized: "(Translation failed)"))
+                updateTemporaryWord(id: translation.id, meaningKo: "(번역 실패)")
                 print("[Translate] Apple Translation error: \(error.localizedDescription)")
             }
         }
@@ -462,7 +462,7 @@ struct AddWordsView: View {
 
     private func pasteJSONIntoEditor() {
         guard let text = ClipboardService.readText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            alert = VocaAlert(title: String(localized: "Clipboard Empty"), message: String(localized: "Copy enriched JSON first, then paste it here."))
+            alert = VocaAlert(title: "클립보드 비어 있음", message: "먼저 JSON을 복사한 뒤 여기에 붙여넣으세요.")
             return
         }
 
@@ -479,7 +479,7 @@ struct AddWordsView: View {
     private func importJSONFromClipboard(showAlerts: Bool) -> Bool {
         guard let text = ClipboardService.readText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             if showAlerts {
-                alert = VocaAlert(title: String(localized: "Clipboard Empty"), message: String(localized: "Copy enriched JSON first, then paste it here."))
+                alert = VocaAlert(title: "클립보드 비어 있음", message: "먼저 JSON을 복사한 뒤 여기에 붙여넣으세요.")
             }
             return false
         }
@@ -491,7 +491,7 @@ struct AddWordsView: View {
     private func importJSON(from text: String, showAlerts: Bool = true) -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             if showAlerts {
-                alert = VocaAlert(title: String(localized: "JSON Empty"), message: String(localized: "Paste a JSON array before importing."))
+                alert = VocaAlert(title: "JSON 비어 있음", message: "가져오기 전에 JSON 배열을 붙여넣으세요.")
             }
             return false
         }
@@ -530,14 +530,14 @@ struct AddWordsView: View {
             }
             if showAlerts {
                 let message = decodedWords.count == 1
-                    ? String(localized: "1 word processed.")
-                    : String(format: String(localized: "%lld words processed."), decodedWords.count)
-                alert = VocaAlert(title: String(localized: "JSON Imported"), message: message)
+                    ? "단어 1개를 처리했습니다."
+                    : "단어 \(decodedWords.count)개를 처리했습니다."
+                alert = VocaAlert(title: "JSON 가져오기 완료", message: message)
             }
             return true
         } catch {
             if showAlerts {
-                alert = VocaAlert(title: String(localized: "Invalid JSON"), message: String(localized: "Paste a JSON array using english, meaningKo, exampleEn, exampleKo, note, and toeicTag fields."))
+                alert = VocaAlert(title: "잘못된 JSON", message: "english, meaningKo, exampleEn, exampleKo, note, toeicTag 필드를 사용하는 JSON 배열을 붙여넣으세요.")
             }
             return false
         }
@@ -545,7 +545,7 @@ struct AddWordsView: View {
 
     private func showCopiedMessage() {
         withAnimation(.easeInOut(duration: 0.18)) {
-            copiedMessage = String(localized: "JSON copied")
+            copiedMessage = "JSON을 복사했습니다"
         }
 
         Task { @MainActor in
@@ -564,19 +564,19 @@ struct AddWordsView: View {
 
     private func saveToDay() {
         guard selectedDay != nil else {
-            alert = VocaAlert(title: String(localized: "No Selected Day"), message: String(localized: "Create or select a Day before saving words."))
+            alert = VocaAlert(title: "선택한 데이 없음", message: "단어를 저장하기 전에 데이를 만들거나 선택하세요.")
             return
         }
 
         guard !temporaryWords.isEmpty else {
-            alert = VocaAlert(title: String(localized: "No Words"), message: String(localized: "No words yet. Start by typing an English word."))
+            alert = VocaAlert(title: "단어 없음", message: "아직 단어가 없습니다. 영단어를 입력해 시작하세요.")
             return
         }
 
         let duplicateLocations = existingWordLocations(for: temporaryWords)
         guard duplicateLocations.isEmpty else {
             alert = VocaAlert(
-                title: String(localized: "Duplicate Word"),
+                title: "중복 단어",
                 message: duplicateMessage(for: duplicateLocations)
             )
             return
@@ -590,7 +590,7 @@ struct AddWordsView: View {
         allowDuplicateEnglish: Bool
     ) {
         guard let selectedDay = selectedDay else {
-            alert = VocaAlert(title: String(localized: "No Selected Day"), message: String(localized: "Create or select a Day before saving words."))
+            alert = VocaAlert(title: "선택한 데이 없음", message: "단어를 저장하기 전에 데이를 만들거나 선택하세요.")
             return
         }
 
@@ -625,12 +625,12 @@ struct AddWordsView: View {
             temporaryWords.removeAll()
             selectedTemporaryWordID = nil
             let message = insertedCount == 1
-                ? String(format: String(localized: "1 word saved to %@."), selectedDay.title)
-                : String(format: String(localized: "%lld words saved to %@."), insertedCount, selectedDay.title)
-            alert = VocaAlert(title: String(localized: "Saved"), message: message)
+                ? "단어 1개를 \(selectedDay.title)에 저장했습니다."
+                : "단어 \(insertedCount)개를 \(selectedDay.title)에 저장했습니다."
+            alert = VocaAlert(title: "저장 완료", message: message)
             isInputFocused = true
         } catch {
-            alert = VocaAlert(title: String(localized: "Save Failed"), message: error.localizedDescription)
+            alert = VocaAlert(title: "저장 실패", message: error.localizedDescription)
         }
     }
 
@@ -697,7 +697,7 @@ struct AddWordsView: View {
             .map { "\($0.english): \($0.dayTitles.joined(separator: ", "))" }
             .joined(separator: "\n")
 
-        return locationText + "\n\n" + String(localized: "Same spelling words cannot be added twice.")
+        return locationText + "\n\n" + "같은 철자의 단어는 두 번 추가할 수 없습니다."
     }
 }
 

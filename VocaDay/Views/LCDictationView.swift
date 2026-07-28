@@ -15,7 +15,7 @@ struct LCDictationView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
-                        title: "No LC note exists yet.",
+                        title: "아직 LC 노트가 없습니다.",
                         systemImage: "headphones"
                     )
                     .padding(.top, 48)
@@ -33,7 +33,7 @@ struct LCDictationView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .navigationTitle("Study")
+        .navigationTitle("학습")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
                 Button {
@@ -41,7 +41,7 @@ struct LCDictationView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingDays ? "Done Editing LC Notes" : "Edit LC Notes")
+                .accessibilityLabel(isEditingDays ? "LC 노트 편집 완료" : "LC 노트 편집")
                 .disabled(days.isEmpty)
 
                 Button {
@@ -49,23 +49,23 @@ struct LCDictationView: View {
                     editingDay = nil
                     isShowingNewDayAlert = true
                 } label: {
-                    Label("New LC Note", systemImage: "plus")
+                    Label("새 LC 노트", systemImage: "plus")
                 }
             }
         }
-        .alert(editingDay == nil ? "New LC Note" : "Edit LC Note", isPresented: $isShowingNewDayAlert) {
-            TextField("Title", text: $newDayTitle)
+        .alert(editingDay == nil ? "새 LC 노트" : "LC 노트 편집", isPresented: $isShowingNewDayAlert) {
+            TextField("제목", text: $newDayTitle)
 
-            Button("Cancel", role: .cancel) {
+            Button("취소", role: .cancel) {
                 newDayTitle = ""
             }
 
-            Button(editingDay == nil ? "Create" : "Save") {
+            Button(editingDay == nil ? "만들기" : "저장") {
                 saveDayTitle()
             }
             .disabled(newDayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Enter a title for this LC note.")
+            Text("LC 노트 제목을 입력하세요.")
         }
     }
 
@@ -85,7 +85,7 @@ struct LCDictationView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Rename \(day.title)")
+                .accessibilityLabel("\(day.title) 이름 변경")
 
                 Button(role: .destructive) {
                     delete(day)
@@ -95,7 +95,7 @@ struct LCDictationView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Delete \(day.title)")
+                .accessibilityLabel("\(day.title) 삭제")
             }
         } else {
             NavigationLink {
@@ -181,14 +181,14 @@ private struct LCDictationDetailView: View {
                 } label: {
                     Image(systemName: isEditingNotes ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingNotes ? "Done Editing Notes" : "Edit Notes")
+                .accessibilityLabel(isEditingNotes ? "노트 편집 완료" : "노트 편집")
 
                 Button {
                     addNoteAndFocus()
                 } label: {
                     Image(systemName: "plus")
                 }
-                .accessibilityLabel("Add Note")
+                .accessibilityLabel("노트 추가")
             }
         }
         .task {
@@ -209,7 +209,7 @@ private struct LCDictationDetailView: View {
                 .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 4) {
-                TextField("English dictation", text: Bindable(note).text, axis: .vertical)
+                TextField("영어 받아쓰기 입력", text: Bindable(note).text, axis: .vertical)
                     .font(.body)
                     .textFieldStyle(.plain)
                     .lineLimit(1...8)
@@ -222,7 +222,7 @@ private struct LCDictationDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if note.text.isEmpty {
-                    Text("Press Enter to add the next line")
+                    Text("Enter를 눌러 다음 줄을 추가하세요")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -238,7 +238,7 @@ private struct LCDictationDetailView: View {
                         .frame(width: 34, height: 34)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Delete note \(index + 1)")
+                .accessibilityLabel("\(index + 1)번 노트 삭제")
                 .padding(.top, 7)
             }
         }
@@ -325,7 +325,7 @@ private struct LCDictationDayCardView: View {
                     .lineLimit(2)
 
                 HStack(spacing: 4) {
-                    Text("Created")
+                    Text("생성일")
                     Text(day.createdAt, format: .dateTime.month().day().year())
                 }
                 .font(.subheadline)
@@ -338,7 +338,7 @@ private struct LCDictationDayCardView: View {
                 Text("\(day.noteList.count)")
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
-                Text("Notes")
+                Text("노트")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

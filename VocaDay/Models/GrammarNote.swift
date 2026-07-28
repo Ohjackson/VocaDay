@@ -39,6 +39,6 @@ final class GrammarNote {
                     .replacingOccurrences(of: "*", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            .first { !$0.isEmpty } ?? String(localized: "No content yet.")
+            .first { !$0.isEmpty } ?? "아직 내용이 없습니다."
     }
 }

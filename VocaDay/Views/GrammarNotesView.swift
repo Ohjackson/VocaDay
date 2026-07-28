@@ -25,14 +25,14 @@ struct GrammarNotesView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if notes.isEmpty {
                     EmptyStateView(
-                        title: "No grammar notes yet. Paste Markdown to create one.",
+                        title: "아직 문법 노트가 없습니다. Markdown을 붙여넣어 만들어 보세요.",
                         systemImage: "text.book.closed"
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.top, 48)
                 } else if filteredNotes.isEmpty {
                     EmptyStateView(
-                        title: "No matching grammar notes.",
+                        title: "일치하는 문법 노트가 없습니다.",
                         systemImage: "magnifyingglass"
                     )
                     .frame(maxWidth: .infinity)
@@ -51,8 +51,8 @@ struct GrammarNotesView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .navigationTitle("Grammar Notes")
-        .searchable(text: $searchText, prompt: "Search Grammar Notes")
+        .navigationTitle("문법 노트")
+        .searchable(text: $searchText, prompt: "문법 노트 검색")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
                 Button {
@@ -60,14 +60,14 @@ struct GrammarNotesView: View {
                 } label: {
                     Image(systemName: isEditingList ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingList ? "Done Editing Grammar Notes" : "Edit Grammar Notes")
+                .accessibilityLabel(isEditingList ? "문법 노트 편집 완료" : "문법 노트 편집")
                 .disabled(notes.isEmpty)
 
                 Button {
                     editingNote = nil
                     isShowingEditor = true
                 } label: {
-                    Label("New Grammar Note", systemImage: "plus")
+                    Label("새 문법 노트", systemImage: "plus")
                 }
             }
         }
@@ -91,7 +91,7 @@ struct GrammarNotesView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Edit \(note.title)")
+                .accessibilityLabel("\(note.title) 편집")
 
                 Button(role: .destructive) {
                     delete(note)
@@ -101,7 +101,7 @@ struct GrammarNotesView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Delete \(note.title)")
+                .accessibilityLabel("\(note.title) 삭제")
             }
         } else {
             NavigationLink {

@@ -64,12 +64,12 @@ struct DayWordsDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 WordDataTable(
-                    title: "\(currentDay.title) Words",
+                    title: "\(currentDay.title) 단어",
                     words: visibleWords,
                     allowsSelection: false,
                     showsTitle: false,
                     showsWordDetails: showsWordDetails,
-                    emptyTitle: normalizedSearchText.isEmpty ? "No saved words in this Day." : "No matching words.",
+                    emptyTitle: normalizedSearchText.isEmpty ? "이 데이에 저장된 단어가 없습니다." : "일치하는 단어가 없습니다.",
                     isEditingRows: isEditingWords,
                     onEnglishTap: { word in
                         speechPlayer.speakEnglishWord(word.english)
@@ -89,7 +89,7 @@ struct DayWordsDetailView: View {
         }
         .background(AppTheme.background)
         .navigationTitle(currentDay.title)
-        .searchable(text: $searchText, prompt: "Search Words")
+        .searchable(text: $searchText, prompt: "단어 검색")
         .toolbar {
             toolbarContent
         }
@@ -178,7 +178,7 @@ struct DayWordsDetailView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
-            .accessibilityLabel("More Actions")
+            .accessibilityLabel("추가 작업")
             .disabled(visibleWords.isEmpty)
         }
         #else
@@ -196,7 +196,7 @@ struct DayWordsDetailView: View {
 
     private var detailToggle: some View {
         Toggle(isOn: $showsWordDetails) {
-            Label(showsWordDetails ? "Hide Word Details" : "Show Word Details", systemImage: "text.justify")
+            Label(showsWordDetails ? "단어 상세 숨기기" : "단어 상세 보기", systemImage: "text.justify")
         }
         .toggleStyle(.button)
         .disabled(visibleWords.isEmpty)
@@ -206,7 +206,7 @@ struct DayWordsDetailView: View {
         Button {
             togglePlayback()
         } label: {
-            Label(speechPlayer.isPlaying ? "Stop" : "Play", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
+            Label(speechPlayer.isPlaying ? "중지" : "재생", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
         }
         .disabled(visibleWords.isEmpty)
     }
@@ -218,7 +218,7 @@ struct DayWordsDetailView: View {
                 selectedWordIDs.removeAll()
             }
         } label: {
-            Label(isEditingWords ? "Done Editing" : "Edit Words", systemImage: isEditingWords ? "checkmark" : "square.and.pencil")
+            Label(isEditingWords ? "편집 완료" : "단어 편집", systemImage: isEditingWords ? "checkmark" : "square.and.pencil")
         }
         .disabled(visibleWords.isEmpty)
     }
@@ -227,7 +227,7 @@ struct DayWordsDetailView: View {
         Button {
             sortsWordsByCount.toggle()
         } label: {
-            Label("Count Order", systemImage: sortsWordsByCount ? "arrow.down.123" : "number")
+            Label("오답 많은 순", systemImage: sortsWordsByCount ? "arrow.down.123" : "number")
         }
     }
 }
@@ -240,33 +240,33 @@ private struct EditWordSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Word") {
-                    TextField("English", text: $word.english)
-                    TextField("Korean Meaning", text: $word.meaningKo)
-                    TextField("Note", text: $word.note)
-                    TextField("TOEIC Tag", text: $word.toeicTag)
+                Section("단어") {
+                    TextField("영단어", text: $word.english)
+                    TextField("한국어 뜻", text: $word.meaningKo)
+                    TextField("메모", text: $word.note)
+                    TextField("TOEIC 태그", text: $word.toeicTag)
                 }
 
-                Section("Example") {
-                    TextField("English Example", text: $word.exampleEn, axis: .vertical)
+                Section("예문") {
+                    TextField("영어 예문", text: $word.exampleEn, axis: .vertical)
                         .lineLimit(2...4)
-                    TextField("Korean Example", text: $word.exampleKo, axis: .vertical)
+                    TextField("한국어 예문", text: $word.exampleKo, axis: .vertical)
                         .lineLimit(2...4)
                 }
             }
-            .navigationTitle("Edit Word")
+            .navigationTitle("단어 편집")
             #if os(macOS)
             .formStyle(.grouped)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("취소") {
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("저장") {
                         onSave()
                         dismiss()
                     }

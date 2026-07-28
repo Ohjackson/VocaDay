@@ -36,12 +36,12 @@ struct DaysView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
-                        title: "No Day exists yet. Create Day 1.",
+                        title: "아직 데이가 없습니다. 첫 데이를 만들어 보세요.",
                         systemImage: "calendar.badge.plus"
                     )
                 } else if filteredDays.isEmpty {
                     EmptyStateView(
-                        title: "No matching Days.",
+                        title: "일치하는 데이가 없습니다.",
                         systemImage: "magnifyingglass"
                     )
                 } else {
@@ -60,7 +60,7 @@ struct DaysView: View {
         .background(AppTheme.background)
         .onboardingSpotlight(.days)
         .navigationTitle("VocaDay")
-        .searchable(text: $searchText, prompt: "Search Days")
+        .searchable(text: $searchText, prompt: "데이 검색")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
                 #if os(iOS)
@@ -69,7 +69,7 @@ struct DaysView: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .accessibilityLabel("Settings")
+                .accessibilityLabel("설정")
                 #endif
 
                 Button {
@@ -77,7 +77,7 @@ struct DaysView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingDays ? "Done Editing Days" : "Edit Days")
+                .accessibilityLabel(isEditingDays ? "데이 편집 완료" : "데이 편집")
                 .disabled(days.isEmpty)
 
                 Button {
@@ -85,23 +85,23 @@ struct DaysView: View {
                     dayTitle = DayFactory.nextDayTitle(existingDays: days)
                     isShowingDayTitleAlert = true
                 } label: {
-                    Label("New Day", systemImage: "plus")
+                    Label("새 데이", systemImage: "plus")
                 }
             }
         }
-        .alert(editingDay == nil ? "New Day" : "Rename Day", isPresented: $isShowingDayTitleAlert) {
-            TextField("Title", text: $dayTitle)
+        .alert(editingDay == nil ? "새 데이" : "데이 이름 변경", isPresented: $isShowingDayTitleAlert) {
+            TextField("제목", text: $dayTitle)
 
-            Button("Cancel", role: .cancel) {
+            Button("취소", role: .cancel) {
                 resetDayTitleEditor()
             }
 
-            Button(editingDay == nil ? "Create" : "Save") {
+            Button(editingDay == nil ? "만들기" : "저장") {
                 saveDayTitle()
             }
             .disabled(dayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Enter a title for this Day.")
+            Text("데이 제목을 입력하세요.")
         }
     }
 
@@ -124,7 +124,7 @@ struct DaysView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Rename \(day.title)")
+                .accessibilityLabel("\(day.title) 이름 변경")
 
                 Button(role: .destructive) {
                     delete(day)
@@ -134,7 +134,7 @@ struct DaysView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Delete \(day.title)")
+                .accessibilityLabel("\(day.title) 삭제")
             }
         } else {
             NavigationLink {

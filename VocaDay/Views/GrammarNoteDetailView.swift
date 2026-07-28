@@ -16,7 +16,7 @@ struct GrammarNoteDetailView: View {
 
                 if note.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     EmptyStateView(
-                        title: "No content yet. Edit this note and paste Markdown.",
+                        title: "아직 내용이 없습니다. 이 노트를 편집해 Markdown을 붙여넣으세요.",
                         systemImage: "doc.text"
                     )
                     .frame(maxWidth: .infinity)
@@ -41,7 +41,7 @@ struct GrammarNoteDetailView: View {
                 } label: {
                     Image(systemName: note.isFavorite ? "star.fill" : "star")
                 }
-                .accessibilityLabel(note.isFavorite ? "Remove Favorite" : "Add Favorite")
+                .accessibilityLabel(note.isFavorite ? "즐겨찾기 해제" : "즐겨찾기에 추가")
 
                 Button {
                     note.isCompleted.toggle()
@@ -50,35 +50,35 @@ struct GrammarNoteDetailView: View {
                 } label: {
                     Image(systemName: note.isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
                 }
-                .accessibilityLabel(note.isCompleted ? "Mark Incomplete" : "Mark Complete")
+                .accessibilityLabel(note.isCompleted ? "완료 해제" : "완료로 표시")
 
                 Button {
                     isShowingEditor = true
                 } label: {
                     Image(systemName: "square.and.pencil")
                 }
-                .accessibilityLabel("Edit")
+                .accessibilityLabel("편집")
 
                 Button(role: .destructive) {
                     isShowingDeleteConfirmation = true
                 } label: {
                     Image(systemName: "trash")
                 }
-                .accessibilityLabel("Delete")
+                .accessibilityLabel("삭제")
             }
         }
         .sheet(isPresented: $isShowingEditor) {
             GrammarNoteEditorView(note: note)
         }
-        .confirmationDialog("Delete this grammar note?", isPresented: $isShowingDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
+        .confirmationDialog("이 문법 노트를 삭제할까요?", isPresented: $isShowingDeleteConfirmation) {
+            Button("삭제", role: .destructive) {
                 modelContext.delete(note)
                 try? modelContext.save()
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("취소", role: .cancel) {}
         } message: {
-            Text("This removes the Markdown note from this device and synced SwiftData store.")
+            Text("이 기기와 동기화된 SwiftData 저장소에서 Markdown 노트를 삭제합니다.")
         }
     }
 
@@ -99,7 +99,7 @@ struct GrammarNoteDetailView: View {
 
             HStack(spacing: 8) {
                 if note.isCompleted {
-                    Label("Completed", systemImage: "checkmark.circle.fill")
+                    Label("완료", systemImage: "checkmark.circle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.green)
                 }
@@ -146,16 +146,16 @@ struct GrammarNoteEditorView: View {
             }
             .padding(20)
             .background(AppTheme.background)
-            .navigationTitle(note == nil ? "New Grammar Note" : "Edit Grammar Note")
+            .navigationTitle(note == nil ? "새 문법 노트" : "문법 노트 편집")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("취소") {
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("저장") {
                         save()
                         dismiss()
                     }
@@ -194,12 +194,12 @@ struct GrammarNoteEditorView: View {
 
     private var markdownSummary: String {
         let lineCount = markdown.components(separatedBy: .newlines).count
-        return String(format: String(localized: "%lld lines"), lineCount)
+        return "\(lineCount)줄"
     }
 
     private var editorPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Title", text: $title)
+            TextField("제목", text: $title)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
@@ -228,7 +228,7 @@ struct GrammarNoteEditorView: View {
             Button {
                 isShowingPreview = true
             } label: {
-                Label("Preview", systemImage: "eye")
+                Label("미리 보기", systemImage: "eye")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -257,10 +257,10 @@ private struct GrammarMarkdownPreviewSheet: View {
                     .frame(maxWidth: .infinity, alignment: .top)
             }
             .background(AppTheme.background)
-            .navigationTitle(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(localized: "Preview") : title)
+            .navigationTitle(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "미리 보기" : title)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button("완료") {
                         dismiss()
                     }
                 }

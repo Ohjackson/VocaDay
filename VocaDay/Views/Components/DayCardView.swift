@@ -14,14 +14,14 @@ struct DayCardView: View {
                     .truncationMode(.tail)
 
                 HStack(spacing: 4) {
-                    Text("Created")
+                    Text("생성일")
                     Text(day.createdAt, format: .dateTime.month().day().year())
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
                 HStack(spacing: 4) {
-                    Text("Last reviewed")
+                    Text("마지막 복습")
                     if let lastReviewedAt = day.lastReviewedAt {
                         Text(lastReviewedAt, format: .dateTime.month().day().year())
                     } else {
@@ -36,8 +36,8 @@ struct DayCardView: View {
             Spacer()
 
             HStack(spacing: 18) {
-                metric(title: "Words", value: day.wordList.count)
-                metric(title: "Reviews", value: day.reviewSessionCount)
+                metric(title: "단어", value: day.wordList.count)
+                metric(title: "복습", value: day.reviewSessionCount)
             }
         }
         .padding(18)
@@ -51,7 +51,7 @@ struct DayCardView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func metric(title: LocalizedStringKey, value: Int) -> some View {
+    private func metric(title: String, value: Int) -> some View {
         VStack(alignment: .trailing, spacing: 4) {
             Text("\(value)")
                 .font(.title3.weight(.semibold))

@@ -13,18 +13,18 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
 
     var id: Self { self }
 
-    var title: LocalizedStringKey {
+    var title: String {
         switch self {
         case .days:
-            return "Days"
+            return "데이"
         case .add:
-            return "Add"
+            return "추가"
         case .review:
-            return "Review"
+            return "복습"
         case .lcDictation:
-            return "Study"
+            return "학습"
         case .settings:
-            return "Settings"
+            return "설정"
         }
     }
 
@@ -65,27 +65,27 @@ private enum OnboardingStep: Int, CaseIterable {
         }
     }
 
-    var title: LocalizedStringKey {
+    var title: String {
         switch self {
-        case .days: "Build your vocabulary by Day"
-        case .addMode: "Choose how you want to add words"
-        case .addInput: "Add a word in seconds"
-        case .jsonInput: "Import multiple words with JSON"
-        case .addActions: "Use clear actions to manage your list"
-        case .review: "Review words when you are ready"
-        case .study: "Keep grammar and listening notes together"
+        case .days: "데이별로 단어를 모아 보세요"
+        case .addMode: "단어를 추가할 방식을 고르세요"
+        case .addInput: "단어를 빠르게 추가하세요"
+        case .jsonInput: "JSON으로 여러 단어를 가져오세요"
+        case .addActions: "목록을 관리하고 저장하세요"
+        case .review: "준비되었을 때 단어를 복습하세요"
+        case .study: "문법과 듣기 노트를 함께 관리하세요"
         }
     }
 
-    var message: LocalizedStringKey {
+    var message: String {
         switch self {
-        case .days: "Create a Day for each study session, then open it to see every saved word."
-        case .addMode: "Use Manual Input for one word at a time, or switch to JSON to bring in a prepared word list."
-        case .addInput: "Type an English word and VocaDay adds it to your temporary list with a Korean translation."
-        case .jsonInput: "Paste a JSON array, import it into the temporary list, then review and save it to your Day."
-        case .addActions: "Paste or copy JSON, remove a selected word, and save the completed list to your Day."
-        case .review: "Hide meanings, mark difficult words as Again, and finish a review to update your progress."
-        case .study: "Use Study for LC dictation and Markdown grammar notes alongside your vocabulary."
+        case .days: "학습할 때마다 데이를 만들고, 열어서 저장한 단어를 확인하세요."
+        case .addMode: "한 단어씩 직접 입력하거나, 준비한 단어 목록을 JSON으로 가져올 수 있어요."
+        case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
+        case .jsonInput: "JSON 배열을 붙여넣어 임시 목록으로 가져온 뒤, 확인하고 데이에 저장하세요."
+        case .addActions: "JSON을 붙여넣거나 복사하고, 선택한 단어를 삭제하거나 데이에 저장할 수 있어요."
+        case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
+        case .study: "학습 탭에서 받아쓰기와 Markdown 문법 노트를 함께 관리하세요."
         }
     }
 
@@ -180,7 +180,7 @@ struct RootView: View {
         }
         #endif
         .background {
-            Button("Quick Add Word") {
+            Button("빠른 단어 추가") {
                 openQuickAdd()
             }
             .keyboardShortcut("j", modifiers: .command)
@@ -351,7 +351,7 @@ private struct QuickAddWordPanel: View {
                     .font(.title3)
                     .foregroundStyle(Color.accentColor)
 
-                Text("Quick Add Word")
+                Text("빠른 단어 추가")
                     .font(.headline)
 
                 Spacer()
@@ -363,10 +363,10 @@ private struct QuickAddWordPanel: View {
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Close")
+                .accessibilityLabel("닫기")
             }
 
-            TextField("English word or phrase", text: $text)
+            TextField("영단어 또는 구문", text: $text)
                 .textFieldStyle(.roundedBorder)
 #if os(iOS)
                 .textInputAutocapitalization(.never)
@@ -378,7 +378,7 @@ private struct QuickAddWordPanel: View {
             Button {
                 onSubmit()
             } label: {
-                Label("Add to Latest Day", systemImage: "tray.and.arrow.down")
+                Label("최근 데이에 추가", systemImage: "tray.and.arrow.down")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)

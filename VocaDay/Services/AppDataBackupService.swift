@@ -69,7 +69,7 @@ struct VocabularyDayArchive: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Imported Day"
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 데이"
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         reviewSessionCount = try container.decodeIfPresent(Int.self, forKey: .reviewSessionCount) ?? 0
         reviewedWordCount = try container.decodeIfPresent(Int.self, forKey: .reviewedWordCount) ?? 0
@@ -165,7 +165,7 @@ struct LCDictationDayArchive: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Imported LC Day"
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 LC 데이"
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         notes = try container.decodeIfPresent([LCDictationNoteArchive].self, forKey: .notes) ?? []
     }
@@ -220,7 +220,7 @@ struct GrammarNoteArchive: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Imported Grammar Note"
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 문법 노트"
         markdown = try container.decodeIfPresent(String.self, forKey: .markdown) ?? ""
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
@@ -256,15 +256,15 @@ struct AppDataImportPreview {
 
     var summary: String {
         if isEmpty {
-            return String(localized: "No matching changes found.")
+            return "반영할 변경 사항이 없습니다."
         }
 
         return [
-            String(format: String(localized: "Vocabulary Days: %lld new, %lld update"), vocabularyDaysToCreate, vocabularyDaysToUpdate),
-            String(format: String(localized: "Words: %lld new, %lld update"), wordsToCreate, wordsToUpdate),
-            String(format: String(localized: "LC Notes: %lld new, %lld update"), lcDaysToCreate, lcDaysToUpdate),
-            String(format: String(localized: "Dictation Lines: %lld new, %lld update"), notesToCreate, notesToUpdate),
-            String(format: String(localized: "Grammar Notes: %lld new, %lld update"), grammarNotesToCreate, grammarNotesToUpdate)
+            "단어 데이: 새로 만들기 \(vocabularyDaysToCreate)개, 업데이트 \(vocabularyDaysToUpdate)개",
+            "단어: 새로 만들기 \(wordsToCreate)개, 업데이트 \(wordsToUpdate)개",
+            "LC 노트: 새로 만들기 \(lcDaysToCreate)개, 업데이트 \(lcDaysToUpdate)개",
+            "받아쓰기 줄: 새로 만들기 \(notesToCreate)개, 업데이트 \(notesToUpdate)개",
+            "문법 노트: 새로 만들기 \(grammarNotesToCreate)개, 업데이트 \(grammarNotesToUpdate)개"
         ].joined(separator: "\n")
     }
 }

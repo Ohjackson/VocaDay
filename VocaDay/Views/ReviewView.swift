@@ -11,7 +11,7 @@ struct ReviewView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
-                        title: "No Day exists yet.",
+                        title: "아직 데이가 없습니다.",
                         systemImage: "calendar"
                     )
                     .padding(.top, 48)
@@ -30,7 +30,7 @@ struct ReviewView: View {
         }
         .background(AppTheme.background)
         .onboardingSpotlight(.review)
-        .navigationTitle("Review")
+        .navigationTitle("복습")
         .toolbar {
             ToolbarItem(placement: toolbarPlacement) {
                 Button {
@@ -38,7 +38,7 @@ struct ReviewView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
-                .accessibilityLabel(isEditingDays ? "Done Editing Days" : "Edit Days")
+                .accessibilityLabel(isEditingDays ? "데이 편집 완료" : "데이 편집")
                 .disabled(days.isEmpty)
             }
         }
@@ -58,7 +58,7 @@ struct ReviewView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Delete \(day.title)")
+                .accessibilityLabel("\(day.title) 삭제")
             }
         } else {
             NavigationLink {
@@ -115,7 +115,7 @@ private struct ReviewDayDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     WordDataTable(
-                        title: "\(day.title) Review",
+                        title: "\(day.title) 복습",
                         words: reviewWords,
                         hideKoreanMeaning: hidesKoreanMeaning,
                         allowsSelection: true,
@@ -156,7 +156,7 @@ private struct ReviewDayDetailView: View {
             Divider()
 
             HStack {
-                Text("\(selectedWordIDs.count) selected as Again")
+                Text("\(selectedWordIDs.count)개를 다시로 선택")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -165,7 +165,7 @@ private struct ReviewDayDetailView: View {
                 Button {
                     finishReview()
                 } label: {
-                    Label("Finish Review", systemImage: "checkmark.circle")
+                    Label("복습 완료", systemImage: "checkmark.circle")
                         .frame(minWidth: 180)
                 }
                 .buttonStyle(.borderedProminent)
@@ -254,7 +254,7 @@ private struct ReviewDayDetailView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
-            .accessibilityLabel("More Actions")
+            .accessibilityLabel("추가 작업")
             .disabled(reviewWords.isEmpty)
         }
         #else
@@ -272,7 +272,7 @@ private struct ReviewDayDetailView: View {
 
     private var detailToggle: some View {
         Toggle(isOn: $showsWordDetails) {
-            Label(showsWordDetails ? "Hide Word Details" : "Show Word Details", systemImage: "text.justify")
+            Label(showsWordDetails ? "단어 상세 숨기기" : "단어 상세 보기", systemImage: "text.justify")
         }
         .toggleStyle(.button)
         .disabled(reviewWords.isEmpty)
@@ -282,7 +282,7 @@ private struct ReviewDayDetailView: View {
         Button {
             hidesKoreanMeaning.toggle()
         } label: {
-            Label(hidesKoreanMeaning ? "Show Korean" : "Hide Korean", systemImage: hidesKoreanMeaning ? "eye.slash" : "eye")
+            Label(hidesKoreanMeaning ? "한국어 뜻 보기" : "한국어 뜻 가리기", systemImage: hidesKoreanMeaning ? "eye.slash" : "eye")
         }
     }
 
@@ -290,7 +290,7 @@ private struct ReviewDayDetailView: View {
         Button {
             shuffleWords()
         } label: {
-            Label("Shuffle", systemImage: "shuffle")
+            Label("순서 섞기", systemImage: "shuffle")
         }
     }
 
@@ -298,7 +298,7 @@ private struct ReviewDayDetailView: View {
         Button(role: .destructive) {
             deleteSelectedWords()
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label("삭제", systemImage: "trash")
         }
         .disabled(selectedWordIDs.isEmpty)
     }

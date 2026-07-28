@@ -7,7 +7,7 @@ struct WordInputCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Enter English word", text: $inputWord)
+            TextField("영단어 또는 구문 입력", text: $inputWord)
                 .textFieldStyle(.roundedBorder)
                 .font(.title2)
                 .multilineTextAlignment(.center)

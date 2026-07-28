@@ -5,7 +5,7 @@ enum DemoDataSeeder {
     private static let seededDemoDataKey = "hasSeededDemoData_v1"
 
     static func seedIfNeeded(existingDays: [VocabularyDay], in context: ModelContext) {
-        if let demoDay = existingDays.first(where: { $0.title == demoDayTitle }) {
+        if let demoDay = existingDays.first(where: { $0.title == demoDayTitle || $0.title == legacyDemoDayTitle }) {
             seedMissingDemoWords(into: demoDay, in: context)
             markSeeded()
         } else if hasSeededDemoData {
@@ -72,7 +72,8 @@ enum DemoDataSeeder {
     }
 }
 
-private let demoDayTitle = "Day 0"
+private let demoDayTitle = "데이 0"
+private let legacyDemoDayTitle = "Day 0"
 
 private struct SeedWord {
     let english: String

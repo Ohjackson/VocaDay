@@ -4,11 +4,14 @@ import SwiftData
 enum DayFactory {
     static func nextDayTitle(existingDays: [VocabularyDay]) -> String {
         let nextNumber = existingDays
-            .compactMap { Int($0.title.replacingOccurrences(of: "Day ", with: "")) }
+            .compactMap { day in
+                Int(day.title.replacingOccurrences(of: "데이 ", with: ""))
+                    ?? Int(day.title.replacingOccurrences(of: "Day ", with: ""))
+            }
             .max()
             .map { $0 + 1 } ?? 1
 
-        return "Day \(nextNumber)"
+        return "데이 \(nextNumber)"
     }
 
     static func createNextDay(existingDays: [VocabularyDay], in context: ModelContext) -> VocabularyDay {

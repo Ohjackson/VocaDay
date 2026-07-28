@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct EmptyStateView: View {
-    let title: LocalizedStringKey
+    let title: String
     let systemImage: String
 
     var body: some View {

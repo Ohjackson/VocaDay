@@ -30,8 +30,8 @@ extension View {
 }
 
 struct SpotlightOnboardingOverlay: View {
-    let title: LocalizedStringKey
-    let message: LocalizedStringKey
+    let title: String
+    let message: String
     let step: Int
     let totalSteps: Int
     let spotlightRect: CGRect?

@@ -18,9 +18,9 @@ struct StudyView: View {
                     } label: {
                         studyCard(
                             title: "LC",
-                            subtitle: "Dictation lines and listening notes",
+                            subtitle: "받아쓰기와 듣기 노트",
                             count: lcDays.count,
-                            countLabel: "Notes",
+                            countLabel: "노트",
                             systemImage: "headphones"
                         )
                     }
@@ -29,10 +29,10 @@ struct StudyView: View {
                         GrammarNotesView()
                     } label: {
                         studyCard(
-                            title: "Grammar Notes",
-                            subtitle: "Markdown notes for grammar, tables, and examples",
+                            title: "문법 노트",
+                            subtitle: "문법, 표, 예문을 위한 Markdown 노트",
                             count: grammarNotes.count,
-                            countLabel: "Pages",
+                            countLabel: "페이지",
                             systemImage: "text.book.closed"
                         )
                     }
@@ -41,7 +41,7 @@ struct StudyView: View {
 
                 if !recentGrammarNotes.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Recent Grammar Notes")
+                        Text("최근 문법 노트")
                             .font(.headline)
 
                         LazyVStack(spacing: 10) {
@@ -65,7 +65,7 @@ struct StudyView: View {
         }
         .background(AppTheme.background)
         .onboardingSpotlight(.study)
-        .navigationTitle("Study")
+        .navigationTitle("학습")
     }
 
     private var columns: [GridItem] {
@@ -73,10 +73,10 @@ struct StudyView: View {
     }
 
     private func studyCard(
-        title: LocalizedStringKey,
-        subtitle: LocalizedStringKey,
+        title: String,
+        subtitle: String,
         count: Int,
-        countLabel: LocalizedStringKey,
+        countLabel: String,
         systemImage: String
     ) -> some View {
         HStack(alignment: .top, spacing: 14) {

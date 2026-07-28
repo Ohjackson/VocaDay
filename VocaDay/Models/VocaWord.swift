@@ -63,4 +63,14 @@ enum WordStatus: String, CaseIterable {
     case review = "Review"
     case weak = "Weak"
     case mastered = "Mastered"
+
+    var displayName: String {
+        switch self {
+        case .new: "새 단어"
+        case .learning: "학습 중"
+        case .review: "복습 예정"
+        case .weak: "취약"
+        case .mastered: "마스터"
+        }
+    }
 }

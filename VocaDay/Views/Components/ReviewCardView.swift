@@ -15,7 +15,7 @@ struct ReviewCardView: View {
                     .multilineTextAlignment(.center)
 
                 HStack(spacing: 8) {
-                    statusPill(word.status)
+                    statusPill(WordStatus(rawValue: word.status)?.displayName ?? "새 단어")
                     if !word.note.isEmpty {
                         statusPill(word.note)
                     }
@@ -27,7 +27,7 @@ struct ReviewCardView: View {
 
             if showingMeaning {
                 VStack(spacing: 12) {
-                    Text(word.meaningKo.isEmpty ? "No Korean meaning yet." : word.meaningKo)
+                    Text(word.meaningKo.isEmpty ? "아직 한국어 뜻이 없습니다." : word.meaningKo)
                         .font(.title3.weight(.medium))
                         .multilineTextAlignment(.center)
 
@@ -51,7 +51,7 @@ struct ReviewCardView: View {
                 Button {
                     onShowMeaning()
                 } label: {
-                    Label("Show Meaning", systemImage: "eye")
+                    Label("뜻 보기", systemImage: "eye")
                         .frame(maxWidth: 260)
                 }
                 .buttonStyle(.borderedProminent)
@@ -63,7 +63,7 @@ struct ReviewCardView: View {
                     Button {
                         onAgain()
                     } label: {
-                        Label("Again", systemImage: "arrow.counterclockwise")
+                        Label("다시", systemImage: "arrow.counterclockwise")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -72,7 +72,7 @@ struct ReviewCardView: View {
                     Button {
                         onKnow()
                     } label: {
-                        Label("Know", systemImage: "checkmark")
+                        Label("알아요", systemImage: "checkmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -83,10 +83,10 @@ struct ReviewCardView: View {
             Divider()
 
             HStack {
-                stat(title: "Reviews", value: word.reviewCount)
-                stat(title: "Correct", value: word.correctCount)
-                stat(title: "Check Point", value: word.wrongCount)
-                stat(title: "Level", value: word.masteryLevel)
+                stat(title: "복습", value: word.reviewCount)
+                stat(title: "정답", value: word.correctCount)
+                stat(title: "오답", value: word.wrongCount)
+                stat(title: "레벨", value: word.masteryLevel)
             }
         }
         .padding(24)
