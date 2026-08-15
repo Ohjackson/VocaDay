@@ -16,9 +16,17 @@ struct WordDataTable: View {
     var onDeleteWord: (VocaWord) -> Void = { _ in }
     @Binding var selectedWordIDs: Set<UUID>
     @GestureState private var pressedKoreanWordID: UUID?
+    @State private var lingeringKoreanWordID: UUID?
+    @State private var lingeringRevealToken = UUID()
 
     var body: some View {
         fullWidthTable
+            .onChange(of: pressedKoreanWordID) { previousWordID, currentWordID in
+                handleKoreanMeaningPressChange(
+                    previousWordID: previousWordID,
+                    currentWordID: currentWordID
+                )
+            }
     }
 
     private var fullWidthTable: some View {
@@ -293,11 +301,44 @@ struct WordDataTable: View {
     }
 
     private func koreanMeaningText(for word: VocaWord) -> String {
-        if hideKoreanMeaning && pressedKoreanWordID != word.id {
-            return "••••"
+        guard hideKoreanMeaning else {
+            return display(word.meaningKo)
         }
 
-        return display(word.meaningKo)
+        if let pressedKoreanWordID {
+            return pressedKoreanWordID == word.id ? display(word.meaningKo) : "••••"
+        }
+
+        return lingeringKoreanWordID == word.id ? display(word.meaningKo) : "••••"
+    }
+
+    private func handleKoreanMeaningPressChange(
+        previousWordID: UUID?,
+        currentWordID: UUID?
+    ) {
+        if currentWordID != nil {
+            lingeringRevealToken = UUID()
+            lingeringKoreanWordID = nil
+            return
+        }
+
+        guard let previousWordID else { return }
+        keepKoreanMeaningVisibleAfterRelease(wordID: previousWordID)
+    }
+
+    private func keepKoreanMeaningVisibleAfterRelease(wordID: UUID) {
+        let revealToken = UUID()
+        lingeringRevealToken = revealToken
+        lingeringKoreanWordID = wordID
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard lingeringRevealToken == revealToken else { return }
+
+            withAnimation(.easeOut(duration: 0.18)) {
+                lingeringKoreanWordID = nil
+            }
+        }
     }
 
     private func englishLongPressGesture(for word: VocaWord, columnIndex: Int) -> some Gesture {
