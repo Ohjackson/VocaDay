@@ -3,6 +3,7 @@ import SwiftUI
 struct TemporaryWordTable: View {
     @Binding var words: [VocaWordJSON]
     @Binding var selectedWordID: UUID?
+    var emptyTitle: String
 
     private struct Column {
         let title: String
@@ -20,19 +21,25 @@ struct TemporaryWordTable: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("임시 단어")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("저장 전 확인")
+                        .font(.headline)
+                    Text("셀을 눌러 내용을 수정하세요. 행을 선택하면 아래에서 삭제할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Spacer()
 
-                Text("\(words.count)")
+                Text("\(words.count)개")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
             if words.isEmpty {
                 EmptyStateView(
-                    title: "아직 단어가 없습니다. 영단어를 입력해 시작하세요.",
+                    title: emptyTitle,
                     systemImage: "square.and.pencil"
                 )
                 .frame(maxWidth: .infinity)
