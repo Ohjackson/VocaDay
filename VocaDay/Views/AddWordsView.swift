@@ -35,6 +35,7 @@ struct AddWordsView: View {
     @Binding var quickAddWord: String?
     @Binding var entryMode: AddEntryMode
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
+    @AppStorage("hasDismissedAddWordsGuide") private var hasDismissedAddWordsGuide = false
     @State private var inputWord = ""
     @State private var jsonInput = ""
     @State private var temporaryWords: [VocaWordJSON] = []
@@ -43,6 +44,7 @@ struct AddWordsView: View {
     @State private var alert: VocaAlert?
     @State private var pendingTranslations: [PendingTranslation] = []
     @State private var translationConfiguration: TranslationSession.Configuration?
+    @State private var isShowingGuideDismissalConfirmation = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -55,12 +57,14 @@ struct AddWordsView: View {
                         entryModePicker
                     }
 
-                    usageGuide
+                    if !hasDismissedAddWordsGuide {
+                        usageGuide
+                    }
 
                     entryInputCard
 
                     TemporaryWordTable(
-                        words: temporaryWords,
+                        words: $temporaryWords,
                         selectedWordID: $selectedTemporaryWordID
                     )
                 }
@@ -74,6 +78,17 @@ struct AddWordsView: View {
         }
         .background(AppTheme.background)
         .navigationTitle("단어 추가")
+        .toolbar {
+#if os(iOS)
+            ToolbarItem(placement: .topBarTrailing) {
+                helpNavigationLink
+            }
+#else
+            ToolbarItem(placement: .primaryAction) {
+                helpNavigationLink
+            }
+#endif
+        }
         .overlay(alignment: .top) {
             if let copiedMessage {
                 Text(copiedMessage)
@@ -93,6 +108,18 @@ struct AddWordsView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("확인"))
             )
+        }
+        .confirmationDialog(
+            "단어 추가 방법 안내를 다시 보지 않을까요?",
+            isPresented: $isShowingGuideDismissalConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("확인", role: .destructive) {
+                hasDismissedAddWordsGuide = true
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("확인을 누르면 다음부터 이 안내 상자가 표시되지 않습니다.")
         }
         .onAppear {
             ensureAvailableEntryMode()
@@ -154,9 +181,26 @@ struct AddWordsView: View {
 
     private var usageGuide: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("단어 추가 방법", systemImage: "lightbulb.fill")
-                .font(.headline)
-                .foregroundStyle(Color.accentColor)
+            HStack(spacing: 12) {
+                Label("단어 추가 방법", systemImage: "lightbulb.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.accentColor)
+
+                Spacer()
+
+                Button {
+                    isShowingGuideDismissalConfirmation = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("단어 추가 방법 안내 숨기기")
+                .help("안내 숨기기")
+            }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
                 ForEach(Array(usageGuideSteps.enumerated()), id: \.offset) { index, step in
@@ -183,6 +227,16 @@ struct AddWordsView: View {
         }
         .padding(18)
         .calmCard()
+    }
+
+    private var helpNavigationLink: some View {
+        NavigationLink {
+            AddWordsHelpView()
+        } label: {
+            Image(systemName: "questionmark.circle")
+        }
+        .accessibilityLabel("단어 추가 도움말")
+        .help("단어 추가 도움말")
     }
 
     private var usageGuideSteps: [(title: String, message: String)] {
@@ -767,6 +821,149 @@ struct AddWordsView: View {
             .joined(separator: "\n")
 
         return locationText + "\n\n" + "같은 철자의 단어는 두 번 추가할 수 없습니다."
+    }
+}
+
+private struct AddWordsHelpView: View {
+    @State private var isPromptCopied = false
+
+    private let jsonPrompt = """
+    아래 영단어 목록을 VocaDay에서 가져올 수 있는 JSON 배열로 만들어줘.
+
+    규칙:
+    - 설명이나 마크다운 없이 JSON 배열만 출력해줘.
+    - 각 항목은 english, meaningKo, exampleEn, exampleKo, note, toeicTag 키를 모두 포함해줘.
+    - meaningKo에는 자연스러운 한국어 뜻을 넣어줘.
+    - exampleEn에는 해당 단어를 사용한 자연스러운 영어 예문을 넣어줘.
+    - exampleKo에는 영어 예문의 자연스러운 한국어 번역을 넣어줘.
+    - note에는 암기에 도움이 되는 짧은 설명을 넣어줘.
+    - toeicTag에는 품사 또는 TOEIC 관련 분류를 짧게 넣어줘.
+    - 값이 없으면 빈 문자열을 사용해줘.
+
+    영단어 목록:
+    [여기에 영단어를 붙여넣기]
+    """
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                helpSection(
+                    title: "JSON 모드란?",
+                    systemImage: "curlybraces.square"
+                ) {
+                    Text("여러 단어의 뜻, 예문, 메모와 태그를 한 번에 가져오는 고급 입력 방식입니다. 직접 입력만 사용할 때는 켜지 않아도 됩니다.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                helpSection(
+                    title: "JSON 모드 켜기",
+                    systemImage: "gearshape"
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        helpStep(number: 1, text: "왼쪽 메뉴에서 설정을 여세요.")
+                        helpStep(number: 2, text: "고급 기능에서 ‘JSON 기능 사용’을 켜세요.")
+                        helpStep(number: 3, text: "단어 추가로 돌아와 ‘JSON 가져오기’를 선택하세요.")
+                        helpStep(number: 4, text: "JSON을 붙여넣고 목록을 확인한 뒤 데이에 저장하세요.")
+                    }
+                }
+
+                helpSection(
+                    title: "AI에게 요청할 프롬프트",
+                    systemImage: "sparkles"
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("아래 상자를 누르면 프롬프트 전체가 복사됩니다. 마지막 줄에 원하는 영단어를 넣어 AI에게 보내세요.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button(action: copyPrompt) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label(
+                                        isPromptCopied ? "복사됨" : "눌러서 복사",
+                                        systemImage: isPromptCopied ? "checkmark.circle.fill" : "doc.on.doc"
+                                    )
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(isPromptCopied ? Color.green : Color.accentColor)
+
+                                    Spacer()
+                                }
+
+                                Text(jsonPrompt)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("JSON 생성 프롬프트 복사")
+                        .accessibilityHint("프롬프트 전체를 클립보드에 복사합니다")
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+        }
+        .background(AppTheme.background)
+        .navigationTitle("단어 추가 도움말")
+    }
+
+    private func helpSection<Content: View>(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .foregroundStyle(Color.accentColor)
+
+            content()
+        }
+        .padding(18)
+        .calmCard()
+    }
+
+    private func helpStep(number: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number)")
+                .font(.caption.monospacedDigit().weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(Color.accentColor, in: Circle())
+
+            Text(text)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func copyPrompt() {
+        ClipboardService.copyText(jsonPrompt)
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isPromptCopied = true
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isPromptCopied = false
+            }
+        }
     }
 }
 

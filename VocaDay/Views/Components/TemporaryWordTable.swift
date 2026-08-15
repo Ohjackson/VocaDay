@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TemporaryWordTable: View {
-    let words: [VocaWordJSON]
+    @Binding var words: [VocaWordJSON]
     @Binding var selectedWordID: UUID?
 
     private struct Column {
@@ -14,8 +14,7 @@ struct TemporaryWordTable: View {
         Column(title: "영단어", width: 180),
         Column(title: "한국어 뜻", width: 220),
         Column(title: "메모", width: 180),
-        Column(title: "TOEIC 태그", width: 150),
-        Column(title: "오답 횟수", width: 130)
+        Column(title: "TOEIC 태그", width: 150)
     ]
 
     var body: some View {
@@ -38,7 +37,7 @@ struct TemporaryWordTable: View {
                 )
                 .frame(maxWidth: .infinity)
             } else {
-                ScrollView(.horizontal, showsIndicators: true) {
+                ScrollView(.horizontal, showsIndicators: false) {
                     VStack(spacing: 0) {
                         tableRow(
                             values: columns.map(\.title),
@@ -47,23 +46,8 @@ struct TemporaryWordTable: View {
 
                         Divider()
 
-                        ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
-                            tableRow(
-                                values: [
-                                    "\(index + 1)",
-                                    word.english,
-                                    display(word.meaningKo),
-                                    display(word.note),
-                                    display(word.toeicTag),
-                                    "0"
-                                ],
-                                isHeader: false,
-                                isSelected: selectedWordID == word.id
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedWordID = word.id
-                            }
+                        ForEach(Array(words.indices), id: \.self) { index in
+                            editableWordRow(index: index, word: $words[index])
                             Divider()
                         }
                     }
@@ -73,6 +57,38 @@ struct TemporaryWordTable: View {
         }
         .padding(18)
         .calmCard()
+    }
+
+    private func editableWordRow(index: Int, word: Binding<VocaWordJSON>) -> some View {
+        HStack(spacing: 0) {
+            Text("\(index + 1)")
+                .font(.body.monospacedDigit())
+                .frame(width: columns[0].width, alignment: .center)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+
+            editableCell("영단어", text: word.english, columnIndex: 1)
+            editableCell("한국어 뜻", text: word.meaningKo, columnIndex: 2)
+            editableCell("메모", text: word.note, columnIndex: 3)
+            editableCell("TOEIC 태그", text: word.toeicTag, columnIndex: 4)
+        }
+        .background(rowBackground(isHeader: false, isSelected: selectedWordID == word.wrappedValue.id))
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                selectedWordID = word.wrappedValue.id
+            }
+        )
+    }
+
+    private func editableCell(_ placeholder: String, text: Binding<String>, columnIndex: Int) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.plain)
+            .font(.body)
+            .lineLimit(1)
+            .frame(width: columns[columnIndex].width, alignment: .leading)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
     }
 
     private func tableRow(values: [String], isHeader: Bool, isSelected: Bool = false) -> some View {
@@ -96,9 +112,5 @@ struct TemporaryWordTable: View {
         }
 
         return isSelected ? Color.accentColor.opacity(0.12) : Color.clear
-    }
-
-    private func display(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "-" : value
     }
 }
