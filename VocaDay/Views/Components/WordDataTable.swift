@@ -68,15 +68,6 @@ struct WordDataTable: View {
 
                         ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
                             wordRow(index: index, word: word, widths: widths)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard allowsSelection else { return }
-                                if selectedWordIDs.contains(word.id) {
-                                    selectedWordIDs.remove(word.id)
-                                } else {
-                                    selectedWordIDs.insert(word.id)
-                                }
-                            }
                             Divider()
                         }
                     }
@@ -124,6 +115,7 @@ struct WordDataTable: View {
             .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
         }
         .animation(.easeInOut(duration: 0.2), value: isEditingRows)
+        .animation(.easeInOut(duration: 0.15), value: selectedWordIDs.contains(word.id))
     }
 
     private func wordMainRow(index: Int, word: VocaWord, widths: [CGFloat]) -> some View {
@@ -141,10 +133,23 @@ struct WordDataTable: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         guard columnIndex == 1 else { return }
-                        onEnglishTap(word)
+                        if allowsSelection {
+                            toggleSelection(of: word)
+                        } else {
+                            onEnglishTap(word)
+                        }
                     }
                     .simultaneousGesture(englishLongPressGesture(for: word, columnIndex: columnIndex))
                     .simultaneousGesture(koreanPressGesture(for: word, columnIndex: columnIndex))
+                    .overlay(alignment: .trailing) {
+                        if columnIndex == 1, allowsSelection, selectedWordIDs.contains(word.id) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.trailing, 10)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
                     .overlay(alignment: .trailing) {
                         if columnIndex < values.count - 1 {
                             Rectangle()
@@ -155,6 +160,14 @@ struct WordDataTable: View {
             }
         }
         .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
+    }
+
+    private func toggleSelection(of word: VocaWord) {
+        if selectedWordIDs.contains(word.id) {
+            selectedWordIDs.remove(word.id)
+        } else {
+            selectedWordIDs.insert(word.id)
+        }
     }
 
     private func rowActions(for word: VocaWord) -> some View {
@@ -245,6 +258,7 @@ struct WordDataTable: View {
             .foregroundStyle(isHeader ? .secondary : .primary)
             .lineLimit(1)
             .truncationMode(.tail)
+            .padding(.trailing, !isHeader && index == 1 && allowsSelection ? 28 : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: index == 0 ? .center : .leading)
 
             if let count, count > 0 {
