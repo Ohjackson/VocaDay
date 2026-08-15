@@ -29,6 +29,7 @@ struct SettingsView: View {
     @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
     @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
 
+    @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @State private var showsDeleteConfirmation = false
     @State private var statusMessage: String?
 
@@ -44,7 +45,10 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 summarySection
-                dataManagementSection
+                advancedFeaturesSection
+                if isJSONImportEnabled {
+                    dataManagementSection
+                }
                 dangerSection
             }
             .padding(.horizontal, 20)
@@ -106,6 +110,21 @@ struct SettingsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var advancedFeaturesSection: some View {
+        settingsSection(title: "고급 기능") {
+            Toggle(isOn: $isJSONImportEnabled) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("JSON 기능 사용")
+                        .font(.headline)
+                    Text("단어 추가 화면의 JSON 가져오기와 설정의 JSON 데이터 관리 메뉴를 표시합니다.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.switch)
         }
     }
 

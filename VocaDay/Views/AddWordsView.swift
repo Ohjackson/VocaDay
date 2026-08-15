@@ -34,6 +34,7 @@ struct AddWordsView: View {
     @Binding var selectedDayID: UUID?
     @Binding var quickAddWord: String?
     @Binding var entryMode: AddEntryMode
+    @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @State private var inputWord = ""
     @State private var jsonInput = ""
     @State private var temporaryWords: [VocaWordJSON] = []
@@ -50,14 +51,18 @@ struct AddWordsView: View {
                 VStack(spacing: 22) {
                     selectedDayPicker
 
-                    entryModePicker
+                    if isJSONImportEnabled {
+                        entryModePicker
+                    }
+
+                    usageGuide
+
+                    entryInputCard
 
                     TemporaryWordTable(
                         words: temporaryWords,
                         selectedWordID: $selectedTemporaryWordID
                     )
-
-                    entryInputCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 24)
@@ -90,6 +95,7 @@ struct AddWordsView: View {
             )
         }
         .onAppear {
+            ensureAvailableEntryMode()
             ensureSelectedDay()
             consumeQuickAddWord()
             isInputFocused = true
@@ -99,6 +105,9 @@ struct AddWordsView: View {
         }
         .onChange(of: quickAddWord) { _, _ in
             consumeQuickAddWord()
+        }
+        .onChange(of: isJSONImportEnabled) { _, _ in
+            ensureAvailableEntryMode()
         }
         .translationTask(translationConfiguration) { session in
             await translatePendingWords(with: session)
@@ -143,19 +152,67 @@ struct AddWordsView: View {
         .onboardingSpotlight(.addMode)
     }
 
+    private var usageGuide: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("단어 추가 방법", systemImage: "lightbulb.fill")
+                .font(.headline)
+                .foregroundStyle(Color.accentColor)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
+                ForEach(Array(usageGuideSteps.enumerated()), id: \.offset) { index, step in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.caption.monospacedDigit().weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Color.accentColor, in: Circle())
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(step.title)
+                                .font(.subheadline.weight(.semibold))
+                            Text(step.message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .calmCard()
+    }
+
+    private var usageGuideSteps: [(title: String, message: String)] {
+        if isJSONImportEnabled, entryMode == .json {
+            return [
+                ("데이 선택", "가져온 단어를 저장할 데이를 고르세요."),
+                ("JSON 붙여넣기", "준비한 JSON 배열을 입력란에 붙여넣으세요."),
+                ("목록 가져오기", "JSON 가져오기를 눌러 임시 목록을 확인하세요."),
+                ("데이에 저장", "목록을 확인한 뒤 아래 저장 버튼을 누르세요.")
+            ]
+        }
+
+        return [
+            ("데이 선택", "단어를 저장할 데이를 고르세요."),
+            ("영단어 입력", "아래 입력란에 영단어를 쓰고 Return을 누르세요."),
+            ("목록 확인", "자동 번역된 뜻과 임시 단어를 확인하세요."),
+            ("데이에 저장", "목록을 확인한 뒤 아래 저장 버튼을 누르세요.")
+        ]
+    }
+
     @ViewBuilder
     private var entryInputCard: some View {
-        switch entryMode {
-        case .manual:
+        if isJSONImportEnabled, entryMode == .json {
+            jsonInputCard
+        } else {
             WordInputCard(
                 inputWord: $inputWord,
                 isInputFocused: $isInputFocused,
                 onSubmit: addInputWord
             )
-            .padding(.top, 18)
-        case .json:
-            jsonInputCard
-                .padding(.top, 18)
         }
     }
 
@@ -210,8 +267,10 @@ struct AddWordsView: View {
                 columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                 spacing: 10
             ) {
-                actionButton(title: "JSON 붙여넣기", systemImage: "doc.on.clipboard", action: pasteJSON)
-                actionButton(title: "JSON 복사", systemImage: "doc.on.doc", isDisabled: temporaryWords.isEmpty, action: copyJSON)
+                if isJSONImportEnabled {
+                    actionButton(title: "JSON 붙여넣기", systemImage: "doc.on.clipboard", action: pasteJSON)
+                    actionButton(title: "JSON 복사", systemImage: "doc.on.doc", isDisabled: temporaryWords.isEmpty, action: copyJSON)
+                }
                 actionButton(title: "삭제", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
                     deleteSelectedTemporaryWord()
                     isInputFocused = true
@@ -222,28 +281,30 @@ struct AddWordsView: View {
             .padding(.bottom, 14)
             #else
             HStack(spacing: 20) {
-                Button {
-                    pasteJSON()
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .frame(width: 52, height: 52)
-                }
-                .buttonStyle(.bordered)
-                .clipShape(Circle())
-                .accessibilityLabel("JSON 붙여넣기")
-                .help("JSON 붙여넣기")
+                if isJSONImportEnabled {
+                    Button {
+                        pasteJSON()
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                            .frame(width: 52, height: 52)
+                    }
+                    .buttonStyle(.bordered)
+                    .clipShape(Circle())
+                    .accessibilityLabel("JSON 붙여넣기")
+                    .help("JSON 붙여넣기")
 
-                Button {
-                    copyJSON()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .frame(width: 52, height: 52)
+                    Button {
+                        copyJSON()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .frame(width: 52, height: 52)
+                    }
+                    .buttonStyle(.bordered)
+                    .clipShape(Circle())
+                    .disabled(temporaryWords.isEmpty)
+                    .accessibilityLabel("JSON 복사")
+                    .help("JSON 복사")
                 }
-                .buttonStyle(.bordered)
-                .clipShape(Circle())
-                .disabled(temporaryWords.isEmpty)
-                .accessibilityLabel("JSON 복사")
-                .help("JSON 복사")
 
                 Spacer(minLength: 0)
 
@@ -316,11 +377,13 @@ struct AddWordsView: View {
     private func addInputWord() {
         let english = inputWord.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !english.isEmpty else {
-            importJSONFromClipboard(showAlerts: false)
+            if isJSONImportEnabled {
+                importJSONFromClipboard(showAlerts: false)
+            }
             return
         }
 
-        if english.looksLikeJSONArray {
+        if isJSONImportEnabled, english.looksLikeJSONArray {
             if importJSON(from: english) {
                 inputWord = ""
                 isInputFocused = true
@@ -329,6 +392,12 @@ struct AddWordsView: View {
         }
 
         addEnglishWord(english)
+    }
+
+    private func ensureAvailableEntryMode() {
+        if !isJSONImportEnabled {
+            entryMode = .manual
+        }
     }
 
     private func addEnglishWord(_ english: String) {

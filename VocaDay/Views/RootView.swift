@@ -46,9 +46,7 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
 
 private enum OnboardingStep: Int, CaseIterable {
     case days
-    case addMode
     case addInput
-    case jsonInput
     case addActions
     case review
     case study
@@ -56,9 +54,7 @@ private enum OnboardingStep: Int, CaseIterable {
     var target: OnboardingSpotlightTarget {
         switch self {
         case .days: .days
-        case .addMode: .addMode
         case .addInput: .addInput
-        case .jsonInput: .jsonInput
         case .addActions: .addActions
         case .review: .review
         case .study: .study
@@ -68,9 +64,7 @@ private enum OnboardingStep: Int, CaseIterable {
     var title: String {
         switch self {
         case .days: "데이별로 단어를 모아 보세요"
-        case .addMode: "단어를 추가할 방식을 고르세요"
         case .addInput: "단어를 빠르게 추가하세요"
-        case .jsonInput: "JSON으로 여러 단어를 가져오세요"
         case .addActions: "목록을 관리하고 저장하세요"
         case .review: "준비되었을 때 단어를 복습하세요"
         case .study: "문법과 듣기 노트를 함께 관리하세요"
@@ -80,10 +74,8 @@ private enum OnboardingStep: Int, CaseIterable {
     var message: String {
         switch self {
         case .days: "학습할 때마다 데이를 만들고, 열어서 저장한 단어를 확인하세요."
-        case .addMode: "한 단어씩 직접 입력하거나, 준비한 단어 목록을 JSON으로 가져올 수 있어요."
         case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
-        case .jsonInput: "JSON 배열을 붙여넣어 임시 목록으로 가져온 뒤, 확인하고 데이에 저장하세요."
-        case .addActions: "JSON을 붙여넣거나 복사하고, 선택한 단어를 삭제하거나 데이에 저장할 수 있어요."
+        case .addActions: "선택한 단어를 삭제하거나, 확인한 임시 목록을 데이에 저장할 수 있어요."
         case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
         case .study: "학습 탭에서 받아쓰기와 Markdown 문법 노트를 함께 관리하세요."
         }
@@ -92,7 +84,7 @@ private enum OnboardingStep: Int, CaseIterable {
     var section: AppSection {
         switch self {
         case .days: .days
-        case .addMode, .addInput, .jsonInput, .addActions: .add
+        case .addInput, .addActions: .add
         case .review: .review
         case .study: .lcDictation
         }
@@ -319,13 +311,8 @@ struct RootView: View {
 
     private func presentOnboardingStep(_ step: OnboardingStep) {
         selectedSection = step.section
-        switch step {
-        case .jsonInput:
-            addEntryMode = .json
-        case .addMode, .addInput:
+        if step == .addInput {
             addEntryMode = .manual
-        default:
-            break
         }
     }
 
