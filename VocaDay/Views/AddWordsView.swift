@@ -266,10 +266,10 @@ struct AddWordsView: View {
     private var usageGuideSteps: [(title: String, message: String)] {
         if isJSONImportEnabled, entryMode == .json {
             return [
-                ("외부 AI 열기", "ChatGPT, Claude, Gemini처럼 평소 사용하는 AI 앱이나 웹사이트를 VocaDay 밖에서 여세요."),
-                ("프롬프트 보내기", "오른쪽 위 ?에서 프롬프트를 복사하고, 원하는 영단어를 적어 외부 AI에 보내세요."),
-                ("AI 답변 복사", "외부 AI가 만든 JSON 배열 전체를 복사하세요. VocaDay가 AI 답변을 직접 만들지는 않습니다."),
-                ("VocaDay에 붙여넣기", "아래 ‘클립보드에서 붙여넣기’를 누른 뒤 ‘임시 목록으로 가져오기’를 누르세요."),
+                ("프롬프트 준비", "오른쪽 위 ?에서 입력·출력 예시가 포함된 프롬프트를 복사해 외부 AI 입력창에 붙여넣으세요."),
+                ("영단어 JSON 준비", "직접 입력으로 단어들을 임시 목록에 넣고 아래 ‘AI용 영단어 JSON 복사’를 누르세요."),
+                ("외부 AI에 보내기", "복사한 영단어 JSON을 프롬프트의 ‘변환할 입력 JSON’ 자리에 붙여넣고 외부 AI에 보내세요."),
+                ("완성 JSON 가져오기", "외부 AI 답변을 복사한 뒤 아래에 붙여넣고 ‘임시 목록으로 가져오기’를 누르세요."),
                 ("확인 후 저장", "뜻과 메모를 직접 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
             ]
         }
@@ -394,7 +394,7 @@ struct AddWordsView: View {
             VStack(spacing: 10) {
                 if isJSONImportEnabled {
                     actionButton(
-                        title: "단어 목록 JSON 복사",
+                        title: "AI용 영단어 JSON 복사",
                         systemImage: "doc.on.doc",
                         isDisabled: temporaryWords.isEmpty,
                         action: copyTemporaryWordsAsJSON
@@ -418,13 +418,13 @@ struct AddWordsView: View {
             HStack(spacing: 20) {
                 if isJSONImportEnabled {
                     Button(action: copyTemporaryWordsAsJSON) {
-                        Label("단어 목록 JSON 복사", systemImage: "doc.on.doc")
+                        Label("AI용 영단어 JSON 복사", systemImage: "doc.on.doc")
                             .frame(minHeight: 42)
                     }
                     .buttonStyle(.bordered)
                     .disabled(temporaryWords.isEmpty)
-                    .accessibilityLabel("단어 목록 JSON 복사")
-                    .help("저장 전 확인 목록 전체를 JSON으로 복사")
+                    .accessibilityLabel("AI용 영단어 JSON 복사")
+                    .help("저장 전 확인 목록의 영단어만 AI 입력용 JSON으로 복사")
                 }
 
                 Spacer(minLength: 0)
@@ -510,12 +510,15 @@ struct AddWordsView: View {
         }
 
         do {
-            let json = try JSONWordParser.encode(temporaryWords)
+            let englishOnlyWords = temporaryWords.map { word in
+                VocaWordJSON(english: word.english)
+            }
+            let json = try JSONWordParser.encode(englishOnlyWords)
             ClipboardService.copyText(json)
             let countText = temporaryWords.count == 1 ? "단어 1개" : "단어 \(temporaryWords.count)개"
             alert = VocaAlert(
-                title: "JSON을 복사했습니다",
-                message: "저장 전 확인 목록의 \(countText)와 현재 입력값을 모두 복사했습니다. 외부 AI나 다른 앱에 붙여넣을 수 있습니다."
+                title: "AI용 JSON을 복사했습니다",
+                message: "저장 전 확인 목록의 \(countText)를 영단어만 채운 JSON으로 복사했습니다. 도움말의 프롬프트에서 ‘변환할 입력 JSON’ 자리에 붙여넣으세요."
             )
         } catch {
             alert = VocaAlert(
@@ -883,7 +886,7 @@ private struct AddWordsHelpView: View {
     @State private var isPromptCopied = false
 
     private let jsonPrompt = """
-    아래 영단어 목록을 VocaDay 앱에서 가져올 수 있는 JSON 배열로 만들어줘.
+    아래 입력 JSON의 영단어를 VocaDay 앱에서 가져올 수 있는 완성된 JSON 배열로 만들어줘.
 
     규칙:
     - 설명, 제목, ``` 표시 없이 JSON 배열만 출력해줘.
@@ -897,8 +900,32 @@ private struct AddWordsHelpView: View {
     - 값이 없으면 빈 문자열을 사용해줘.
     - 같은 영단어를 중복해서 만들지 마.
 
-    영단어 목록:
-    [여기에 영단어를 붙여넣기]
+    입력 JSON 예시:
+    [
+      {
+        "english": "acquire",
+        "meaningKo": "",
+        "exampleEn": "",
+        "exampleKo": "",
+        "note": "",
+        "toeicTag": ""
+      }
+    ]
+
+    출력 JSON 예시:
+    [
+      {
+        "english": "acquire",
+        "meaningKo": "습득하다, 얻다",
+        "exampleEn": "She acquired new skills at work.",
+        "exampleKo": "그녀는 직장에서 새로운 기술을 습득했다.",
+        "note": "노력해서 지식이나 능력을 얻을 때 자주 사용",
+        "toeicTag": "동사"
+      }
+    ]
+
+    변환할 입력 JSON:
+    [여기에 VocaDay의 ‘AI용 영단어 JSON 복사’로 복사한 JSON을 붙여넣기]
     """
 
     private let jsonExample = """
@@ -958,25 +985,26 @@ private struct AddWordsHelpView: View {
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
                         helpStep(number: 1, text: "\(settingsLocation)에서 ‘외부 AI의 JSON 단어 가져오기’를 켜세요.")
-                        helpStep(number: 2, text: "이 페이지 아래의 프롬프트 상자를 눌러 내용을 복사하세요.")
-                        helpStep(number: 3, text: "VocaDay 밖에서 ChatGPT, Claude, Gemini 등 사용하는 AI 앱이나 웹사이트를 직접 여세요.")
-                        helpStep(number: 4, text: "복사한 프롬프트를 붙여넣고, 마지막 영단어 목록을 원하는 단어로 바꾼 뒤 외부 AI에 보내세요.")
-                        helpStep(number: 5, text: "외부 AI가 만든 [ 로 시작해 ] 로 끝나는 답변 전체를 복사하세요.")
-                        helpStep(number: 6, text: "VocaDay의 ‘추가’로 돌아와 ‘JSON 가져오기’를 선택하고 ‘클립보드에서 붙여넣기’를 누르세요.")
-                        helpStep(number: 7, text: "‘임시 목록으로 가져오기’를 누른 뒤 내용을 확인·수정하고 선택한 데이에 저장하세요.")
+                        helpStep(number: 2, text: "이 페이지 아래의 프롬프트 상자를 눌러 복사하고, 외부 AI 입력창에 먼저 붙여넣으세요.")
+                        helpStep(number: 3, text: "VocaDay의 ‘직접 입력’에서 원하는 영단어를 하나씩 임시 목록에 추가하세요.")
+                        helpStep(number: 4, text: "화면 아래의 ‘AI용 영단어 JSON 복사’를 눌러 임시 목록의 영단어 JSON을 복사하세요.")
+                        helpStep(number: 5, text: "외부 AI 입력창으로 돌아가 프롬프트 마지막의 ‘변환할 입력 JSON’ 자리에 복사한 JSON을 붙여넣고 전송하세요.")
+                        helpStep(number: 6, text: "외부 AI가 만든 [ 로 시작해 ] 로 끝나는 완성 JSON 답변 전체를 복사하세요.")
+                        helpStep(number: 7, text: "VocaDay의 ‘추가’로 돌아와 ‘JSON 가져오기’를 선택하고 ‘클립보드에서 붙여넣기’를 누르세요.")
+                        helpStep(number: 8, text: "‘임시 목록으로 가져오기’를 누른 뒤 내용을 확인·수정하고 선택한 데이에 저장하세요.")
                     }
                 }
 
                 helpSection(
-                    title: "단어 목록 전체를 JSON으로 복사하기",
+                    title: "AI 입력용 영단어 JSON 복사하기",
                     systemImage: "doc.on.doc"
                 ) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("저장 전 확인 목록에 단어가 있으면 화면 아래의 ‘단어 목록 JSON 복사’를 눌러 목록 전체를 한 번에 복사할 수 있습니다.")
+                        Text("저장 전 확인 목록에 단어가 있으면 화면 아래의 ‘AI용 영단어 JSON 복사’를 눌러 외부 AI에 보낼 입력 JSON을 만들 수 있습니다.")
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        troubleshootingItem("영단어, 한국어 뜻, 예문, 메모와 태그의 현재 값이 모두 포함됩니다.")
-                        troubleshootingItem("복사한 JSON은 외부 AI에 붙여넣어 내용을 보완하거나 다른 앱에 옮길 때 사용할 수 있습니다.")
+                        troubleshootingItem("임시 목록의 영단어만 유지되고, 뜻·예문·메모·태그는 외부 AI가 채울 수 있도록 빈 문자열로 복사됩니다.")
+                        troubleshootingItem("복사한 JSON은 프롬프트 마지막의 ‘변환할 입력 JSON’ 자리에 붙여넣으세요.")
                         troubleshootingItem("이 버튼은 설정에서 ‘외부 AI의 JSON 단어 가져오기’를 켰을 때만 표시됩니다.")
                     }
                 }
@@ -1003,7 +1031,7 @@ private struct AddWordsHelpView: View {
                     systemImage: "sparkles"
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("아래 상자를 누르면 프롬프트 전체가 복사됩니다. 외부 AI에 붙여넣기 전에 마지막 줄의 예시 문구를 원하는 영단어 목록으로 바꾸세요.")
+                        Text("아래 상자를 누르면 입력 JSON 예시와 출력 JSON 예시가 포함된 프롬프트 전체가 복사됩니다. 외부 AI 입력창에 붙여넣은 뒤, 마지막 ‘변환할 입력 JSON’ 자리를 VocaDay에서 복사한 영단어 JSON으로 바꾸세요.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
