@@ -144,6 +144,12 @@ struct RootView: View {
                 }
                 .tabItem { Label(AppSection.lcDictation.title, systemImage: AppSection.lcDictation.systemImage) }
                 .tag(AppSection.lcDictation)
+
+                NavigationStack {
+                    SettingsView()
+                }
+                .tabItem { Label(AppSection.settings.title, systemImage: AppSection.settings.systemImage) }
+                .tag(AppSection.settings)
             }
             #endif
         }
