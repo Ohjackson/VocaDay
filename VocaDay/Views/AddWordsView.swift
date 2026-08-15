@@ -276,7 +276,7 @@ struct AddWordsView: View {
 
         return [
             ("데이 선택", "완성된 단어를 저장할 데이를 먼저 고르세요."),
-            ("영단어 입력", "영단어 또는 구문을 한 개 입력하고 ‘임시 목록에 추가’를 누르세요."),
+            ("영단어 입력", "영단어 또는 구문을 한 개 입력하고 키보드의 완료 또는 Return/Enter를 누르세요."),
             ("뜻 확인·수정", "기기의 번역 기능이 한국어 뜻을 채웁니다. 처음에는 번역 언어 다운로드 안내가 나올 수 있습니다."),
             ("데이에 저장", "표의 셀을 눌러 내용을 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
         ]
@@ -952,7 +952,7 @@ private struct AddWordsHelpView: View {
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
                         helpStep(number: 1, text: "‘추가’ 화면 위에서 저장할 데이를 선택하세요.")
-                        helpStep(number: 2, text: "영단어 또는 짧은 구문을 한 개 입력하고 ‘임시 목록에 추가’를 누르세요.")
+                        helpStep(number: 2, text: "영단어 또는 짧은 구문을 한 개 입력하고 키보드의 완료 또는 Return/Enter를 누르세요.")
                         helpStep(number: 3, text: "기기의 번역 기능이 한국어 뜻을 채울 때까지 잠시 기다리세요. 처음에는 번역 언어 다운로드 안내가 나올 수 있습니다.")
                         helpStep(number: 4, text: "저장 전 확인 표에서 뜻·메모·태그를 직접 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
                     }
@@ -986,7 +986,7 @@ private struct AddWordsHelpView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         helpStep(number: 1, text: "\(settingsLocation)에서 ‘외부 AI의 JSON 단어 가져오기’를 켜세요.")
                         helpStep(number: 2, text: "이 페이지 아래의 프롬프트 상자를 눌러 복사하고, 외부 AI 입력창에 먼저 붙여넣으세요.")
-                        helpStep(number: 3, text: "VocaDay의 ‘직접 입력’에서 원하는 영단어를 하나씩 임시 목록에 추가하세요.")
+                        helpStep(number: 3, text: "VocaDay의 ‘직접 입력’에서 원하는 영단어를 하나씩 입력하고 완료 또는 Return/Enter를 눌러 임시 목록에 추가하세요.")
                         helpStep(number: 4, text: "화면 아래의 ‘AI용 영단어 JSON 복사’를 눌러 임시 목록의 영단어 JSON을 복사하세요.")
                         helpStep(number: 5, text: "외부 AI 입력창으로 돌아가 프롬프트 마지막의 ‘변환할 입력 JSON’ 자리에 복사한 JSON을 붙여넣고 전송하세요.")
                         helpStep(number: 6, text: "외부 AI가 만든 [ 로 시작해 ] 로 끝나는 완성 JSON 답변 전체를 복사하세요.")

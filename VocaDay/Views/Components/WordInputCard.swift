@@ -10,7 +10,7 @@ struct WordInputCard: View {
             Label("영단어 직접 입력", systemImage: "character.cursor.ibeam")
                 .font(.headline)
 
-            Text("한 번에 한 단어 또는 짧은 구문을 입력하세요. 임시 목록에 추가된 뒤 한국어 뜻을 직접 고칠 수 있습니다.")
+            Text("한 번에 한 단어 또는 짧은 구문을 입력하고 키보드의 완료 또는 Return/Enter를 누르세요.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -25,13 +25,6 @@ struct WordInputCard: View {
                 .autocorrectionDisabled()
                 .focused(isInputFocused)
                 .onSubmit(onSubmit)
-
-            Button(action: onSubmit) {
-                Label("임시 목록에 추가", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(inputWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(18)
         .frame(maxWidth: .infinity)
