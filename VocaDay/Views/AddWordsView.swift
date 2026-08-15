@@ -391,20 +391,42 @@ struct AddWordsView: View {
             Divider()
 
             #if os(iOS)
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                spacing: 10
-            ) {
-                actionButton(title: "선택 단어 삭제", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
-                    deleteSelectedTemporaryWord()
-                    isInputFocused = true
+            VStack(spacing: 10) {
+                if isJSONImportEnabled {
+                    actionButton(
+                        title: "단어 목록 JSON 복사",
+                        systemImage: "doc.on.doc",
+                        isDisabled: temporaryWords.isEmpty,
+                        action: copyTemporaryWordsAsJSON
+                    )
                 }
-                actionButton(title: "선택한 데이에 저장", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
+
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                    spacing: 10
+                ) {
+                    actionButton(title: "선택 단어 삭제", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
+                        deleteSelectedTemporaryWord()
+                        isInputFocused = true
+                    }
+                    actionButton(title: "선택한 데이에 저장", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
             #else
             HStack(spacing: 20) {
+                if isJSONImportEnabled {
+                    Button(action: copyTemporaryWordsAsJSON) {
+                        Label("단어 목록 JSON 복사", systemImage: "doc.on.doc")
+                            .frame(minHeight: 42)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(temporaryWords.isEmpty)
+                    .accessibilityLabel("단어 목록 JSON 복사")
+                    .help("저장 전 확인 목록 전체를 JSON으로 복사")
+                }
+
                 Spacer(minLength: 0)
 
                 Button(role: .destructive) {
@@ -476,6 +498,31 @@ struct AddWordsView: View {
         guard !english.isEmpty else { return }
 
         addEnglishWord(english)
+    }
+
+    private func copyTemporaryWordsAsJSON() {
+        guard !temporaryWords.isEmpty else {
+            alert = VocaAlert(
+                title: "복사할 단어가 없습니다",
+                message: "먼저 직접 입력하거나 JSON을 가져와 저장 전 확인 목록에 단어를 추가하세요."
+            )
+            return
+        }
+
+        do {
+            let json = try JSONWordParser.encode(temporaryWords)
+            ClipboardService.copyText(json)
+            let countText = temporaryWords.count == 1 ? "단어 1개" : "단어 \(temporaryWords.count)개"
+            alert = VocaAlert(
+                title: "JSON을 복사했습니다",
+                message: "저장 전 확인 목록의 \(countText)와 현재 입력값을 모두 복사했습니다. 외부 AI나 다른 앱에 붙여넣을 수 있습니다."
+            )
+        } catch {
+            alert = VocaAlert(
+                title: "JSON을 복사하지 못했습니다",
+                message: "잠시 후 다시 시도하세요."
+            )
+        }
     }
 
     private func ensureAvailableEntryMode() {
@@ -917,6 +964,20 @@ private struct AddWordsHelpView: View {
                         helpStep(number: 5, text: "외부 AI가 만든 [ 로 시작해 ] 로 끝나는 답변 전체를 복사하세요.")
                         helpStep(number: 6, text: "VocaDay의 ‘추가’로 돌아와 ‘JSON 가져오기’를 선택하고 ‘클립보드에서 붙여넣기’를 누르세요.")
                         helpStep(number: 7, text: "‘임시 목록으로 가져오기’를 누른 뒤 내용을 확인·수정하고 선택한 데이에 저장하세요.")
+                    }
+                }
+
+                helpSection(
+                    title: "단어 목록 전체를 JSON으로 복사하기",
+                    systemImage: "doc.on.doc"
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("저장 전 확인 목록에 단어가 있으면 화면 아래의 ‘단어 목록 JSON 복사’를 눌러 목록 전체를 한 번에 복사할 수 있습니다.")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        troubleshootingItem("영단어, 한국어 뜻, 예문, 메모와 태그의 현재 값이 모두 포함됩니다.")
+                        troubleshootingItem("복사한 JSON은 외부 AI에 붙여넣어 내용을 보완하거나 다른 앱에 옮길 때 사용할 수 있습니다.")
+                        troubleshootingItem("이 버튼은 설정에서 ‘외부 AI의 JSON 단어 가져오기’를 켰을 때만 표시됩니다.")
                     }
                 }
 
