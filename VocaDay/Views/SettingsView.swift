@@ -25,6 +25,7 @@ struct SettingsView: View {
                 settingsIntroduction
                 summarySection
                 advancedFeaturesSection
+                informationSection
                 dangerSection
             }
             .padding(.horizontal, 20)
@@ -129,6 +130,44 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var informationSection: some View {
+        settingsSection(title: "정보") {
+            Link(destination: privacyPolicyURL) {
+                HStack(spacing: 12) {
+                    Image(systemName: "hand.raised")
+                        .font(.title3)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("개인정보 처리방침")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text("학습 데이터의 저장, iCloud 동기화와 삭제 방법을 확인합니다.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(AppTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("웹 브라우저에서 VocaDay 개인정보 처리방침을 엽니다")
+        }
+    }
+
+    private var privacyPolicyURL: URL {
+        URL(string: "https://frequent-silene-a12.notion.site/3bd9fbf6504180a8976af906d35a117f")!
     }
 
     private var summaryColumns: [GridItem] {
