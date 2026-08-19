@@ -439,7 +439,8 @@ enum AppDataBackupService {
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
         lcDays: [LCDictationDay],
-        grammarNotes: [GrammarNote]
+        grammarNotes: [GrammarNote],
+        customStudyPages: [CustomStudyPage] = []
     ) throws {
         for day in vocabularyDays {
             context.delete(day)
@@ -449,6 +450,9 @@ enum AppDataBackupService {
         }
         for note in grammarNotes {
             context.delete(note)
+        }
+        for page in customStudyPages {
+            context.delete(page)
         }
         try context.save()
     }

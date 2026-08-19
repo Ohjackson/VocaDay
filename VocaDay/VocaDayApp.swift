@@ -90,6 +90,7 @@ struct VocaDayApp: App {
             LCDictationDay.self,
             LCDictationNote.self,
             GrammarNote.self,
+            CustomStudyPage.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

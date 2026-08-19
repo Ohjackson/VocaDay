@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
     @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
+    @Query(sort: \CustomStudyPage.updatedAt, order: .reverse) private var customStudyPages: [CustomStudyPage]
 
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @State private var showsDeleteConfirmation = false
@@ -65,6 +66,7 @@ struct SettingsView: View {
                 summaryItem(title: "LC 노트 묶음", value: lcDays.count, systemImage: "headphones")
                 summaryItem(title: "받아쓰기 줄", value: noteCount, systemImage: "note.text")
                 summaryItem(title: "문법 노트", value: grammarNotes.count, systemImage: "text.book.closed")
+                summaryItem(title: "내 학습 페이지", value: customStudyPages.count, systemImage: "square.grid.2x2")
             }
         }
     }
@@ -108,7 +110,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("모든 앱 데이터 삭제")
                         .font(.headline)
-                    Text("단어 데이, 단어, LC 노트, 받아쓰기 줄, 문법 노트를 삭제합니다.")
+                    Text("단어, LC·문법 노트와 직접 만든 학습 페이지를 모두 삭제합니다.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -121,7 +123,7 @@ struct SettingsView: View {
                     Label("전체 삭제", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
-                .disabled(vocabularyDays.isEmpty && lcDays.isEmpty && grammarNotes.isEmpty)
+                .disabled(vocabularyDays.isEmpty && lcDays.isEmpty && grammarNotes.isEmpty && customStudyPages.isEmpty)
             }
 
             if let statusMessage {
@@ -203,7 +205,8 @@ struct SettingsView: View {
                 in: modelContext,
                 vocabularyDays: vocabularyDays,
                 lcDays: lcDays,
-                grammarNotes: grammarNotes
+                grammarNotes: grammarNotes,
+                customStudyPages: customStudyPages
             )
             statusMessage = "모든 앱 데이터를 삭제했습니다."
         } catch {
@@ -226,5 +229,5 @@ private func settingsSection<Content: View>(title: String, @ViewBuilder content:
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self, GrammarNote.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self, GrammarNote.self, CustomStudyPage.self], inMemory: true)
 }
