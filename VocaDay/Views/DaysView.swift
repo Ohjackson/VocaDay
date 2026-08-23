@@ -63,14 +63,12 @@ struct DaysView: View {
         .searchable(text: $searchText, prompt: "데이 검색")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
-                #if os(iOS)
                 NavigationLink {
                     SettingsView()
                 } label: {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityLabel("설정")
-                #endif
 
                 Button {
                     isEditingDays.toggle()

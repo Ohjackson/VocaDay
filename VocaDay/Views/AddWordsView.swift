@@ -1137,11 +1137,7 @@ private struct AddWordsHelpView: View {
     }
 
     private var settingsLocation: String {
-#if os(iOS)
-        return "하단 ‘설정’ 탭"
-#else
-        return "왼쪽 ‘설정’ 메뉴"
-#endif
+        return "‘데이’ 화면 오른쪽 위 설정"
     }
 
     private func helpSection<Content: View>(

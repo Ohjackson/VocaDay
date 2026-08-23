@@ -9,7 +9,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     case add
     case review
     case lcDictation
-    case settings
 
     var id: Self { self }
 
@@ -23,8 +22,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "복습"
         case .lcDictation:
             return "학습"
-        case .settings:
-            return "설정"
         }
     }
 
@@ -38,8 +35,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "rectangle.stack"
         case .lcDictation:
             return "headphones"
-        case .settings:
-            return "gearshape"
         }
     }
 }
@@ -94,6 +89,9 @@ private enum OnboardingStep: Int, CaseIterable {
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
+    @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
+    @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
+    @Query(sort: \CustomStudyPage.updatedAt, order: .reverse) private var customStudyPages: [CustomStudyPage]
 
     @State private var selectedSection: AppSection = .days
     @State private var selectedDayID: UUID?
@@ -145,11 +143,6 @@ struct RootView: View {
                 .tabItem { Label(AppSection.lcDictation.title, systemImage: AppSection.lcDictation.systemImage) }
                 .tag(AppSection.lcDictation)
 
-                NavigationStack {
-                    SettingsView()
-                }
-                .tabItem { Label(AppSection.settings.title, systemImage: AppSection.settings.systemImage) }
-                .tag(AppSection.settings)
             }
             #endif
         }
@@ -188,6 +181,7 @@ struct RootView: View {
         }
         .task {
             ensureInitialDay()
+            await ensureInitialStudyData()
             await presentOnboardingIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
@@ -216,14 +210,24 @@ struct RootView: View {
             ReviewView()
         case .lcDictation:
             StudyView()
-        case .settings:
-            SettingsView()
         }
     }
 
     private func ensureInitialDay() {
         DemoDataSeeder.seedIfNeeded(existingDays: days, in: modelContext)
         ensureSelectedDay()
+    }
+
+    @MainActor
+    private func ensureInitialStudyData() async {
+        try? await Task.sleep(for: .milliseconds(800))
+        guard !Task.isCancelled else { return }
+        DemoDataSeeder.seedStudyDataIfNeeded(
+            existingLCDays: lcDays,
+            existingGrammarNotes: grammarNotes,
+            existingCustomPages: customStudyPages,
+            in: modelContext
+        )
     }
 
     private func ensureSelectedDay() {
