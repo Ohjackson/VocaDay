@@ -89,6 +89,7 @@ private enum OnboardingStep: Int, CaseIterable {
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
+    @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
 
     @State private var selectedSection: AppSection = .days
     @State private var selectedDayID: UUID?
@@ -178,6 +179,7 @@ struct RootView: View {
         }
         .task {
             ensureInitialDay()
+            DemoDataSeeder.seedStudyMemosIfNeeded(existingMemos: studyMemos, in: modelContext)
             await presentOnboardingIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
