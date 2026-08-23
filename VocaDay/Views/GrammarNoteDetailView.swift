@@ -218,9 +218,9 @@ struct GrammarNoteEditorView: View {
                 .scrollContentBackground(.hidden)
                 .padding(8)
                 .background(AppTheme.background)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous)
                         .stroke(AppTheme.softStroke)
                 }
                 .frame(height: 178)

@@ -12,6 +12,10 @@ struct StudyView: View {
         Array(grammarNotes.prefix(3))
     }
 
+    private var lcNoteCount: Int {
+        lcDays.reduce(0) { $0 + $1.noteList.count }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -28,10 +32,10 @@ struct StudyView: View {
                         LCDictationView()
                     } label: {
                         studyCard(
-                            title: "LC",
-                            subtitle: "받아쓰기와 듣기 노트",
-                            count: lcDays.count,
-                            countLabel: "노트",
+                            title: "LC 받아쓰기",
+                            subtitle: "문장을 듣고 받아쓰며 틀린 표현을 기록해요.",
+                            count: lcNoteCount,
+                            countLabel: "받아쓰기 줄",
                             systemImage: "headphones"
                         )
                     }
@@ -41,7 +45,7 @@ struct StudyView: View {
                     } label: {
                         studyCard(
                             title: "문법 노트",
-                            subtitle: "문법, 표, 예문을 위한 Markdown 노트",
+                            subtitle: "문법 규칙과 예문을 Markdown으로 정리해요.",
                             count: grammarNotes.count,
                             countLabel: "페이지",
                             systemImage: "text.book.closed"
@@ -49,6 +53,7 @@ struct StudyView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .onboardingSpotlight(.study)
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
@@ -128,7 +133,6 @@ struct StudyView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .onboardingSpotlight(.study)
         .navigationTitle("학습")
         .toolbar {
             ToolbarItem(placement: toolbarPlacement) {
@@ -191,7 +195,7 @@ struct StudyView: View {
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
         .calmCard()
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
     }
 
     private func studyCard(
@@ -204,9 +208,9 @@ struct StudyView: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: systemImage)
                 .font(.title2)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 42, height: 42)
-                .background(Color.accentColor)
+                .background(Color.accentColor.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
@@ -239,7 +243,7 @@ struct StudyView: View {
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
         .calmCard()
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
     }
 }
 

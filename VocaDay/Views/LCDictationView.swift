@@ -245,14 +245,14 @@ private struct LCDictationDetailView: View {
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, minHeight: 58, alignment: .topLeading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                 .fill(AppTheme.cardBackground)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                 .stroke(focusedNoteID == note.id ? Color.accentColor.opacity(0.45) : AppTheme.softStroke, lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .onTapGesture {
             focusedNoteID = note.id
         }
@@ -347,7 +347,7 @@ private struct LCDictationDayCardView: View {
         .padding(18)
         .frame(maxWidth: .infinity)
         .calmCard()
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }

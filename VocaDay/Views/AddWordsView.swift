@@ -51,9 +51,7 @@ struct AddWordsView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 22) {
-                    selectedDayPicker
-
-                    entryModeSection
+                    entrySetupCard
 
                     if shouldShowUsageGuide {
                         usageGuide
@@ -127,9 +125,22 @@ struct AddWordsView: View {
         }
     }
 
+    private var entrySetupCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            selectedDayPicker
+
+            Divider()
+
+            entryModeSection
+        }
+        .padding(18)
+        .calmCard()
+        .onboardingSpotlight(.addMode)
+    }
+
     private var selectedDayPicker: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("저장할 데이", systemImage: "calendar")
+            Label("1. 저장할 데이", systemImage: "calendar")
                 .font(.headline)
 
             Text("아래에서 준비한 단어는 마지막에 선택한 데이로 저장됩니다.")
@@ -158,13 +169,11 @@ struct AddWordsView: View {
                 Spacer()
             }
         }
-        .padding(18)
-        .calmCard()
     }
 
     private var entryModeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("입력 방법", systemImage: "square.and.pencil")
+            Label("2. 입력 방법", systemImage: "square.and.pencil")
                 .font(.headline)
 
             if isJSONImportEnabled {
@@ -188,9 +197,6 @@ struct AddWordsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(18)
-        .calmCard()
-        .onboardingSpotlight(.addMode)
     }
 
     private var usageGuide: some View {

@@ -21,6 +21,7 @@ struct ReviewView: View {
                             dayRow(for: day)
                         }
                     }
+                    .onboardingSpotlight(.review)
                 }
             }
             .padding(.horizontal, 20)
@@ -29,7 +30,6 @@ struct ReviewView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .onboardingSpotlight(.review)
         .navigationTitle("복습")
         .toolbar {
             ToolbarItem(placement: toolbarPlacement) {

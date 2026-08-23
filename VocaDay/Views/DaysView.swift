@@ -50,6 +50,7 @@ struct DaysView: View {
                             dayRow(for: day)
                         }
                     }
+                    .onboardingSpotlight(.days)
                 }
             }
             .padding(.horizontal, 20)
@@ -58,7 +59,6 @@ struct DaysView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
-        .onboardingSpotlight(.days)
         .navigationTitle("VocaDay")
         .searchable(text: $searchText, prompt: "데이 검색")
         .toolbar {

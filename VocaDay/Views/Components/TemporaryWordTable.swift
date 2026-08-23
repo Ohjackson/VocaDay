@@ -22,7 +22,7 @@ struct TemporaryWordTable: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("저장 전 확인")
+                    Text("4. 저장 전 확인")
                         .font(.headline)
                     Text("셀을 눌러 내용을 수정하세요. 행을 선택하면 아래에서 삭제할 수 있습니다.")
                         .font(.caption)

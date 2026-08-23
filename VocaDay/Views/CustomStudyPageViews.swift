@@ -68,9 +68,9 @@ struct CreateStudyPageView: View {
                                     .font(.title3)
                                     .frame(width: 44, height: 44)
                                     .background(iconName == icon ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
                                     .overlay {
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous)
                                             .stroke(iconName == icon ? Color.accentColor : Color.clear, lineWidth: 1.5)
                                     }
                             }
@@ -227,7 +227,7 @@ private struct RenameStudyPageView: View {
                                     .font(.title3)
                                     .frame(width: 44, height: 44)
                                     .background(draftIcon == icon ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
                             }
                             .buttonStyle(.plain)
                         }
@@ -285,14 +285,18 @@ private struct MarkdownStudyPageView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Label("작성 내용은 미리 보기로 전환하거나 페이지를 나갈 때 자동 저장됩니다.", systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     TextEditor(text: $draft)
                         .font(.system(.body, design: .monospaced))
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .background(AppTheme.cardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous)
                                 .stroke(AppTheme.softStroke)
                         }
                 }
@@ -369,6 +373,15 @@ private struct TableStudyPageView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
 
+            if !visibleColumns.isEmpty {
+                Label("표를 좌우로 밀어 숨은 열을 보고, 셀을 눌러 바로 편집하세요.", systemImage: "hand.draw")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+            }
+
             Divider()
 
             if columns.isEmpty {
@@ -433,9 +446,9 @@ private struct TableStudyPageView: View {
                 }
             }
             .background(AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous)
                     .stroke(AppTheme.softStroke)
             }
             .padding(20)

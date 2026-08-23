@@ -44,10 +44,10 @@ struct DayCardView: View {
         .frame(maxWidth: .infinity, minHeight: 116, maxHeight: 116)
         .calmCard()
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                 .stroke(isSelected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 2)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 

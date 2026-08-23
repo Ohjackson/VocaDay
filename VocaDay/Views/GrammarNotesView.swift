@@ -175,7 +175,7 @@ struct GrammarNoteRowView: View {
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 92, alignment: .topLeading)
         .calmCard()
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
     }
 }
 

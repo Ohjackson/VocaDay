@@ -40,13 +40,15 @@ struct SpotlightOnboardingOverlay: View {
     let onNext: () -> Void
     let onSkip: () -> Void
 
+    @State private var isSpotlightBright = false
+
     var body: some View {
         GeometryReader { proxy in
             let expandedRect = spotlightRect?.insetBy(dx: -10, dy: -10)
             let showCardAbove = expandedRect.map { $0.midY > proxy.size.height * 0.58 } ?? false
 
             ZStack {
-                Color.black.opacity(0.66)
+                Color.black.opacity(0.74)
                     .ignoresSafeArea()
 
                 if let expandedRect {
@@ -57,10 +59,16 @@ struct SpotlightOnboardingOverlay: View {
                         .blendMode(.destinationOut)
 
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                        .fill(Color.white.opacity(isSpotlightBright ? 0.14 : 0.07))
                         .frame(width: expandedRect.width, height: expandedRect.height)
                         .position(x: expandedRect.midX, y: expandedRect.midY)
-                        .shadow(color: Color.white.opacity(0.35), radius: 12)
+                        .blendMode(.screen)
+
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.accentColor.opacity(isSpotlightBright ? 1 : 0.72), lineWidth: 3)
+                        .frame(width: expandedRect.width, height: expandedRect.height)
+                        .position(x: expandedRect.midX, y: expandedRect.midY)
+                        .shadow(color: Color.accentColor.opacity(isSpotlightBright ? 0.8 : 0.4), radius: isSpotlightBright ? 22 : 10)
                 }
 
                 VStack(spacing: 0) {
@@ -78,6 +86,11 @@ struct SpotlightOnboardingOverlay: View {
             .compositingGroup()
         }
         .accessibilityAddTraits(.isModal)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                isSpotlightBright = true
+            }
+        }
     }
 
     private var onboardingCard: some View {

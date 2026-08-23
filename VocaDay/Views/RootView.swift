@@ -67,7 +67,7 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "단어를 빠르게 추가하세요"
         case .addActions: "목록을 관리하고 저장하세요"
         case .review: "준비되었을 때 단어를 복습하세요"
-        case .study: "문법과 듣기 노트를 함께 관리하세요"
+        case .study: "나에게 맞는 학습 공간을 만드세요"
         }
     }
 
@@ -77,7 +77,7 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
         case .addActions: "선택한 단어를 삭제하거나, 확인한 임시 목록을 데이에 저장할 수 있어요."
         case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
-        case .study: "학습 탭에서 받아쓰기와 Markdown 문법 노트를 함께 관리하세요."
+        case .study: "기본 LC·문법 노트를 사용하거나, +를 눌러 나만의 Markdown 문서와 표를 만드세요."
         }
     }
 
@@ -193,6 +193,10 @@ struct RootView: View {
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
         }
+        .onChange(of: hasCompletedSpotlightOnboarding) { _, completed in
+            guard !completed, onboardingStep == nil else { return }
+            Task { await presentOnboardingIfNeeded() }
+        }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: quickAddRequestedNotification)) { _ in
             NSApp.activate(ignoringOtherApps: true)
@@ -288,6 +292,7 @@ struct RootView: View {
         guard !hasCompletedSpotlightOnboarding else { return }
         try? await Task.sleep(for: .milliseconds(450))
         guard !Task.isCancelled, !hasCompletedSpotlightOnboarding else { return }
+        presentOnboardingStep(.days)
         withAnimation(.easeInOut(duration: 0.22)) {
             onboardingStep = .days
         }
