@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -9,8 +10,16 @@ struct SettingsView: View {
     @Query(sort: \CustomStudyPage.updatedAt, order: .reverse) private var customStudyPages: [CustomStudyPage]
 
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
+    @AppStorage("lastSuccessfulBackupAt") private var lastSuccessfulBackupAt = 0.0
     @State private var showsDeleteConfirmation = false
     @State private var statusMessage: String?
+    @State private var backupStatusMessage: String?
+    @State private var backupDocument = VocaDayBackupDocument()
+    @State private var isExportingBackup = false
+    @State private var isImportingBackup = false
+    @State private var pendingRestoreArchive: AppDataArchive?
+    @State private var restoreSummary = ""
+    @State private var showsRestoreConfirmation = false
 
     private var wordCount: Int {
         vocabularyDays.reduce(0) { $0 + $1.wordList.count }
@@ -25,6 +34,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 settingsIntroduction
                 summarySection
+                backupSection
                 advancedFeaturesSection
                 informationSection
                 dangerSection
@@ -43,6 +53,35 @@ struct SettingsView: View {
             Button("취소", role: .cancel) {}
         } message: {
             Text("저장한 데이, 단어, 복습 기록과 학습 노트가 모두 삭제되며 되돌릴 수 없습니다.")
+        }
+        .confirmationDialog("백업 데이터를 복원할까요?", isPresented: $showsRestoreConfirmation, titleVisibility: .visible) {
+            Button("현재 데이터와 병합") {
+                restorePendingBackup()
+            }
+            Button("취소", role: .cancel) {
+                pendingRestoreArchive = nil
+            }
+        } message: {
+            Text("\(restoreSummary)\n\n현재 데이터는 먼저 삭제하지 않습니다. 같은 항목은 백업 내용으로 업데이트하고, 없는 항목은 새로 추가합니다.")
+        }
+        .fileExporter(
+            isPresented: $isExportingBackup,
+            document: backupDocument,
+            contentType: .json,
+            defaultFilename: backupFilename
+        ) { result in
+            switch result {
+            case .success:
+                lastSuccessfulBackupAt = Date().timeIntervalSince1970
+                backupStatusMessage = "백업 파일을 저장했습니다."
+            case .failure(let error):
+                if !isUserCancellation(error) {
+                    backupStatusMessage = "백업 파일을 저장하지 못했습니다: \(error.localizedDescription)"
+                }
+            }
+        }
+        .fileImporter(isPresented: $isImportingBackup, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+            importBackup(result)
         }
     }
 
@@ -97,6 +136,65 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
                 Text("VocaDay 안에는 AI가 내장되어 있지 않으며, 입력한 단어를 외부 AI로 자동 전송하지 않습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var backupSection: some View {
+        settingsSection(title: "백업 및 복원") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("iCloud 동기화와 별개로 현재 학습 데이터를 하나의 JSON 파일에 보관합니다. 파일 앱의 ‘나의 iPhone’이나 iCloud Drive 등 원하는 위치를 직접 선택할 수 있습니다.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label("단어와 복습 기록, LC·문법 노트, 직접 만든 학습 페이지가 포함됩니다.", systemImage: "checkmark.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 10) {
+                    Button {
+                        prepareBackup()
+                    } label: {
+                        Label("백업 파일 저장", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!hasBackupData)
+
+                    Button {
+                        isImportingBackup = true
+                    } label: {
+                        Label("백업에서 복원", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+
+                if !hasBackupData {
+                    Text("저장된 학습 데이터가 없어 아직 백업 파일을 만들 수 없습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if lastSuccessfulBackupAt > 0 {
+                    Label("마지막 파일 백업: \(Date(timeIntervalSince1970: lastSuccessfulBackupAt).formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let backupStatusMessage {
+                    Text(backupStatusMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("백업 파일에는 사용자가 입력한 학습 내용이 그대로 들어 있습니다. 공유 기기나 공개 폴더에는 저장하지 마세요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -229,6 +327,17 @@ struct SettingsView: View {
         URL(string: "https://frequent-silene-a12.notion.site/3bd9fbf6504180a8976af906d35a117f")!
     }
 
+    private var hasBackupData: Bool {
+        !vocabularyDays.isEmpty || !lcDays.isEmpty || !grammarNotes.isEmpty || !customStudyPages.isEmpty
+    }
+
+    private var backupFilename: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "VocaDay-백업-\(formatter.string(from: Date()))"
+    }
+
     private var summaryColumns: [GridItem] {
         [GridItem(.adaptive(minimum: 150), spacing: 12)]
     }
@@ -269,6 +378,82 @@ struct SettingsView: View {
         } catch {
             statusMessage = "데이터를 삭제하지 못했습니다. 앱을 다시 연 뒤 시도하세요."
         }
+    }
+
+    private func prepareBackup() {
+        do {
+            let archive = AppDataBackupService.archiveAll(
+                vocabularyDays: vocabularyDays,
+                lcDays: lcDays,
+                grammarNotes: grammarNotes,
+                customStudyPages: customStudyPages
+            )
+            let json = try AppDataBackupService.encode(archive)
+            backupDocument = VocaDayBackupDocument(data: Data(json.utf8))
+            backupStatusMessage = nil
+            isExportingBackup = true
+        } catch {
+            backupStatusMessage = "백업 파일을 만들지 못했습니다: \(error.localizedDescription)"
+        }
+    }
+
+    private func importBackup(_ result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            guard let url = urls.first else { return }
+            let hasAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasAccess { url.stopAccessingSecurityScopedResource() }
+            }
+
+            let data = try Data(contentsOf: url)
+            guard data.count <= 50 * 1_024 * 1_024,
+                  let json = String(data: data, encoding: .utf8) else {
+                throw AppDataBackupError.invalidFile
+            }
+
+            let archive = try AppDataBackupService.decode(json)
+            let preview = AppDataBackupService.preview(
+                archive,
+                vocabularyDays: vocabularyDays,
+                lcDays: lcDays,
+                grammarNotes: grammarNotes,
+                customStudyPages: customStudyPages
+            )
+            pendingRestoreArchive = archive
+            restoreSummary = preview.summary
+            backupStatusMessage = nil
+            showsRestoreConfirmation = true
+        } catch {
+            if !isUserCancellation(error) {
+                backupStatusMessage = "백업 파일을 읽지 못했습니다: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func restorePendingBackup() {
+        guard let archive = pendingRestoreArchive else { return }
+
+        do {
+            try AppDataBackupService.applyUpsert(
+                archive,
+                in: modelContext,
+                vocabularyDays: vocabularyDays,
+                lcDays: lcDays,
+                grammarNotes: grammarNotes,
+                customStudyPages: customStudyPages
+            )
+            backupStatusMessage = "백업 데이터를 현재 데이터와 병합했습니다."
+        } catch {
+            backupStatusMessage = "백업을 복원하지 못했습니다: \(error.localizedDescription)"
+        }
+
+        pendingRestoreArchive = nil
+    }
+
+    private func isUserCancellation(_ error: Error) -> Bool {
+        let cocoaError = error as NSError
+        return cocoaError.domain == NSCocoaErrorDomain && cocoaError.code == NSUserCancelledError
     }
 }
 

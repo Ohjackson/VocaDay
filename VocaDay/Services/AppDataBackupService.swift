@@ -10,32 +10,44 @@ enum AppDataArchiveType: String, Codable {
 
 struct AppDataArchive: Codable {
     var schemaVersion: Int
+    var createdAt: Date
+    var appVersion: String
     var type: AppDataArchiveType
     var vocabularyDays: [VocabularyDayArchive]
     var lcDictationDays: [LCDictationDayArchive]
     var grammarNotes: [GrammarNoteArchive]
+    var customStudyPages: [CustomStudyPageArchive]
 
     init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = 2,
+        createdAt: Date = Date(),
+        appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         type: AppDataArchiveType,
         vocabularyDays: [VocabularyDayArchive] = [],
         lcDictationDays: [LCDictationDayArchive] = [],
-        grammarNotes: [GrammarNoteArchive] = []
+        grammarNotes: [GrammarNoteArchive] = [],
+        customStudyPages: [CustomStudyPageArchive] = []
     ) {
         self.schemaVersion = schemaVersion
+        self.createdAt = createdAt
+        self.appVersion = appVersion
         self.type = type
         self.vocabularyDays = vocabularyDays
         self.lcDictationDays = lcDictationDays
         self.grammarNotes = grammarNotes
+        self.customStudyPages = customStudyPages
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        appVersion = try container.decodeIfPresent(String.self, forKey: .appVersion) ?? ""
         type = try container.decodeIfPresent(AppDataArchiveType.self, forKey: .type) ?? .allAppData
         vocabularyDays = try container.decodeIfPresent([VocabularyDayArchive].self, forKey: .vocabularyDays) ?? []
         lcDictationDays = try container.decodeIfPresent([LCDictationDayArchive].self, forKey: .lcDictationDays) ?? []
         grammarNotes = try container.decodeIfPresent([GrammarNoteArchive].self, forKey: .grammarNotes) ?? []
+        customStudyPages = try container.decodeIfPresent([CustomStudyPageArchive].self, forKey: .customStudyPages) ?? []
     }
 }
 
@@ -229,6 +241,53 @@ struct GrammarNoteArchive: Codable, Identifiable {
     }
 }
 
+struct CustomStudyPageArchive: Codable, Identifiable {
+    var id: UUID
+    var title: String
+    var iconName: String
+    var kindRawValue: String
+    var markdown: String
+    var columnsJSON: String
+    var rowsJSON: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        iconName: String = "doc.richtext",
+        kindRawValue: String = StudyPageKind.markdown.rawValue,
+        markdown: String = "",
+        columnsJSON: String = "[]",
+        rowsJSON: String = "[]",
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.title = title
+        self.iconName = iconName
+        self.kindRawValue = kindRawValue
+        self.markdown = markdown
+        self.columnsJSON = columnsJSON
+        self.rowsJSON = rowsJSON
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 학습 페이지"
+        iconName = try container.decodeIfPresent(String.self, forKey: .iconName) ?? "doc.richtext"
+        kindRawValue = try container.decodeIfPresent(String.self, forKey: .kindRawValue) ?? StudyPageKind.markdown.rawValue
+        markdown = try container.decodeIfPresent(String.self, forKey: .markdown) ?? ""
+        columnsJSON = try container.decodeIfPresent(String.self, forKey: .columnsJSON) ?? "[]"
+        rowsJSON = try container.decodeIfPresent(String.self, forKey: .rowsJSON) ?? "[]"
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+}
+
 struct AppDataImportPreview {
     let vocabularyDaysToCreate: Int
     let vocabularyDaysToUpdate: Int
@@ -240,6 +299,8 @@ struct AppDataImportPreview {
     let notesToUpdate: Int
     let grammarNotesToCreate: Int
     let grammarNotesToUpdate: Int
+    let customPagesToCreate: Int
+    let customPagesToUpdate: Int
 
     var isEmpty: Bool {
         vocabularyDaysToCreate == 0 &&
@@ -251,7 +312,9 @@ struct AppDataImportPreview {
         notesToCreate == 0 &&
         notesToUpdate == 0 &&
         grammarNotesToCreate == 0 &&
-        grammarNotesToUpdate == 0
+        grammarNotesToUpdate == 0 &&
+        customPagesToCreate == 0 &&
+        customPagesToUpdate == 0
     }
 
     var summary: String {
@@ -264,8 +327,23 @@ struct AppDataImportPreview {
             "단어: 새로 만들기 \(wordsToCreate)개, 업데이트 \(wordsToUpdate)개",
             "LC 노트: 새로 만들기 \(lcDaysToCreate)개, 업데이트 \(lcDaysToUpdate)개",
             "받아쓰기 줄: 새로 만들기 \(notesToCreate)개, 업데이트 \(notesToUpdate)개",
-            "문법 노트: 새로 만들기 \(grammarNotesToCreate)개, 업데이트 \(grammarNotesToUpdate)개"
+            "문법 노트: 새로 만들기 \(grammarNotesToCreate)개, 업데이트 \(grammarNotesToUpdate)개",
+            "내 학습 페이지: 새로 만들기 \(customPagesToCreate)개, 업데이트 \(customPagesToUpdate)개"
         ].joined(separator: "\n")
+    }
+}
+
+enum AppDataBackupError: LocalizedError {
+    case unsupportedVersion(Int)
+    case invalidFile
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedVersion(let version):
+            "이 백업 파일은 더 새로운 VocaDay 형식(버전 \(version))으로 만들어졌습니다. 앱을 업데이트한 뒤 다시 시도하세요."
+        case .invalidFile:
+            "선택한 파일을 VocaDay 백업으로 읽을 수 없습니다."
+        }
     }
 }
 
@@ -274,13 +352,17 @@ enum AppDataBackupService {
     static func archiveAll(
         vocabularyDays: [VocabularyDay],
         lcDays: [LCDictationDay],
-        grammarNotes: [GrammarNote]
+        grammarNotes: [GrammarNote],
+        customStudyPages: [CustomStudyPage] = []
     ) -> AppDataArchive {
         AppDataArchive(
             type: .allAppData,
             vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.archiveVocabularyDay),
             lcDictationDays: lcDays.sortedByCreatedAt().map(Self.archiveLCDictationDay),
-            grammarNotes: grammarNotes.sortedByUpdatedAt().map(Self.archiveGrammarNoteRecord)
+            grammarNotes: grammarNotes.sortedByUpdatedAt().map(Self.archiveGrammarNoteRecord),
+            customStudyPages: customStudyPages
+                .sorted { $0.createdAt < $1.createdAt }
+                .map(Self.archiveCustomStudyPage)
         )
     }
 
@@ -308,20 +390,26 @@ enum AppDataBackupService {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(AppDataArchive.self, from: data)
+        let archive = try decoder.decode(AppDataArchive.self, from: data)
+        guard archive.schemaVersion <= 2 else {
+            throw AppDataBackupError.unsupportedVersion(archive.schemaVersion)
+        }
+        return archive
     }
 
     static func preview(
         _ archive: AppDataArchive,
         vocabularyDays: [VocabularyDay],
         lcDays: [LCDictationDay],
-        grammarNotes: [GrammarNote]
+        grammarNotes: [GrammarNote],
+        customStudyPages: [CustomStudyPage] = []
     ) -> AppDataImportPreview {
         let existingVocabularyDayIDs = Set(vocabularyDays.map(\.id))
         let existingWordIDs = Set(vocabularyDays.flatMap { $0.wordList.map(\.id) })
         let existingLCDayIDs = Set(lcDays.map(\.id))
         let existingNoteIDs = Set(lcDays.flatMap { $0.noteList.map(\.id) })
         let existingGrammarNoteIDs = Set(grammarNotes.map(\.id))
+        let existingCustomPageIDs = Set(customStudyPages.map(\.id))
 
         let incomingWordIDs = archive.vocabularyDays.flatMap { $0.words.map(\.id) }
         let incomingNoteIDs = archive.lcDictationDays.flatMap { $0.notes.map(\.id) }
@@ -336,7 +424,9 @@ enum AppDataBackupService {
             notesToCreate: incomingNoteIDs.filter { !existingNoteIDs.contains($0) }.count,
             notesToUpdate: incomingNoteIDs.filter { existingNoteIDs.contains($0) }.count,
             grammarNotesToCreate: archive.grammarNotes.filter { !existingGrammarNoteIDs.contains($0.id) }.count,
-            grammarNotesToUpdate: archive.grammarNotes.filter { existingGrammarNoteIDs.contains($0.id) }.count
+            grammarNotesToUpdate: archive.grammarNotes.filter { existingGrammarNoteIDs.contains($0.id) }.count,
+            customPagesToCreate: archive.customStudyPages.filter { !existingCustomPageIDs.contains($0.id) }.count,
+            customPagesToUpdate: archive.customStudyPages.filter { existingCustomPageIDs.contains($0.id) }.count
         )
     }
 
@@ -345,7 +435,8 @@ enum AppDataBackupService {
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
         lcDays: [LCDictationDay],
-        grammarNotes: [GrammarNote]
+        grammarNotes: [GrammarNote],
+        customStudyPages: [CustomStudyPage] = []
     ) throws {
         var vocabularyDaysByID = Dictionary(uniqueKeysWithValues: vocabularyDays.map { ($0.id, $0) })
         var wordsByID = Dictionary(uniqueKeysWithValues: vocabularyDays.flatMap { day in
@@ -356,6 +447,7 @@ enum AppDataBackupService {
             day.noteList.map { ($0.id, $0) }
         })
         var grammarNotesByID = Dictionary(uniqueKeysWithValues: grammarNotes.map { ($0.id, $0) })
+        var customPagesByID = Dictionary(uniqueKeysWithValues: customStudyPages.map { ($0.id, $0) })
 
         for dayArchive in archive.vocabularyDays {
             let day = vocabularyDaysByID[dayArchive.id] ?? {
@@ -430,6 +522,24 @@ enum AppDataBackupService {
             }()
 
             apply(noteArchive, to: note)
+        }
+
+        for pageArchive in archive.customStudyPages {
+            let page = customPagesByID[pageArchive.id] ?? {
+                let newPage = CustomStudyPage(
+                    id: pageArchive.id,
+                    title: pageArchive.title,
+                    iconName: pageArchive.iconName,
+                    kind: StudyPageKind(rawValue: pageArchive.kindRawValue) ?? .markdown,
+                    createdAt: pageArchive.createdAt,
+                    updatedAt: pageArchive.updatedAt
+                )
+                context.insert(newPage)
+                customPagesByID[pageArchive.id] = newPage
+                return newPage
+            }()
+
+            apply(pageArchive, to: page)
         }
 
         try context.save()
@@ -514,6 +624,20 @@ enum AppDataBackupService {
         )
     }
 
+    private static func archiveCustomStudyPage(_ page: CustomStudyPage) -> CustomStudyPageArchive {
+        CustomStudyPageArchive(
+            id: page.id,
+            title: page.title,
+            iconName: page.iconName,
+            kindRawValue: page.kindRawValue,
+            markdown: page.markdown,
+            columnsJSON: page.columnsJSON,
+            rowsJSON: page.rowsJSON,
+            createdAt: page.createdAt,
+            updatedAt: page.updatedAt
+        )
+    }
+
     private static func apply(_ archive: VocaWordArchive, to word: VocaWord) {
         word.english = archive.english
         word.meaningKo = archive.meaningKo
@@ -539,6 +663,18 @@ enum AppDataBackupService {
         note.updatedAt = archive.updatedAt
         note.isFavorite = archive.isFavorite
         note.isCompleted = archive.isCompleted
+    }
+
+    private static func apply(_ archive: CustomStudyPageArchive, to page: CustomStudyPage) {
+        page.id = archive.id
+        page.title = archive.title
+        page.iconName = archive.iconName
+        page.kindRawValue = StudyPageKind(rawValue: archive.kindRawValue)?.rawValue ?? StudyPageKind.markdown.rawValue
+        page.markdown = archive.markdown
+        page.columnsJSON = archive.columnsJSON
+        page.rowsJSON = archive.rowsJSON
+        page.createdAt = archive.createdAt
+        page.updatedAt = archive.updatedAt
     }
 }
 
