@@ -11,7 +11,7 @@ struct WordDataTable: View {
     var isEditingRows = false
     var revealsHiddenKoreanWhilePressing = false
     var onEnglishTap: (VocaWord) -> Void = { _ in }
-    var onEnglishLongPress: (VocaWord) -> Void = { _ in }
+    var onEnglishLongPress: ((VocaWord) -> Void)?
     var onEditWord: (VocaWord) -> Void = { _ in }
     var onDeleteWord: (VocaWord) -> Void = { _ in }
     @Binding var selectedWordIDs: Set<UUID>
@@ -135,20 +135,12 @@ struct WordDataTable: View {
 
         return HStack(spacing: 0) {
             ForEach(Array(values.enumerated()), id: \.offset) { columnIndex, value in
-                cell(value: value, count: columnIndex == 0 ? word.wrongCount : nil, index: columnIndex, isHeader: false)
-                    .frame(width: widths[columnIndex], height: 44, alignment: columnIndex == 0 ? .center : .leading)
-                    .padding(.horizontal, columnIndex == 0 ? 2 : 6)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard columnIndex == 1 else { return }
-                        if allowsSelection {
-                            toggleSelection(of: word)
-                        } else {
-                            onEnglishTap(word)
-                        }
-                    }
-                    .simultaneousGesture(englishLongPressGesture(for: word, columnIndex: columnIndex))
-                    .simultaneousGesture(koreanPressGesture(for: word, columnIndex: columnIndex))
+                interactiveCell(
+                    value: value,
+                    word: word,
+                    columnIndex: columnIndex,
+                    width: widths[columnIndex]
+                )
                     .overlay(alignment: .trailing) {
                         if columnIndex == 1, allowsSelection, selectedWordIDs.contains(word.id) {
                             Image(systemName: "checkmark.circle.fill")
@@ -168,6 +160,46 @@ struct WordDataTable: View {
             }
         }
         .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
+    }
+
+    @ViewBuilder
+    private func interactiveCell(
+        value: String,
+        word: VocaWord,
+        columnIndex: Int,
+        width: CGFloat
+    ) -> some View {
+        let baseCell = cell(
+            value: value,
+            count: columnIndex == 0 ? word.wrongCount : nil,
+            index: columnIndex,
+            isHeader: false
+        )
+        .frame(width: width, height: 44, alignment: columnIndex == 0 ? .center : .leading)
+        .padding(.horizontal, columnIndex == 0 ? 2 : 6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard columnIndex == 1 else { return }
+            if allowsSelection {
+                toggleSelection(of: word)
+            } else {
+                onEnglishTap(word)
+            }
+        }
+
+        if columnIndex == 1, let onEnglishLongPress {
+            baseCell.simultaneousGesture(
+                LongPressGesture(minimumDuration: 1)
+                    .onEnded { didPress in
+                        guard didPress else { return }
+                        onEnglishLongPress(word)
+                    }
+            )
+        } else if columnIndex == 2, hideKoreanMeaning, revealsHiddenKoreanWhilePressing {
+            baseCell.simultaneousGesture(koreanPressGesture(for: word))
+        } else {
+            baseCell
+        }
     }
 
     private func toggleSelection(of word: VocaWord) {
@@ -341,18 +373,9 @@ struct WordDataTable: View {
         }
     }
 
-    private func englishLongPressGesture(for word: VocaWord, columnIndex: Int) -> some Gesture {
-        LongPressGesture(minimumDuration: columnIndex == 1 ? 1 : .infinity)
-            .onEnded { didPress in
-                guard didPress, columnIndex == 1 else { return }
-                onEnglishLongPress(word)
-            }
-    }
-
-    private func koreanPressGesture(for word: VocaWord, columnIndex: Int) -> some Gesture {
+    private func koreanPressGesture(for word: VocaWord) -> some Gesture {
         LongPressGesture(minimumDuration: 0.2, maximumDistance: 8)
             .updating($pressedKoreanWordID) { _, state, _ in
-                guard columnIndex == 2, hideKoreanMeaning, revealsHiddenKoreanWhilePressing else { return }
                 state = word.id
             }
     }
