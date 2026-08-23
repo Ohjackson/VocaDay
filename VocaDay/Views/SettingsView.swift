@@ -135,7 +135,35 @@ struct SettingsView: View {
     }
 
     private var informationSection: some View {
-        settingsSection(title: "정보") {
+        settingsSection(title: "개인정보 및 서비스 안내") {
+            VStack(spacing: 0) {
+                serviceStatusRow(
+                    title: "회원가입·로그인 없음",
+                    description: "VocaDay 계정을 만들지 않습니다. iCloud 동기화는 기기에 로그인된 Apple 계정을 사용합니다.",
+                    systemImage: "person.crop.circle.badge.xmark"
+                )
+
+                Divider()
+                    .padding(.leading, 52)
+
+                serviceStatusRow(
+                    title: "결제·구독 없음",
+                    description: "인앱 결제나 유료 구독 없이 모든 기능을 사용할 수 있습니다.",
+                    systemImage: "creditcard"
+                )
+
+                Divider()
+                    .padding(.leading, 52)
+
+                serviceStatusRow(
+                    title: "광고·사용자 추적 없음",
+                    description: "광고를 표시하지 않으며 광고 식별자나 앱 사용 행동을 추적하지 않습니다.",
+                    systemImage: "eye.slash"
+                )
+            }
+            .background(AppTheme.background)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
             Link(destination: privacyPolicyURL) {
                 HStack(spacing: 12) {
                     Image(systemName: "hand.raised")
@@ -166,6 +194,35 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .accessibilityHint("웹 브라우저에서 VocaDay 개인정보 처리방침을 엽니다")
         }
+    }
+
+    private func serviceStatusRow(title: String, description: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.headline)
+
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .accessibilityElement(children: .combine)
     }
 
     private var privacyPolicyURL: URL {
