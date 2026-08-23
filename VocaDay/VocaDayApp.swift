@@ -87,10 +87,6 @@ struct VocaDayApp: App {
         let schema = Schema([
             VocabularyDay.self,
             VocaWord.self,
-            LCDictationDay.self,
-            LCDictationNote.self,
-            GrammarNote.self,
-            CustomStudyPage.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

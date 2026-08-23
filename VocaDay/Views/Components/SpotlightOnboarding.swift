@@ -7,7 +7,6 @@ enum OnboardingSpotlightTarget: Hashable {
     case jsonInput
     case addActions
     case review
-    case study
 }
 
 struct OnboardingSpotlightPreferenceKey: PreferenceKey {

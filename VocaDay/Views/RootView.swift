@@ -8,7 +8,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     case days
     case add
     case review
-    case lcDictation
 
     var id: Self { self }
 
@@ -20,8 +19,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "추가"
         case .review:
             return "복습"
-        case .lcDictation:
-            return "학습"
         }
     }
 
@@ -33,8 +30,6 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "plus.circle"
         case .review:
             return "rectangle.stack"
-        case .lcDictation:
-            return "headphones"
         }
     }
 }
@@ -44,7 +39,6 @@ private enum OnboardingStep: Int, CaseIterable {
     case addInput
     case addActions
     case review
-    case study
 
     var target: OnboardingSpotlightTarget {
         switch self {
@@ -52,7 +46,6 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: .addInput
         case .addActions: .addActions
         case .review: .review
-        case .study: .study
         }
     }
 
@@ -62,7 +55,6 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "단어를 빠르게 추가하세요"
         case .addActions: "목록을 관리하고 저장하세요"
         case .review: "준비되었을 때 단어를 복습하세요"
-        case .study: "나에게 맞는 학습 공간을 만드세요"
         }
     }
 
@@ -72,7 +64,6 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
         case .addActions: "선택한 단어를 삭제하거나, 확인한 임시 목록을 데이에 저장할 수 있어요."
         case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
-        case .study: "기본 LC·문법 노트를 사용하거나, +를 눌러 나만의 Markdown 문서와 표를 만드세요."
         }
     }
 
@@ -81,7 +72,6 @@ private enum OnboardingStep: Int, CaseIterable {
         case .days: .days
         case .addInput, .addActions: .add
         case .review: .review
-        case .study: .lcDictation
         }
     }
 }
@@ -89,9 +79,6 @@ private enum OnboardingStep: Int, CaseIterable {
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
-    @Query(sort: \LCDictationDay.createdAt) private var lcDays: [LCDictationDay]
-    @Query(sort: \GrammarNote.updatedAt, order: .reverse) private var grammarNotes: [GrammarNote]
-    @Query(sort: \CustomStudyPage.updatedAt, order: .reverse) private var customStudyPages: [CustomStudyPage]
 
     @State private var selectedSection: AppSection = .days
     @State private var selectedDayID: UUID?
@@ -137,12 +124,6 @@ struct RootView: View {
                 .tabItem { Label(AppSection.review.title, systemImage: AppSection.review.systemImage) }
                 .tag(AppSection.review)
 
-                NavigationStack {
-                    StudyView()
-                }
-                .tabItem { Label(AppSection.lcDictation.title, systemImage: AppSection.lcDictation.systemImage) }
-                .tag(AppSection.lcDictation)
-
             }
             #endif
         }
@@ -181,7 +162,6 @@ struct RootView: View {
         }
         .task {
             ensureInitialDay()
-            await ensureInitialStudyData()
             await presentOnboardingIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
@@ -208,26 +188,12 @@ struct RootView: View {
             AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
         case .review:
             ReviewView()
-        case .lcDictation:
-            StudyView()
         }
     }
 
     private func ensureInitialDay() {
         DemoDataSeeder.seedIfNeeded(existingDays: days, in: modelContext)
         ensureSelectedDay()
-    }
-
-    @MainActor
-    private func ensureInitialStudyData() async {
-        try? await Task.sleep(for: .milliseconds(800))
-        guard !Task.isCancelled else { return }
-        DemoDataSeeder.seedStudyDataIfNeeded(
-            existingLCDays: lcDays,
-            existingGrammarNotes: grammarNotes,
-            existingCustomPages: customStudyPages,
-            in: modelContext
-        )
     }
 
     private func ensureSelectedDay() {
@@ -398,5 +364,5 @@ private struct QuickAddWordPanel: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [VocabularyDay.self, VocaWord.self, LCDictationDay.self, LCDictationNote.self, GrammarNote.self, CustomStudyPage.self], inMemory: true)
+        .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
 }
