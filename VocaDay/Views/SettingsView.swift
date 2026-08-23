@@ -20,6 +20,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
+    @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
 
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @AppStorage("hasCompletedSpotlightOnboarding") private var hasCompletedSpotlightOnboarding = false
@@ -57,6 +58,7 @@ struct SettingsView: View {
                 }
 
                 LabeledContent("저장된 단어", value: "\(wordCount)개")
+                LabeledContent("학습 메모", value: "\(studyMemos.count)개")
             }
 
             Section {
@@ -111,7 +113,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("저장한 데이, 단어와 복습 기록을 모두 삭제하며 되돌릴 수 없습니다.")
+                Text("저장한 데이, 단어, 복습 기록과 학습 메모를 모두 삭제하며 되돌릴 수 없습니다.")
             }
         }
         .formStyle(.grouped)
@@ -120,12 +122,12 @@ struct SettingsView: View {
             Button("모든 데이터 삭제", role: .destructive, action: deleteAllData)
             Button("취소", role: .cancel) {}
         } message: {
-            Text("저장한 데이, 단어와 복습 기록이 모두 삭제되며 되돌릴 수 없습니다.")
+            Text("저장한 데이, 단어, 복습 기록과 학습 메모가 모두 삭제되며 되돌릴 수 없습니다.")
         }
     }
 
     private var hasStoredData: Bool {
-        !vocabularyDays.isEmpty
+        !vocabularyDays.isEmpty || !studyMemos.isEmpty
     }
 
     private func restartOnboarding() {
@@ -141,7 +143,8 @@ struct SettingsView: View {
         do {
             try AppDataBackupService.deleteAll(
                 in: modelContext,
-                vocabularyDays: vocabularyDays
+                vocabularyDays: vocabularyDays,
+                studyMemos: studyMemos
             )
             deletionStatusMessage = "모든 앱 데이터를 삭제했습니다."
         } catch {
@@ -152,6 +155,7 @@ struct SettingsView: View {
 
 private struct JSONBackupView: View {
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
+    @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
     @Environment(\.modelContext) private var modelContext
 
     @AppStorage("lastSuccessfulBackupAt") private var lastSuccessfulBackupAt = 0.0
@@ -190,12 +194,13 @@ private struct JSONBackupView: View {
                 } else {
                     LabeledContent("단어 데이", value: "\(vocabularyDays.count)개")
                     LabeledContent("저장된 단어", value: "\(wordCount)개")
+                    LabeledContent("학습 메모", value: "\(studyMemos.count)개")
                 }
             } header: {
                 Text("백업할 데이터")
             } footer: {
                 Text(backupExportScope == .allData
-                     ? "모든 단어 데이와 그 안의 단어·복습 기록을 포함합니다."
+                     ? "모든 단어 데이, 단어·복습 기록과 학습 메모를 포함합니다."
                      : "선택한 단어 데이와 그 안의 단어·복습 기록만 포함합니다.")
             }
 
@@ -232,7 +237,7 @@ private struct JSONBackupView: View {
             }
 
             Section("보안 안내") {
-                Label("파일에는 입력한 단어와 복습 기록이 그대로 포함됩니다.", systemImage: "lock.doc")
+                Label("파일에는 입력한 단어, 복습 기록과 학습 메모가 그대로 포함됩니다.", systemImage: "lock.doc")
                 Text("공유 기기나 공개 폴더에는 저장하지 마세요. 복원할 때는 현재 데이터를 지우지 않고 같은 항목을 업데이트하며 없는 항목을 추가합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -270,7 +275,7 @@ private struct JSONBackupView: View {
     }
 
     private var hasStoredData: Bool {
-        !vocabularyDays.isEmpty
+        !vocabularyDays.isEmpty || !studyMemos.isEmpty
     }
 
     private var wordCount: Int {
@@ -307,7 +312,8 @@ private struct JSONBackupView: View {
             switch backupExportScope {
             case .allData:
                 archive = AppDataBackupService.archiveAll(
-                    vocabularyDays: vocabularyDays
+                    vocabularyDays: vocabularyDays,
+                    studyMemos: studyMemos
                 )
             case .vocabularyDay:
                 guard let selectedBackupDay else { return }
@@ -339,7 +345,8 @@ private struct JSONBackupView: View {
             let archive = try AppDataBackupService.decode(json)
             let preview = AppDataBackupService.preview(
                 archive,
-                vocabularyDays: vocabularyDays
+                vocabularyDays: vocabularyDays,
+                studyMemos: studyMemos
             )
             pendingRestoreArchive = archive
             restoreSummary = preview.summary
@@ -358,7 +365,8 @@ private struct JSONBackupView: View {
             try AppDataBackupService.applyUpsert(
                 archive,
                 in: modelContext,
-                vocabularyDays: vocabularyDays
+                vocabularyDays: vocabularyDays,
+                studyMemos: studyMemos
             )
             backupStatusMessage = "백업 데이터를 현재 데이터와 병합했습니다."
         } catch {
@@ -405,7 +413,7 @@ private struct PrivacyAndServiceView: View {
             Section("데이터 처리") {
                 serviceRow(
                     title: "개인 iCloud 동기화",
-                    description: "단어와 복습 데이터는 사용자의 개인 CloudKit 저장소를 통해 기기 사이에서 동기화될 수 있습니다.",
+                    description: "단어, 복습 기록과 학습 메모는 사용자의 개인 CloudKit 저장소를 통해 기기 사이에서 동기화될 수 있습니다.",
                     systemImage: "icloud"
                 )
                 serviceRow(
@@ -476,5 +484,5 @@ private struct SettingsNavigationLabel: View {
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self], inMemory: true)
 }

@@ -17,19 +17,22 @@ struct AppDataArchive: Codable {
     var appVersion: String
     var type: AppDataArchiveType
     var vocabularyDays: [VocabularyDayArchive]
+    var studyMemos: [StudyMemoArchive]
 
     init(
-        schemaVersion: Int = 2,
+        schemaVersion: Int = 3,
         createdAt: Date = Date(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         type: AppDataArchiveType,
-        vocabularyDays: [VocabularyDayArchive] = []
+        vocabularyDays: [VocabularyDayArchive] = [],
+        studyMemos: [StudyMemoArchive] = []
     ) {
         self.schemaVersion = schemaVersion
         self.createdAt = createdAt
         self.appVersion = appVersion
         self.type = type
         self.vocabularyDays = vocabularyDays
+        self.studyMemos = studyMemos
     }
 
     init(from decoder: Decoder) throws {
@@ -39,6 +42,74 @@ struct AppDataArchive: Codable {
         appVersion = try container.decodeIfPresent(String.self, forKey: .appVersion) ?? ""
         type = try container.decodeIfPresent(AppDataArchiveType.self, forKey: .type) ?? .allAppData
         vocabularyDays = try container.decodeIfPresent([VocabularyDayArchive].self, forKey: .vocabularyDays) ?? []
+        studyMemos = try container.decodeIfPresent([StudyMemoArchive].self, forKey: .studyMemos) ?? []
+    }
+}
+
+struct StudyMemoArchive: Codable, Identifiable {
+    var id: UUID
+    var typeRawValue: String
+    var title: String
+    var body: String
+    var dictationText: String
+    var answerText: String
+    var translation: String
+    var note: String
+    var source: String
+    var tags: String
+    var isPinned: Bool
+    var needsReview: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID,
+        typeRawValue: String,
+        title: String,
+        body: String,
+        dictationText: String,
+        answerText: String,
+        translation: String,
+        note: String,
+        source: String,
+        tags: String,
+        isPinned: Bool,
+        needsReview: Bool,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.typeRawValue = typeRawValue
+        self.title = title
+        self.body = body
+        self.dictationText = dictationText
+        self.answerText = answerText
+        self.translation = translation
+        self.note = note
+        self.source = source
+        self.tags = tags
+        self.isPinned = isPinned
+        self.needsReview = needsReview
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        typeRawValue = try container.decodeIfPresent(String.self, forKey: .typeRawValue) ?? StudyMemoType.general.rawValue
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 학습 메모"
+        body = try container.decodeIfPresent(String.self, forKey: .body) ?? ""
+        dictationText = try container.decodeIfPresent(String.self, forKey: .dictationText) ?? ""
+        answerText = try container.decodeIfPresent(String.self, forKey: .answerText) ?? ""
+        translation = try container.decodeIfPresent(String.self, forKey: .translation) ?? ""
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
+        tags = try container.decodeIfPresent(String.self, forKey: .tags) ?? ""
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        needsReview = try container.decodeIfPresent(Bool.self, forKey: .needsReview) ?? false
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
     }
 }
 
@@ -146,16 +217,20 @@ struct AppDataImportPreview {
     let vocabularyDaysToUpdate: Int
     let wordsToCreate: Int
     let wordsToUpdate: Int
+    let studyMemosToCreate: Int
+    let studyMemosToUpdate: Int
 
     var isEmpty: Bool {
-        vocabularyDaysToCreate == 0 && vocabularyDaysToUpdate == 0 && wordsToCreate == 0 && wordsToUpdate == 0
+        vocabularyDaysToCreate == 0 && vocabularyDaysToUpdate == 0 && wordsToCreate == 0 &&
+        wordsToUpdate == 0 && studyMemosToCreate == 0 && studyMemosToUpdate == 0
     }
 
     var summary: String {
         guard !isEmpty else { return "반영할 변경 사항이 없습니다." }
         return [
             "단어 데이: 새로 만들기 \(vocabularyDaysToCreate)개, 업데이트 \(vocabularyDaysToUpdate)개",
-            "단어: 새로 만들기 \(wordsToCreate)개, 업데이트 \(wordsToUpdate)개"
+            "단어: 새로 만들기 \(wordsToCreate)개, 업데이트 \(wordsToUpdate)개",
+            "학습 메모: 새로 만들기 \(studyMemosToCreate)개, 업데이트 \(studyMemosToUpdate)개"
         ].joined(separator: "\n")
     }
 }
@@ -176,10 +251,11 @@ enum AppDataBackupError: LocalizedError {
 
 @MainActor
 enum AppDataBackupService {
-    static func archiveAll(vocabularyDays: [VocabularyDay]) -> AppDataArchive {
+    static func archiveAll(vocabularyDays: [VocabularyDay], studyMemos: [StudyMemo]) -> AppDataArchive {
         AppDataArchive(
             type: .allAppData,
-            vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.makeVocabularyDayArchive)
+            vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.makeVocabularyDayArchive),
+            studyMemos: studyMemos.sorted { $0.createdAt < $1.createdAt }.map(Self.makeStudyMemoArchive)
         )
     }
 
@@ -199,34 +275,43 @@ enum AppDataBackupService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let archive = try decoder.decode(AppDataArchive.self, from: Data(json.utf8))
-        guard archive.schemaVersion <= 2 else {
+        guard archive.schemaVersion <= 3 else {
             throw AppDataBackupError.unsupportedVersion(archive.schemaVersion)
         }
         return archive
     }
 
-    static func preview(_ archive: AppDataArchive, vocabularyDays: [VocabularyDay]) -> AppDataImportPreview {
+    static func preview(
+        _ archive: AppDataArchive,
+        vocabularyDays: [VocabularyDay],
+        studyMemos: [StudyMemo]
+    ) -> AppDataImportPreview {
         let existingDayIDs = Set(vocabularyDays.map(\.id))
         let existingWordIDs = Set(vocabularyDays.flatMap { $0.wordList.map(\.id) })
+        let existingMemoIDs = Set(studyMemos.map(\.id))
         let incomingWordIDs = archive.vocabularyDays.flatMap { $0.words.map(\.id) }
 
         return AppDataImportPreview(
             vocabularyDaysToCreate: archive.vocabularyDays.filter { !existingDayIDs.contains($0.id) }.count,
             vocabularyDaysToUpdate: archive.vocabularyDays.filter { existingDayIDs.contains($0.id) }.count,
             wordsToCreate: incomingWordIDs.filter { !existingWordIDs.contains($0) }.count,
-            wordsToUpdate: incomingWordIDs.filter { existingWordIDs.contains($0) }.count
+            wordsToUpdate: incomingWordIDs.filter { existingWordIDs.contains($0) }.count,
+            studyMemosToCreate: archive.studyMemos.filter { !existingMemoIDs.contains($0.id) }.count,
+            studyMemosToUpdate: archive.studyMemos.filter { existingMemoIDs.contains($0.id) }.count
         )
     }
 
     static func applyUpsert(
         _ archive: AppDataArchive,
         in context: ModelContext,
-        vocabularyDays: [VocabularyDay]
+        vocabularyDays: [VocabularyDay],
+        studyMemos: [StudyMemo]
     ) throws {
         var daysByID = Dictionary(uniqueKeysWithValues: vocabularyDays.map { ($0.id, $0) })
         var wordsByID = Dictionary(uniqueKeysWithValues: vocabularyDays.flatMap { day in
             day.wordList.map { ($0.id, $0) }
         })
+        var memosByID = Dictionary(uniqueKeysWithValues: studyMemos.map { ($0.id, $0) })
 
         for dayArchive in archive.vocabularyDays {
             let day = daysByID[dayArchive.id] ?? {
@@ -260,12 +345,29 @@ enum AppDataBackupService {
                 }
             }
         }
+
+        for memoArchive in archive.studyMemos {
+            let memo = memosByID[memoArchive.id] ?? {
+                let newMemo = StudyMemo(id: memoArchive.id, type: .general)
+                context.insert(newMemo)
+                memosByID[memoArchive.id] = newMemo
+                return newMemo
+            }()
+            apply(memoArchive, to: memo)
+        }
         try context.save()
     }
 
-    static func deleteAll(in context: ModelContext, vocabularyDays: [VocabularyDay]) throws {
+    static func deleteAll(
+        in context: ModelContext,
+        vocabularyDays: [VocabularyDay],
+        studyMemos: [StudyMemo]
+    ) throws {
         for day in vocabularyDays {
             context.delete(day)
+        }
+        for memo in studyMemos {
+            context.delete(memo)
         }
         try context.save()
     }
@@ -315,6 +417,41 @@ enum AppDataBackupService {
         word.status = WordStatus(rawValue: archive.status)?.rawValue ?? WordStatus.new.rawValue
         word.nextReviewAt = archive.nextReviewAt
         word.lastReviewedAt = archive.lastReviewedAt
+    }
+
+    private static func makeStudyMemoArchive(_ memo: StudyMemo) -> StudyMemoArchive {
+        StudyMemoArchive(
+            id: memo.id,
+            typeRawValue: memo.typeRawValue,
+            title: memo.title,
+            body: memo.body,
+            dictationText: memo.dictationText,
+            answerText: memo.answerText,
+            translation: memo.translation,
+            note: memo.note,
+            source: memo.source,
+            tags: memo.tags,
+            isPinned: memo.isPinned,
+            needsReview: memo.needsReview,
+            createdAt: memo.createdAt,
+            updatedAt: memo.updatedAt
+        )
+    }
+
+    private static func apply(_ archive: StudyMemoArchive, to memo: StudyMemo) {
+        memo.typeRawValue = StudyMemoType(rawValue: archive.typeRawValue)?.rawValue ?? StudyMemoType.general.rawValue
+        memo.title = archive.title
+        memo.body = archive.body
+        memo.dictationText = archive.dictationText
+        memo.answerText = archive.answerText
+        memo.translation = archive.translation
+        memo.note = archive.note
+        memo.source = archive.source
+        memo.tags = archive.tags
+        memo.isPinned = archive.isPinned
+        memo.needsReview = archive.needsReview
+        memo.createdAt = archive.createdAt
+        memo.updatedAt = archive.updatedAt
     }
 }
 

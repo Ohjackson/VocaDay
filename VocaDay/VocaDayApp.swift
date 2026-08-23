@@ -87,6 +87,7 @@ struct VocaDayApp: App {
         let schema = Schema([
             VocabularyDay.self,
             VocaWord.self,
+            StudyMemo.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
