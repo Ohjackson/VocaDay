@@ -3,6 +3,7 @@ import SwiftData
 
 enum DemoDataSeeder {
     private static let seededDemoDataKey = "hasSeededDemoData_v1"
+    private static let seededStudyDemoDataKey = "hasSeededStudyDemoData_v1"
 
     static func seedIfNeeded(existingDays: [VocabularyDay], in context: ModelContext) {
         if let demoDay = existingDays.first(where: { $0.title == demoDayTitle || $0.title == legacyDemoDayTitle }) {
@@ -18,15 +19,180 @@ enum DemoDataSeeder {
         try? context.save()
     }
 
+    static func seedStudyDataIfNeeded(
+        existingLCDays: [LCDictationDay],
+        existingGrammarNotes: [GrammarNote],
+        existingCustomPages: [CustomStudyPage],
+        in context: ModelContext
+    ) {
+        guard !hasSeededStudyDemoData else { return }
+
+        if existingLCDays.isEmpty {
+            seedLCDemos(in: context)
+        }
+        if existingGrammarNotes.isEmpty {
+            seedGrammarDemos(in: context)
+        }
+        if existingCustomPages.isEmpty {
+            seedCustomPageDemos(in: context)
+        }
+
+        markStudyDemoDataSeeded()
+        try? context.save()
+    }
+
     private static var hasSeededDemoData: Bool {
         UserDefaults.standard.bool(forKey: seededDemoDataKey)
             || NSUbiquitousKeyValueStore.default.bool(forKey: seededDemoDataKey)
+    }
+
+    private static var hasSeededStudyDemoData: Bool {
+        UserDefaults.standard.bool(forKey: seededStudyDemoDataKey)
+            || NSUbiquitousKeyValueStore.default.bool(forKey: seededStudyDemoDataKey)
     }
 
     private static func markSeeded() {
         UserDefaults.standard.set(true, forKey: seededDemoDataKey)
         NSUbiquitousKeyValueStore.default.set(true, forKey: seededDemoDataKey)
         NSUbiquitousKeyValueStore.default.synchronize()
+    }
+
+    private static func markStudyDemoDataSeeded() {
+        UserDefaults.standard.set(true, forKey: seededStudyDemoDataKey)
+        NSUbiquitousKeyValueStore.default.set(true, forKey: seededStudyDemoDataKey)
+        NSUbiquitousKeyValueStore.default.synchronize()
+    }
+
+    private static func seedLCDemos(in context: ModelContext) {
+        let demos: [(title: String, lines: [String])] = [
+            (
+                "LC 예시 1 · 일정 변경",
+                [
+                    "The meeting has been postponed until Friday.",
+                    "Please confirm your attendance by noon."
+                ]
+            ),
+            (
+                "LC 예시 2 · 공항 안내",
+                [
+                    "Passengers should proceed to gate twelve.",
+                    "The flight is expected to depart on time."
+                ]
+            )
+        ]
+
+        for (index, demo) in demos.enumerated() {
+            let day = LCDictationDay(
+                title: demo.title,
+                createdAt: Date().addingTimeInterval(TimeInterval(-120 + index))
+            )
+            context.insert(day)
+
+            for (lineIndex, text) in demo.lines.enumerated() {
+                let note = LCDictationNote(
+                    text: text,
+                    createdAt: day.createdAt.addingTimeInterval(TimeInterval(lineIndex)),
+                    day: day
+                )
+                context.insert(note)
+                if !day.noteList.contains(where: { $0.id == note.id }) {
+                    day.appendNote(note)
+                }
+            }
+        }
+    }
+
+    private static func seedGrammarDemos(in context: ModelContext) {
+        let demos: [(title: String, markdown: String)] = [
+            (
+                "예시 · 현재완료 핵심",
+                """
+                # 현재완료
+
+                ## 형태
+                have/has + 과거분사
+
+                - 경험: I have visited Busan.
+                - 완료: She has finished the report.
+
+                **핵심:** 과거의 일이 현재와 연결될 때 사용합니다.
+                """
+            ),
+            (
+                "예시 · 전치사 시간 표현",
+                """
+                # 시간 전치사
+
+                | 전치사 | 사용 | 예시 |
+                | --- | --- | --- |
+                | at | 정확한 시각 | at 9 a.m. |
+                | on | 요일·날짜 | on Monday |
+                | in | 월·연도·기간 | in August |
+
+                **핵심:** 좁은 시점은 at, 날짜는 on, 넓은 기간은 in을 사용합니다.
+                """
+            )
+        ]
+
+        for (index, demo) in demos.enumerated() {
+            let date = Date().addingTimeInterval(TimeInterval(-100 + index))
+            context.insert(
+                GrammarNote(
+                    title: demo.title,
+                    markdown: demo.markdown,
+                    createdAt: date,
+                    updatedAt: date
+                )
+            )
+        }
+    }
+
+    private static func seedCustomPageDemos(in context: ModelContext) {
+        let markdownPage = CustomStudyPage(
+            title: "예시 · 주간 학습 회고",
+            iconName: "checklist",
+            kind: .markdown,
+            markdown: """
+            # 이번 주 학습 회고
+
+            ## 잘한 점
+            - 매일 단어를 복습했습니다.
+
+            ## 다음 목표
+            - LC 문장을 하루 2개씩 받아씁니다.
+            - 틀린 문법을 예문과 함께 정리합니다.
+            """,
+            createdAt: Date().addingTimeInterval(-80),
+            updatedAt: Date().addingTimeInterval(-80)
+        )
+        context.insert(markdownPage)
+
+        let topicColumn = StudyTableColumn(title: "학습 항목", kind: .text)
+        let goalColumn = StudyTableColumn(title: "이번 주 목표", kind: .text)
+        let completedColumn = StudyTableColumn(title: "완료", kind: .checkbox)
+        let columns = [topicColumn, goalColumn, completedColumn]
+        let rows = [
+            StudyTableRow(values: [
+                topicColumn.id.uuidString: "단어",
+                goalColumn.id.uuidString: "Day 1~3 복습",
+                completedColumn.id.uuidString: "false"
+            ]),
+            StudyTableRow(values: [
+                topicColumn.id.uuidString: "LC",
+                goalColumn.id.uuidString: "받아쓰기 4문장",
+                completedColumn.id.uuidString: "false"
+            ])
+        ]
+        let tablePage = CustomStudyPage(
+            title: "예시 · 주간 학습 계획",
+            iconName: "tablecells",
+            kind: .table,
+            columns: columns,
+            rows: rows,
+            createdAt: Date().addingTimeInterval(-70),
+            updatedAt: Date().addingTimeInterval(-70)
+        )
+        context.insert(tablePage)
     }
 
     private static func seedDemoDay(in context: ModelContext) {
