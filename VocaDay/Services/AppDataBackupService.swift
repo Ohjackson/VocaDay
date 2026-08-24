@@ -20,7 +20,7 @@ struct AppDataArchive: Codable {
     var studyMemos: [StudyMemoArchive]
 
     init(
-        schemaVersion: Int = 3,
+        schemaVersion: Int = 4,
         createdAt: Date = Date(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         type: AppDataArchiveType,
@@ -48,6 +48,9 @@ struct AppDataArchive: Codable {
 
 struct StudyMemoArchive: Codable, Identifiable {
     var id: UUID
+    var icon: String
+    var coverStyle: String
+    var blocksJSON: String
     var typeRawValue: String
     var title: String
     var body: String
@@ -64,6 +67,9 @@ struct StudyMemoArchive: Codable, Identifiable {
 
     init(
         id: UUID,
+        icon: String,
+        coverStyle: String,
+        blocksJSON: String,
         typeRawValue: String,
         title: String,
         body: String,
@@ -79,6 +85,9 @@ struct StudyMemoArchive: Codable, Identifiable {
         updatedAt: Date
     ) {
         self.id = id
+        self.icon = icon
+        self.coverStyle = coverStyle
+        self.blocksJSON = blocksJSON
         self.typeRawValue = typeRawValue
         self.title = title
         self.body = body
@@ -97,7 +106,10 @@ struct StudyMemoArchive: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        typeRawValue = try container.decodeIfPresent(String.self, forKey: .typeRawValue) ?? StudyMemoType.general.rawValue
+        icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? "📄"
+        coverStyle = try container.decodeIfPresent(String.self, forKey: .coverStyle) ?? "none"
+        blocksJSON = try container.decodeIfPresent(String.self, forKey: .blocksJSON) ?? ""
+        typeRawValue = try container.decodeIfPresent(String.self, forKey: .typeRawValue) ?? ""
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 학습 메모"
         body = try container.decodeIfPresent(String.self, forKey: .body) ?? ""
         dictationText = try container.decodeIfPresent(String.self, forKey: .dictationText) ?? ""
@@ -275,7 +287,7 @@ enum AppDataBackupService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let archive = try decoder.decode(AppDataArchive.self, from: Data(json.utf8))
-        guard archive.schemaVersion <= 3 else {
+        guard archive.schemaVersion <= 4 else {
             throw AppDataBackupError.unsupportedVersion(archive.schemaVersion)
         }
         return archive
@@ -348,7 +360,7 @@ enum AppDataBackupService {
 
         for memoArchive in archive.studyMemos {
             let memo = memosByID[memoArchive.id] ?? {
-                let newMemo = StudyMemo(id: memoArchive.id, type: .general)
+                let newMemo = StudyMemo(id: memoArchive.id)
                 context.insert(newMemo)
                 memosByID[memoArchive.id] = newMemo
                 return newMemo
@@ -422,6 +434,9 @@ enum AppDataBackupService {
     private static func makeStudyMemoArchive(_ memo: StudyMemo) -> StudyMemoArchive {
         StudyMemoArchive(
             id: memo.id,
+            icon: memo.icon,
+            coverStyle: memo.coverStyle,
+            blocksJSON: memo.blocksJSON,
             typeRawValue: memo.typeRawValue,
             title: memo.title,
             body: memo.body,
@@ -439,7 +454,10 @@ enum AppDataBackupService {
     }
 
     private static func apply(_ archive: StudyMemoArchive, to memo: StudyMemo) {
-        memo.typeRawValue = StudyMemoType(rawValue: archive.typeRawValue)?.rawValue ?? StudyMemoType.general.rawValue
+        memo.icon = archive.icon
+        memo.coverStyle = archive.coverStyle
+        memo.blocksJSON = archive.blocksJSON
+        memo.typeRawValue = archive.typeRawValue
         memo.title = archive.title
         memo.body = archive.body
         memo.dictationText = archive.dictationText
@@ -452,6 +470,7 @@ enum AppDataBackupService {
         memo.needsReview = archive.needsReview
         memo.createdAt = archive.createdAt
         memo.updatedAt = archive.updatedAt
+        memo.migrateLegacyContentIfNeeded()
     }
 }
 

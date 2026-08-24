@@ -103,69 +103,104 @@ private var studyMemoDemos: [StudyMemo] {
     let now = Date()
     return [
         StudyMemo(
-            type: .lcDictation,
             title: "예시 · 회의 일정 변경",
-            dictationText: "The meeting has been postponed to Friday.",
-            answerText: "The meeting has been postponed until Friday.",
-            translation: "회의가 금요일로 연기되었습니다.",
-            note: "to가 아니라 until로 들리는지 다시 확인하기. postponed의 끝소리를 놓치지 않기.",
-            source: "비즈니스 영어 · 일정 안내",
-            tags: "LC, 일정",
+            icon: "🎧",
+            coverStyle: "blue",
+            blocks: [
+                StudyPageBlock(kind: .callout, text: "외부 음원을 들은 뒤 정답을 펼쳐 비교하는 받아쓰기 페이지입니다."),
+                StudyPageBlock(kind: .heading2, text: "내가 받아쓴 문장"),
+                StudyPageBlock(kind: .quote, text: "The meeting has been postponed to Friday."),
+                StudyPageBlock(kind: .toggle, text: "정답 보기", detail: "The meeting has been postponed until Friday."),
+                StudyPageBlock(kind: .heading2, text: "해석"),
+                StudyPageBlock(text: "회의가 금요일로 연기되었습니다."),
+                StudyPageBlock(kind: .toDo, text: "to와 until의 차이를 다시 듣기"),
+                StudyPageBlock(kind: .toDo, text: "postponed의 끝소리 확인하기")
+            ],
             needsReview: true,
             createdAt: now.addingTimeInterval(-360),
             updatedAt: now.addingTimeInterval(-360)
         ),
         StudyMemo(
-            type: .lcDictation,
             title: "예시 · 공항 탑승 안내",
-            dictationText: "Passengers should proceed to gate twelve.",
-            answerText: "Passengers should proceed to gate twelve.",
-            translation: "승객들은 12번 탑승구로 이동해야 합니다.",
-            note: "proceed to는 '~로 이동하다'라는 안내 방송의 빈출 표현.",
-            source: "공항 안내 방송",
-            tags: "LC, 공항",
+            icon: "🎧",
+            blocks: [
+                StudyPageBlock(kind: .heading1, text: "Airport announcement"),
+                StudyPageBlock(kind: .quote, text: "Passengers should proceed to gate twelve."),
+                StudyPageBlock(kind: .heading2, text: "자연스러운 해석"),
+                StudyPageBlock(text: "승객들은 12번 탑승구로 이동해야 합니다."),
+                StudyPageBlock(kind: .callout, text: "proceed to는 ‘~로 이동하다’라는 안내 방송의 빈출 표현입니다."),
+                StudyPageBlock(kind: .divider),
+                StudyPageBlock(kind: .bulletedList, text: "passenger: 승객"),
+                StudyPageBlock(kind: .bulletedList, text: "gate: 탑승구")
+            ],
             createdAt: now.addingTimeInterval(-300),
             updatedAt: now.addingTimeInterval(-300)
         ),
         StudyMemo(
-            type: .grammar,
             title: "예시 · 현재완료 핵심",
-            body: "과거에 시작된 일이나 경험이 현재와 연결될 때 사용합니다.",
-            dictationText: "I have finished the report.",
-            answerText: "have/has + 과거분사",
-            translation: "나는 보고서를 끝냈습니다.",
-            note: "명확하게 끝난 과거 시점을 나타내는 yesterday와는 일반적으로 함께 쓰지 않습니다.",
-            tags: "문법, 시제",
+            icon: "📚",
+            coverStyle: "sand",
+            blocks: [
+                StudyPageBlock(kind: .callout, text: "have/has + 과거분사"),
+                StudyPageBlock(kind: .heading2, text: "언제 사용할까?"),
+                StudyPageBlock(text: "과거에 시작된 일이나 경험이 현재와 연결될 때 사용합니다."),
+                StudyPageBlock(kind: .heading2, text: "예문"),
+                StudyPageBlock(kind: .quote, text: "I have finished the report."),
+                StudyPageBlock(text: "나는 보고서를 끝냈습니다."),
+                StudyPageBlock(kind: .heading2, text: "주의점"),
+                StudyPageBlock(kind: .toDo, text: "yesterday처럼 명확하게 끝난 과거 시점과 함께 쓰지 않기")
+            ],
             isPinned: true,
             createdAt: now.addingTimeInterval(-240),
             updatedAt: now.addingTimeInterval(-240)
         ),
         StudyMemo(
-            type: .grammar,
             title: "예시 · 시간 전치사",
-            body: "정확한 시각에는 at, 요일과 날짜에는 on, 월·연도·긴 기간에는 in을 사용합니다.",
-            dictationText: "The workshop starts at 9 a.m. on Monday.",
-            answerText: "at + 시각 / on + 요일·날짜 / in + 월·연도",
-            translation: "워크숍은 월요일 오전 9시에 시작합니다.",
-            note: "at 9 a.m., on Monday, in August처럼 시간의 범위를 기준으로 구분합니다.",
-            tags: "문법, 전치사",
+            icon: "🧠",
+            blocks: [
+                StudyPageBlock(kind: .heading1, text: "at · on · in"),
+                StudyPageBlock(kind: .table, tableColumns: ["전치사", "사용", "예시"], tableRows: [
+                    ["at", "정확한 시각", "at 9 a.m."],
+                    ["on", "요일·날짜", "on Monday"],
+                    ["in", "월·연도·기간", "in August"]
+                ]),
+                StudyPageBlock(kind: .heading2, text: "예문"),
+                StudyPageBlock(kind: .quote, text: "The workshop starts at 9 a.m. on Monday."),
+                StudyPageBlock(kind: .callout, text: "시간의 범위가 좁으면 at, 날짜는 on, 넓은 기간은 in")
+            ],
             createdAt: now.addingTimeInterval(-180),
             updatedAt: now.addingTimeInterval(-180)
         ),
         StudyMemo(
-            type: .general,
             title: "예시 · 이번 주 학습 계획",
-            body: "• 데이 0 단어를 매일 한 번 복습하기\n• LC 문장 2개씩 받아쓰기\n• 헷갈린 문법은 예문과 함께 정리하기",
-            tags: "계획, 주간",
+            icon: "🎯",
+            coverStyle: "green",
+            blocks: [
+                StudyPageBlock(kind: .heading1, text: "이번 주 목표"),
+                StudyPageBlock(kind: .toDo, text: "데이 0 단어를 매일 한 번 복습하기"),
+                StudyPageBlock(kind: .toDo, text: "LC 문장을 하루 2개씩 받아쓰기"),
+                StudyPageBlock(kind: .toDo, text: "헷갈린 문법을 예문과 함께 정리하기"),
+                StudyPageBlock(kind: .divider),
+                StudyPageBlock(kind: .heading2, text: "이번 주 회고"),
+                StudyPageBlock(text: "잘한 점과 다음 주에 바꿀 점을 기록해 보세요.")
+            ],
             isPinned: true,
             createdAt: now.addingTimeInterval(-120),
             updatedAt: now.addingTimeInterval(-120)
         ),
         StudyMemo(
-            type: .general,
             title: "예시 · 오늘의 오답 회고",
-            body: "오늘 자주 틀린 표현:\n\n틀린 이유:\n\n다음 복습에서 확인할 것:",
-            tags: "오답, 회고",
+            icon: "✅",
+            blocks: [
+                StudyPageBlock(kind: .heading2, text: "오늘 자주 틀린 표현"),
+                StudyPageBlock(text: "여기에 틀린 표현을 기록하세요."),
+                StudyPageBlock(kind: .heading2, text: "틀린 이유"),
+                StudyPageBlock(kind: .bulletedList, text: "뜻을 정확히 구분하지 못함"),
+                StudyPageBlock(kind: .bulletedList, text: "문장 속 발음을 놓침"),
+                StudyPageBlock(kind: .heading2, text: "다음 복습"),
+                StudyPageBlock(kind: .toDo, text: "예문을 소리 내어 세 번 읽기"),
+                StudyPageBlock(kind: .toDo, text: "내일 다시 확인하기")
+            ],
             needsReview: true,
             createdAt: now.addingTimeInterval(-60),
             updatedAt: now.addingTimeInterval(-60)

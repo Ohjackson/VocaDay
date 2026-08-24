@@ -62,7 +62,7 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "단어를 빠르게 추가하세요"
         case .addActions: "목록을 관리하고 저장하세요"
         case .review: "준비되었을 때 단어를 복습하세요"
-        case .studyMemos: "배운 내용을 학습 메모로 남기세요"
+        case .studyMemos: "나만의 학습 페이지를 만드세요"
         }
     }
 
@@ -72,7 +72,7 @@ private enum OnboardingStep: Int, CaseIterable {
         case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
         case .addActions: "선택한 단어를 삭제하거나, 확인한 임시 목록을 데이에 저장할 수 있어요."
         case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
-        case .studyMemos: "LC 받아쓰기, 문법 정리 또는 자유 메모를 만들고 검색·고정·복습 표시로 관리하세요."
+        case .studyMemos: "빈 페이지에서 시작해 텍스트를 입력하거나 / 명령으로 제목, 체크리스트, 표 같은 블록을 추가하세요."
         }
     }
 
