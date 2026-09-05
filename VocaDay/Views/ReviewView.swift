@@ -7,7 +7,11 @@ struct ReviewView: View {
     @State private var isEditingDays = false
 
     var body: some View {
-        ScrollView {
+        AppCollectionPage(
+            maxContentWidth: 840,
+            horizontalPadding: 20,
+            verticalPadding: 24
+        ) {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
@@ -15,19 +19,18 @@ struct ReviewView: View {
                         systemImage: "calendar"
                     )
                     .padding(.top, 48)
+                    .componentSpotlight(.reviewDay)
                 } else {
                     LazyVStack(spacing: 12) {
                         ForEach(days) { day in
                             dayRow(for: day)
+                                .componentSpotlight(
+                                    day.id == days.first?.id ? .reviewDay : .dayCollection
+                                )
                         }
                     }
-                    .onboardingSpotlight(.review)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
-            .frame(maxWidth: 840, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
         .navigationTitle("복습")
@@ -38,6 +41,7 @@ struct ReviewView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
+                .componentSpotlight(.editReviewButton)
                 .accessibilityLabel(isEditingDays ? "데이 편집 완료" : "데이 편집")
                 .disabled(days.isEmpty)
             }
@@ -259,15 +263,24 @@ private struct ReviewDayDetailView: View {
         }
         #else
         ToolbarItemGroup(placement: .primaryAction) {
-            Text("\(reviewWords.count)")
-                .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.secondary)
+            toolbarCountLabel
             detailToggle
             koreanVisibilityButton
             shuffleButton
             deleteButton
         }
         #endif
+    }
+
+    private var toolbarCountLabel: some View {
+        Text("\(reviewWords.count)")
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 38, alignment: .trailing)
+            .padding(.leading, 8)
+            .accessibilityLabel("복습 단어 \(reviewWords.count)개")
     }
 
     private var detailToggle: some View {

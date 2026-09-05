@@ -32,7 +32,11 @@ struct DaysView: View {
     }
 
     var body: some View {
-        ScrollView {
+        AppCollectionPage(
+            maxContentWidth: 840,
+            horizontalPadding: 20,
+            verticalPadding: 24
+        ) {
             VStack(alignment: .leading, spacing: 20) {
                 if days.isEmpty {
                     EmptyStateView(
@@ -50,13 +54,8 @@ struct DaysView: View {
                             dayRow(for: day)
                         }
                     }
-                    .onboardingSpotlight(.days)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
-            .frame(maxWidth: 840, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
         .navigationTitle("VocaDay")
@@ -68,6 +67,7 @@ struct DaysView: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
+                .componentSpotlight(.settingsButton)
                 .accessibilityLabel("설정")
 
                 Button {
@@ -75,6 +75,7 @@ struct DaysView: View {
                 } label: {
                     Image(systemName: isEditingDays ? "checkmark" : "square.and.pencil")
                 }
+                .componentSpotlight(.editDaysButton)
                 .accessibilityLabel(isEditingDays ? "데이 편집 완료" : "데이 편집")
                 .disabled(days.isEmpty)
 
@@ -83,8 +84,9 @@ struct DaysView: View {
                     dayTitle = DayFactory.nextDayTitle(existingDays: days)
                     isShowingDayTitleAlert = true
                 } label: {
-                    Label("새 데이", systemImage: "plus")
+                    AppToolbarActionLabel(title: "새 데이", systemImage: "plus")
                 }
+                .componentSpotlight(.createDayButton)
             }
         }
         .alert(editingDay == nil ? "새 데이" : "데이 이름 변경", isPresented: $isShowingDayTitleAlert) {
@@ -111,6 +113,7 @@ struct DaysView: View {
                     day: day,
                     isSelected: selectedDayID == day.id
                 )
+                .componentSpotlight(.dayCollection)
 
                 Button {
                     editingDay = day
@@ -142,6 +145,7 @@ struct DaysView: View {
                     day: day,
                     isSelected: selectedDayID == day.id
                 )
+                .componentSpotlight(.dayCollection)
             }
             .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded {

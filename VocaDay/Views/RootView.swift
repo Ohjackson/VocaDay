@@ -39,57 +39,31 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     }
 }
 
-private enum OnboardingStep: Int, CaseIterable {
-    case days
-    case addInput
-    case addActions
-    case review
-    case studyMemos
+struct RootView: View {
+    @AppStorage(SpotlightOnboardingCompletion.versionedKey) private var hasCompletedOnboarding = false
+    @StateObject private var onboardingController = SpotlightFlowController()
 
-    var target: OnboardingSpotlightTarget {
-        switch self {
-        case .days: .days
-        case .addInput: .addInput
-        case .addActions: .addActions
-        case .review: .review
-        case .studyMemos: .studyMemos
+    var body: some View {
+        Group {
+            if hasCompletedOnboarding {
+                ProductionRootView()
+            } else {
+                VocaDayOnboardingScene(controller: onboardingController) {
+                    hasCompletedOnboarding = true
+                }
+            }
         }
-    }
-
-    var title: String {
-        switch self {
-        case .days: "데이별로 단어를 모아 보세요"
-        case .addInput: "단어를 빠르게 추가하세요"
-        case .addActions: "목록을 관리하고 저장하세요"
-        case .review: "준비되었을 때 단어를 복습하세요"
-        case .studyMemos: "나만의 학습 페이지를 만드세요"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .days: "학습할 때마다 데이를 만들고, 열어서 저장한 단어를 확인하세요."
-        case .addInput: "영단어를 입력하면 한국어 뜻과 함께 임시 목록에 추가됩니다."
-        case .addActions: "선택한 단어를 삭제하거나, 확인한 임시 목록을 데이에 저장할 수 있어요."
-        case .review: "뜻을 가리고 어려운 단어는 다시로 표시한 뒤 복습을 완료하세요."
-        case .studyMemos: "빈 페이지에서 시작해 텍스트를 입력하거나 / 명령으로 제목, 체크리스트, 표 같은 블록을 추가하세요."
-        }
-    }
-
-    var section: AppSection {
-        switch self {
-        case .days: .days
-        case .addInput, .addActions: .add
-        case .review: .review
-        case .studyMemos: .studyMemos
+        .onChange(of: hasCompletedOnboarding) { _, completed in
+            if !completed {
+                onboardingController.prepareForPresentation()
+            }
         }
     }
 }
 
-struct RootView: View {
+private struct ProductionRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
-    @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
 
     @State private var selectedSection: AppSection = .days
     @State private var selectedDayID: UUID?
@@ -97,22 +71,13 @@ struct RootView: View {
     @State private var quickAddText = ""
     @State private var quickAddWord: String?
     @State private var addEntryMode: AddEntryMode = .manual
-    @AppStorage("hasCompletedSpotlightOnboarding") private var hasCompletedSpotlightOnboarding = false
-    @State private var onboardingStep: OnboardingStep?
 
     var body: some View {
         Group {
             #if os(macOS)
-            NavigationSplitView {
-                List(AppSection.allCases, selection: $selectedSection) { section in
-                    Label(section.title, systemImage: section.systemImage)
-                        .tag(section)
-                }
-                .navigationTitle("VocaDay")
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-            } detail: {
+            MacAppNavigationShell(selectedSection: $selectedSection) { section in
                 NavigationStack {
-                    destination(for: selectedSection)
+                    destination(for: section)
                 }
             }
             #else
@@ -136,7 +101,7 @@ struct RootView: View {
                 .tag(AppSection.review)
 
                 NavigationStack {
-                    StudyMemosView()
+                    StudyMemoFeatureView()
                 }
                 .tabItem { Label(AppSection.studyMemos.title, systemImage: AppSection.studyMemos.systemImage) }
                 .tag(AppSection.studyMemos)
@@ -149,25 +114,6 @@ struct RootView: View {
                 quickAddOverlay
             }
         }
-        #if os(iOS)
-        .overlayPreferenceValue(OnboardingSpotlightPreferenceKey.self) { anchors in
-            GeometryReader { proxy in
-                if let onboardingStep {
-                    SpotlightOnboardingOverlay(
-                        title: onboardingStep.title,
-                        message: onboardingStep.message,
-                        step: onboardingStep.rawValue + 1,
-                        totalSteps: OnboardingStep.allCases.count,
-                        spotlightRect: anchors[onboardingStep.target].map { proxy[$0] },
-                        canGoBack: onboardingStep != .days,
-                        onBack: showPreviousOnboardingStep,
-                        onNext: showNextOnboardingStep,
-                        onSkip: finishOnboarding
-                    )
-                }
-            }
-        }
-        #endif
         .background {
             Button("빠른 단어 추가") {
                 openQuickAdd()
@@ -179,15 +125,9 @@ struct RootView: View {
         }
         .task {
             ensureInitialDay()
-            DemoDataSeeder.seedStudyMemosIfNeeded(existingMemos: studyMemos, in: modelContext)
-            await presentOnboardingIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
-        }
-        .onChange(of: hasCompletedSpotlightOnboarding) { _, completed in
-            guard !completed, onboardingStep == nil else { return }
-            Task { await presentOnboardingIfNeeded() }
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: quickAddRequestedNotification)) { _ in
@@ -207,7 +147,7 @@ struct RootView: View {
         case .review:
             ReviewView()
         case .studyMemos:
-            StudyMemosView()
+            StudyMemoFeatureView()
         }
     }
 
@@ -226,7 +166,7 @@ struct RootView: View {
             return
         }
 
-        selectedDayID = days.first?.id
+        selectedDayID = days.last?.id
     }
 
     private var quickAddOverlay: some View {
@@ -276,53 +216,6 @@ struct RootView: View {
         days.sorted { $0.createdAt < $1.createdAt }.last
     }
 
-    @MainActor
-    private func presentOnboardingIfNeeded() async {
-        #if os(iOS)
-        guard !hasCompletedSpotlightOnboarding else { return }
-        try? await Task.sleep(for: .milliseconds(450))
-        guard !Task.isCancelled, !hasCompletedSpotlightOnboarding else { return }
-        presentOnboardingStep(.days)
-        withAnimation(.easeInOut(duration: 0.22)) {
-            onboardingStep = .days
-        }
-        #endif
-    }
-
-    private func showPreviousOnboardingStep() {
-        guard let onboardingStep,
-              let previous = OnboardingStep(rawValue: onboardingStep.rawValue - 1) else { return }
-        presentOnboardingStep(previous)
-        withAnimation(.easeInOut(duration: 0.2)) {
-            self.onboardingStep = previous
-        }
-    }
-
-    private func showNextOnboardingStep() {
-        guard let onboardingStep else { return }
-        guard let next = OnboardingStep(rawValue: onboardingStep.rawValue + 1) else {
-            finishOnboarding()
-            return
-        }
-        presentOnboardingStep(next)
-        withAnimation(.easeInOut(duration: 0.2)) {
-            self.onboardingStep = next
-        }
-    }
-
-    private func presentOnboardingStep(_ step: OnboardingStep) {
-        selectedSection = step.section
-        if step == .addInput {
-            addEntryMode = .manual
-        }
-    }
-
-    private func finishOnboarding() {
-        hasCompletedSpotlightOnboarding = true
-        withAnimation(.easeInOut(duration: 0.2)) {
-            onboardingStep = nil
-        }
-    }
 }
 
 private struct QuickAddWordPanel: View {
@@ -384,5 +277,5 @@ private struct QuickAddWordPanel: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self], inMemory: true)
+        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self], inMemory: true)
 }
