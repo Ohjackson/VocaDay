@@ -45,31 +45,40 @@ struct AddWordsView: View {
     @State private var pendingTranslations: [PendingTranslation] = []
     @State private var translationConfiguration: TranslationSession.Configuration?
     @State private var isShowingGuideDismissalConfirmation = false
+    @State private var isShowingNewDayAlert = false
+    @State private var newDayTitle = ""
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 16) {
                     entrySetupCard
+                        .componentSpotlight(.storageSelection)
 
                     if shouldShowUsageGuide {
                         usageGuide
+                            .componentSpotlight(.addGuide)
                     }
 
                     entryInputCard
+                        .componentSpotlight(.wordInput)
 
                     TemporaryWordTable(
                         words: $temporaryWords,
                         selectedWordID: $selectedTemporaryWordID,
                         emptyTitle: temporaryWordsEmptyTitle
                     )
+                    .componentSpotlight(.pendingWords)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
                 .frame(maxWidth: 980)
                 .frame(maxWidth: .infinity)
             }
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            #endif
 
             actionBar
         }
@@ -98,18 +107,29 @@ struct AddWordsView: View {
             isPresented: $isShowingGuideDismissalConfirmation,
             titleVisibility: .visible
         ) {
-            Button("안내 숨기기", role: .destructive) {
+            Button("안내 숨기기") {
                 dismissCurrentUsageGuide()
             }
             Button("취소", role: .cancel) {}
         } message: {
             Text("현재 입력 방식에서는 다시 표시되지 않습니다. 오른쪽 위 ? 도움말은 언제든 열 수 있습니다.")
         }
+        .alert("새 데이", isPresented: $isShowingNewDayAlert) {
+            TextField("데이 이름", text: $newDayTitle)
+
+            Button("취소", role: .cancel) {
+                newDayTitle = ""
+            }
+
+            Button("만들기", action: createAndSelectNewDay)
+                .disabled(newDayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("새 데이의 이름을 입력하세요. 만든 데이는 저장 위치로 자동 선택됩니다.")
+        }
         .onAppear {
             ensureAvailableEntryMode()
             ensureSelectedDay()
             consumeQuickAddWord()
-            isInputFocused = true
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
@@ -126,137 +146,40 @@ struct AddWordsView: View {
     }
 
     private var entrySetupCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            selectedDayPicker
-
-            Divider()
-
-            entryModeSection
-        }
-        .padding(18)
-        .calmCard()
-        .onboardingSpotlight(.addMode)
+        AddWordsSetupCard(
+            destinations: days.map { DayDestinationOption(id: $0.id, title: $0.title) },
+            selectedDestinationID: $selectedDayID,
+            showsEntryMode: isJSONImportEnabled,
+            entryMode: $entryMode,
+            onCreateDestination: presentNewDayAlert
+        )
     }
 
-    private var selectedDayPicker: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("1. 저장할 데이", systemImage: "calendar")
-                .font(.headline)
-
-            Text("아래에서 준비한 단어는 마지막에 선택한 데이로 저장됩니다.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 14) {
-                if days.isEmpty {
-                    Button {
-                        let day = DayFactory.createNextDay(existingDays: days, in: modelContext)
-                        selectedDayID = day.id
-                    } label: {
-                        Label("첫 데이 만들기", systemImage: "plus")
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    Picker("저장할 데이", selection: $selectedDayID) {
-                        ForEach(days) { day in
-                            Text(day.title).tag(Optional(day.id))
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 260)
-                }
-
-                Spacer()
-            }
-        }
+    private func presentNewDayAlert() {
+        newDayTitle = DayFactory.nextDayTitle(existingDays: days)
+        isShowingNewDayAlert = true
     }
 
-    private var entryModeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("2. 입력 방법", systemImage: "square.and.pencil")
-                .font(.headline)
+    private func createAndSelectNewDay() {
+        let title = newDayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
 
-            if isJSONImportEnabled {
-                Picker("입력 방법", selection: $entryMode) {
-                    ForEach(AddEntryMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Text(entryModeDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if isJSONImportEnabled, entryMode == .json {
-                Label("VocaDay가 AI를 실행하는 기능이 아닙니다. 외부 AI에서 만든 결과를 복사해 오는 방식입니다.", systemImage: "exclamationmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        let day = DayFactory.createDay(title: title, in: modelContext)
+        try? modelContext.save()
+        selectedDayID = day.id
+        newDayTitle = ""
     }
 
     private var usageGuide: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Label(usageGuideTitle, systemImage: "lightbulb.fill")
-                    .font(.headline)
-                    .foregroundStyle(Color.accentColor)
-
-                Spacer()
-
-                Button {
-                    isShowingGuideDismissalConfirmation = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("단어 추가 방법 안내 숨기기")
-                .help("안내 숨기기")
-            }
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
-                ForEach(Array(usageGuideSteps.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("\(index + 1)")
-                            .font(.caption.monospacedDigit().weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 24, height: 24)
-                            .background(Color.accentColor, in: Circle())
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(step.title)
-                                .font(.subheadline.weight(.semibold))
-                            Text(step.message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-
-            if isJSONImportEnabled, entryMode == .json {
-                NavigationLink {
-                    AddWordsHelpView()
-                } label: {
-                    Label("외부 AI 사용법과 복사용 프롬프트 보기", systemImage: "questionmark.circle")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.bordered)
-            }
+        AddWordsGuideCard(
+            title: usageGuideTitle,
+            message: usageGuideMessage,
+            systemImage: entryMode == .json ? "curlybraces" : "return",
+            showsHelpLink: isJSONImportEnabled && entryMode == .json,
+            onDismiss: { isShowingGuideDismissalConfirmation = true }
+        ) {
+            AddWordsHelpView()
         }
-        .padding(18)
-        .calmCard()
     }
 
     private var helpNavigationLink: some View {
@@ -265,39 +188,21 @@ struct AddWordsView: View {
         } label: {
             Image(systemName: "questionmark.circle")
         }
+        .componentSpotlight(.addHelpButton)
         .accessibilityLabel("단어 추가 도움말")
         .help("단어 추가 도움말")
     }
 
-    private var usageGuideSteps: [(title: String, message: String)] {
-        if isJSONImportEnabled, entryMode == .json {
-            return [
-                ("프롬프트 준비", "오른쪽 위 ?에서 입력·출력 예시가 포함된 프롬프트를 복사해 외부 AI 입력창에 붙여넣으세요."),
-                ("영단어 JSON 준비", "직접 입력으로 단어들을 임시 목록에 넣고 아래 ‘AI용 영단어 JSON 복사’를 누르세요."),
-                ("외부 AI에 보내기", "복사한 영단어 JSON을 프롬프트의 ‘변환할 입력 JSON’ 자리에 붙여넣고 외부 AI에 보내세요."),
-                ("완성 JSON 가져오기", "외부 AI 답변을 복사한 뒤 아래에 붙여넣고 ‘임시 목록으로 가져오기’를 누르세요."),
-                ("확인 후 저장", "뜻과 메모를 직접 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
-            ]
-        }
-
-        return [
-            ("데이 선택", "완성된 단어를 저장할 데이를 먼저 고르세요."),
-            ("영단어 입력", "영단어 또는 구문을 한 개 입력하고 키보드의 완료 또는 Return/Enter를 누르세요."),
-            ("뜻 확인·수정", "기기의 번역 기능이 한국어 뜻을 채웁니다. 처음에는 번역 언어 다운로드 안내가 나올 수 있습니다."),
-            ("데이에 저장", "표의 셀을 눌러 내용을 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
-        ]
-    }
-
     private var usageGuideTitle: String {
-        isJSONImportEnabled && entryMode == .json ? "외부 AI로 단어 가져오는 순서" : "직접 단어 추가하는 순서"
+        isJSONImportEnabled && entryMode == .json ? "영단어를 모으거나 완성 JSON을 붙여넣으세요" : "영단어를 입력하고 Enter를 누르세요"
     }
 
-    private var entryModeDescription: String {
+    private var usageGuideMessage: String {
         if isJSONImportEnabled, entryMode == .json {
-            return "여러 단어의 뜻과 예문을 외부 AI에서 JSON 형식으로 만든 뒤 한 번에 가져옵니다."
+            return "모은 영단어는 아래에서 JSON으로 복사할 수 있습니다. AI는 VocaDay 밖에서 사용합니다."
         }
 
-        return "영단어를 한 개씩 입력합니다. 기기의 번역 기능이 한국어 뜻을 채우며, 저장 전에 직접 수정할 수 있습니다."
+        return "한국어 뜻이 자동으로 채워집니다. 필요한 내용만 고친 뒤 아래에서 저장하세요."
     }
 
     private var shouldShowUsageGuide: Bool {
@@ -310,10 +215,10 @@ struct AddWordsView: View {
 
     private var temporaryWordsEmptyTitle: String {
         if isJSONImportEnabled, entryMode == .json {
-            return "가져온 단어가 아직 없습니다. 위에 JSON을 붙여넣고 ‘임시 목록으로 가져오기’를 누르세요."
+            return "아직 가져온 단어가 없습니다. JSON을 붙여넣고 목록으로 변환하세요."
         }
 
-        return "추가할 단어가 아직 없습니다. 위 입력란에 영단어를 입력하세요."
+        return "아직 추가할 단어가 없습니다. 위 입력란에서 시작하세요."
     }
 
     private func dismissCurrentUsageGuide() {
@@ -327,7 +232,15 @@ struct AddWordsView: View {
     @ViewBuilder
     private var entryInputCard: some View {
         if isJSONImportEnabled, entryMode == .json {
-            jsonInputCard
+            VStack(spacing: 16) {
+                WordInputCard(
+                    title: "영단어 모으기",
+                    inputWord: $inputWord,
+                    isInputFocused: $isInputFocused,
+                    onSubmit: addInputWord
+                )
+                jsonInputCard
+            }
         } else {
             WordInputCard(
                 inputWord: $inputWord,
@@ -340,25 +253,26 @@ struct AddWordsView: View {
     private var jsonInputCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("외부 AI의 답변 붙여넣기", systemImage: "curlybraces.square")
+                Label("완성 JSON 붙여넣기", systemImage: "curlybraces.square")
                     .font(.headline)
 
                 Spacer()
 
-                Button("클립보드에서 붙여넣기") {
+                Button {
                     pasteJSONIntoEditor()
+                } label: {
+                    Label("붙여넣기", systemImage: "doc.on.clipboard")
                 }
                 .buttonStyle(.bordered)
             }
 
-            Text("외부 AI 앱이나 웹사이트에서 복사한 JSON 답변을 아래에 붙여넣으세요. 아직 답변이 없다면 오른쪽 위 ?에서 만드는 방법과 프롬프트를 확인하세요.")
+            Text("외부 AI에서 복사한 JSON 배열을 붙여넣으세요.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             ZStack(alignment: .topLeading) {
                 if jsonInput.isEmpty {
-                    Text("[ 로 시작하고 ] 로 끝나는 외부 AI의 JSON 답변")
+                    Text("[ 로 시작하고 ] 로 끝나는 JSON 배열")
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 13)
@@ -375,13 +289,13 @@ struct AddWordsView: View {
 #endif
                     .autocorrectionDisabled()
             }
-            .frame(minHeight: 180)
+            .frame(minHeight: 150)
             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Button {
                 importJSONFromEditor()
             } label: {
-                Label("임시 목록으로 가져오기", systemImage: "square.and.arrow.down")
+                Label("JSON을 목록으로 변환", systemImage: "arrow.down.doc")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -389,82 +303,108 @@ struct AddWordsView: View {
         }
         .padding(18)
         .calmCard()
-        .onboardingSpotlight(.jsonInput)
     }
 
     private var actionBar: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             Divider()
 
             #if os(iOS)
-            VStack(spacing: 10) {
-                if isJSONImportEnabled {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    if shouldShowAICopyButton {
+                        actionButton(
+                            title: "영단어 JSON 복사",
+                            systemImage: "doc.on.doc",
+                            isDisabled: temporaryWords.isEmpty,
+                            action: copyTemporaryWordsAsJSON
+                        )
+                    }
+
                     actionButton(
-                        title: "AI용 영단어 JSON 복사",
-                        systemImage: "doc.on.doc",
-                        isDisabled: temporaryWords.isEmpty,
-                        action: copyTemporaryWordsAsJSON
+                        title: saveButtonTitle,
+                        systemImage: "tray.and.arrow.down",
+                        isProminent: true,
+                        isDisabled: isSaveDisabled,
+                        action: saveToDay
                     )
                 }
 
-                LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                    spacing: 10
-                ) {
-                    actionButton(title: "선택 단어 삭제", systemImage: "trash", role: .destructive, isDisabled: selectedTemporaryWordID == nil) {
-                        deleteSelectedTemporaryWord()
-                        isInputFocused = true
+                VStack(spacing: 8) {
+                    if shouldShowAICopyButton {
+                        actionButton(
+                            title: "영단어 JSON 복사",
+                            systemImage: "doc.on.doc",
+                            isDisabled: temporaryWords.isEmpty,
+                            action: copyTemporaryWordsAsJSON
+                        )
                     }
-                    actionButton(title: "선택한 데이에 저장", systemImage: "tray.and.arrow.down", isProminent: true, isDisabled: temporaryWords.isEmpty, action: saveToDay)
+
+                    actionButton(
+                        title: saveButtonTitle,
+                        systemImage: "tray.and.arrow.down",
+                        isProminent: true,
+                        isDisabled: isSaveDisabled,
+                        action: saveToDay
+                    )
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 14)
+            .padding(.vertical, 10)
             #else
-            HStack(spacing: 20) {
-                if isJSONImportEnabled {
+            HStack(spacing: 12) {
+                if shouldShowAICopyButton {
                     Button(action: copyTemporaryWordsAsJSON) {
-                        Label("AI용 영단어 JSON 복사", systemImage: "doc.on.doc")
+                        Label("영단어 JSON 복사", systemImage: "doc.on.doc")
                             .frame(minHeight: 42)
                     }
                     .buttonStyle(.bordered)
                     .disabled(temporaryWords.isEmpty)
-                    .accessibilityLabel("AI용 영단어 JSON 복사")
+                    .accessibilityLabel("영단어 JSON 복사")
                     .help("저장 전 확인 목록의 영단어만 AI 입력용 JSON으로 복사")
                 }
 
                 Spacer(minLength: 0)
 
-                Button(role: .destructive) {
-                    deleteSelectedTemporaryWord()
-                    isInputFocused = true
-                } label: {
-                    Label("선택 단어 삭제", systemImage: "trash")
-                        .frame(minHeight: 42)
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedTemporaryWordID == nil)
-                .accessibilityLabel("선택 단어 삭제")
-                .help("선택 단어 삭제")
-
                 Button {
                     saveToDay()
                 } label: {
-                    Label("선택한 데이에 저장", systemImage: "tray.and.arrow.down")
+                    Label(saveButtonTitle, systemImage: "tray.and.arrow.down")
                         .frame(minHeight: 42)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(temporaryWords.isEmpty)
-                .accessibilityLabel("선택한 데이에 저장")
-                .help("선택한 데이에 저장")
+                .disabled(isSaveDisabled)
+                .accessibilityLabel(saveButtonTitle)
+                .help(saveButtonTitle)
             }
             .font(.subheadline.weight(.semibold))
             .padding(.horizontal, 20)
-            .padding(.bottom, 14)
+            .padding(.vertical, 10)
             #endif
         }
         .background(.regularMaterial)
-        .onboardingSpotlight(.addActions)
+    }
+
+    private var shouldShowAICopyButton: Bool {
+        isJSONImportEnabled && entryMode == .json
+    }
+
+    private var hasPendingTranslation: Bool {
+        temporaryWords.contains { $0.meaningKo == "(번역 중...)" }
+    }
+
+    private var isSaveDisabled: Bool {
+        temporaryWords.isEmpty || hasPendingTranslation || selectedDay == nil
+    }
+
+    private var saveButtonTitle: String {
+        if hasPendingTranslation {
+            return "뜻을 불러오는 중"
+        }
+
+        let destination = selectedDay?.title ?? "데이"
+        guard !temporaryWords.isEmpty else { return "\(destination)에 저장" }
+        return "\(destination)에 \(temporaryWords.count)개 저장"
     }
 
     @ViewBuilder
@@ -476,27 +416,15 @@ struct AddWordsView: View {
         isDisabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        if isProminent {
-            Button(role: role, action: action) {
-                actionButtonLabel(title: title, systemImage: systemImage)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isDisabled)
-            .accessibilityLabel(Text(title))
-        } else {
-            Button(role: role, action: action) {
-                actionButtonLabel(title: title, systemImage: systemImage)
-            }
-            .buttonStyle(.bordered)
-            .disabled(isDisabled)
-            .accessibilityLabel(Text(title))
-        }
-    }
-
-    private func actionButtonLabel(title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 46)
+        AppActionButton(
+            title: title,
+            systemImage: systemImage,
+            role: role,
+            isProminent: isProminent,
+            isDisabled: isDisabled,
+            action: action
+        )
+        .componentSpotlight(isProminent ? .saveWordsButton : .navigation)
     }
 
     private func addInputWord() {
@@ -544,7 +472,7 @@ struct AddWordsView: View {
         guard !temporaryWords.contains(where: { $0.english.normalizedEnglish == english.normalizedEnglish }) else {
             alert = VocaAlert(
                 title: "중복 단어",
-                message: "\"\(english)\"은(는) 이미 임시 목록에 있습니다."
+                message: "\"\(english)\"은(는) 이미 저장 전 목록에 있습니다."
             )
             inputWord = ""
             isInputFocused = true
@@ -696,8 +624,8 @@ struct AddWordsView: View {
             }
             if showAlerts {
                 let message = decodedWords.count == 1
-                    ? "단어 1개를 저장 전 확인 목록에 넣었습니다. 내용을 수정한 뒤 선택한 데이에 저장하세요."
-                    : "단어 \(decodedWords.count)개를 저장 전 확인 목록에 넣었습니다. 내용을 수정한 뒤 선택한 데이에 저장하세요."
+                    ? "단어 1개를 저장 전 목록에 넣었습니다. 내용을 확인한 뒤 저장하세요."
+                    : "단어 \(decodedWords.count)개를 저장 전 목록에 넣었습니다. 내용을 확인한 뒤 저장하세요."
                 alert = VocaAlert(title: "단어를 가져왔습니다", message: message)
             }
             return true
@@ -710,12 +638,6 @@ struct AddWordsView: View {
             }
             return false
         }
-    }
-
-    private func deleteSelectedTemporaryWord() {
-        guard let selectedTemporaryWordID else { return }
-        temporaryWords.removeAll { $0.id == selectedTemporaryWordID }
-        self.selectedTemporaryWordID = temporaryWords.last?.id
     }
 
     private func saveToDay() {
@@ -850,8 +772,8 @@ struct AddWordsView: View {
     }
 
     private var selectedDay: VocabularyDay? {
-        guard let selectedDayID else { return days.first }
-        return days.first { $0.id == selectedDayID } ?? days.first
+        guard let selectedDayID else { return days.last }
+        return days.first { $0.id == selectedDayID } ?? days.last
     }
 
     private func ensureSelectedDay() {
@@ -864,7 +786,7 @@ struct AddWordsView: View {
             return
         }
 
-        selectedDayID = days.first?.id
+        selectedDayID = days.last?.id
     }
 
     private func existingWordLocation(forNormalizedEnglish normalizedEnglish: String) -> DuplicateWordLocation? {
@@ -931,7 +853,7 @@ private struct AddWordsHelpView: View {
     ]
 
     변환할 입력 JSON:
-    [여기에 VocaDay의 ‘AI용 영단어 JSON 복사’로 복사한 JSON을 붙여넣기]
+    [여기에 VocaDay의 ‘AI용 JSON 복사’로 복사한 JSON을 붙여넣기]
     """
 
     private let jsonExample = """
@@ -960,7 +882,7 @@ private struct AddWordsHelpView: View {
                         helpStep(number: 1, text: "‘추가’ 화면 위에서 저장할 데이를 선택하세요.")
                         helpStep(number: 2, text: "영단어 또는 짧은 구문을 한 개 입력하고 키보드의 완료 또는 Return/Enter를 누르세요.")
                         helpStep(number: 3, text: "기기의 번역 기능이 한국어 뜻을 채울 때까지 잠시 기다리세요. 처음에는 번역 언어 다운로드 안내가 나올 수 있습니다.")
-                        helpStep(number: 4, text: "저장 전 확인 표에서 뜻·메모·태그를 직접 고친 뒤 ‘선택한 데이에 저장’을 누르세요.")
+                        helpStep(number: 4, text: "저장 전 목록에서 내용을 고친 뒤 화면 아래의 저장 버튼을 누르세요.")
                     }
                 }
 
@@ -992,12 +914,12 @@ private struct AddWordsHelpView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         helpStep(number: 1, text: "\(settingsLocation)에서 ‘외부 AI의 JSON 단어 가져오기’를 켜세요.")
                         helpStep(number: 2, text: "이 페이지 아래의 프롬프트 상자를 눌러 복사하고, 외부 AI 입력창에 먼저 붙여넣으세요.")
-                        helpStep(number: 3, text: "VocaDay의 ‘직접 입력’에서 원하는 영단어를 하나씩 입력하고 완료 또는 Return/Enter를 눌러 임시 목록에 추가하세요.")
-                        helpStep(number: 4, text: "화면 아래의 ‘AI용 영단어 JSON 복사’를 눌러 임시 목록의 영단어 JSON을 복사하세요.")
+                        helpStep(number: 3, text: "VocaDay의 ‘직접 입력’에서 원하는 영단어를 하나씩 입력하고 완료 또는 Return/Enter를 눌러 저장 전 목록에 추가하세요.")
+                        helpStep(number: 4, text: "화면 아래의 ‘AI용 JSON 복사’를 눌러 저장 전 목록의 영단어 JSON을 복사하세요.")
                         helpStep(number: 5, text: "외부 AI 입력창으로 돌아가 프롬프트 마지막의 ‘변환할 입력 JSON’ 자리에 복사한 JSON을 붙여넣고 전송하세요.")
                         helpStep(number: 6, text: "외부 AI가 만든 [ 로 시작해 ] 로 끝나는 완성 JSON 답변 전체를 복사하세요.")
-                        helpStep(number: 7, text: "VocaDay의 ‘추가’로 돌아와 ‘JSON 가져오기’를 선택하고 ‘클립보드에서 붙여넣기’를 누르세요.")
-                        helpStep(number: 8, text: "‘임시 목록으로 가져오기’를 누른 뒤 내용을 확인·수정하고 선택한 데이에 저장하세요.")
+                        helpStep(number: 7, text: "VocaDay의 ‘추가’로 돌아와 ‘JSON 가져오기’를 선택하고 ‘붙여넣기’를 누르세요.")
+                        helpStep(number: 8, text: "‘JSON을 목록으로 변환’을 누른 뒤 내용을 확인·수정하고 저장하세요.")
                     }
                 }
 
@@ -1006,10 +928,10 @@ private struct AddWordsHelpView: View {
                     systemImage: "doc.on.doc"
                 ) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("저장 전 확인 목록에 단어가 있으면 화면 아래의 ‘AI용 영단어 JSON 복사’를 눌러 외부 AI에 보낼 입력 JSON을 만들 수 있습니다.")
+                        Text("저장 전 목록에 단어가 있으면 화면 아래의 ‘AI용 JSON 복사’를 눌러 외부 AI에 보낼 입력 JSON을 만들 수 있습니다.")
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        troubleshootingItem("임시 목록의 영단어만 유지되고, 뜻·예문·메모·태그는 외부 AI가 채울 수 있도록 빈 문자열로 복사됩니다.")
+                        troubleshootingItem("저장 전 목록의 영단어만 유지되고, 뜻·예문·메모·태그는 외부 AI가 채울 수 있도록 빈 문자열로 복사됩니다.")
                         troubleshootingItem("복사한 JSON은 프롬프트 마지막의 ‘변환할 입력 JSON’ 자리에 붙여넣으세요.")
                         troubleshootingItem("이 버튼은 설정에서 ‘외부 AI의 JSON 단어 가져오기’를 켰을 때만 표시됩니다.")
                     }

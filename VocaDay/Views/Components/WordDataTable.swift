@@ -18,6 +18,8 @@ struct WordDataTable: View {
     @GestureState private var pressedKoreanWordID: UUID?
     @State private var lingeringKoreanWordID: UUID?
     @State private var lingeringRevealToken = UUID()
+    @State private var expandedWordID: UUID?
+    @State private var usesRowSpecificDetails = false
 
     var body: some View {
         fullWidthTable
@@ -26,6 +28,14 @@ struct WordDataTable: View {
                     previousWordID: previousWordID,
                     currentWordID: currentWordID
                 )
+            }
+            .onChange(of: showsWordDetails) { _, _ in
+                usesRowSpecificDetails = false
+                expandedWordID = nil
+            }
+            .onChange(of: words.map(\.id)) { _, currentWordIDs in
+                guard let expandedWordID, !currentWordIDs.contains(expandedWordID) else { return }
+                self.expandedWordID = nil
             }
     }
 
@@ -97,8 +107,9 @@ struct WordDataTable: View {
 
     private var tableHeight: CGFloat {
         let headerHeight: CGFloat = 45
-        let rowHeight: CGFloat = showsWordDetails ? 134 : 45
-        return headerHeight + (CGFloat(words.count) * rowHeight)
+        return headerHeight + words.reduce(0) { height, word in
+            height + rowHeight(for: word)
+        }
     }
 
     private var rowActionWidth: CGFloat {
@@ -109,14 +120,14 @@ struct WordDataTable: View {
         HStack(alignment: .top, spacing: 0) {
             if isEditingRows {
                 rowActions(for: word)
-                    .frame(width: rowActionWidth, height: showsWordDetails ? 133 : 44, alignment: .top)
+                    .frame(width: rowActionWidth, height: rowHeight(for: word) - 1, alignment: .top)
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
             VStack(spacing: 0) {
                 wordMainRow(index: index, word: word, widths: widths)
 
-                if showsWordDetails {
+                if isShowingDetails(for: word) {
                     wordDetailLines(for: word)
                 }
             }
@@ -124,6 +135,7 @@ struct WordDataTable: View {
         }
         .animation(.easeInOut(duration: 0.2), value: isEditingRows)
         .animation(.easeInOut(duration: 0.15), value: selectedWordIDs.contains(word.id))
+        .animation(.easeInOut(duration: 0.18), value: expandedWordID)
     }
 
     private func wordMainRow(index: Int, word: VocaWord, widths: [CGFloat]) -> some View {
@@ -177,15 +189,27 @@ struct WordDataTable: View {
         )
         .frame(width: width, height: 44, alignment: columnIndex == 0 ? .center : .leading)
         .padding(.horizontal, columnIndex == 0 ? 2 : 6)
+        .background(
+            columnIndex == 0 && isShowingDetails(for: word)
+                ? Color.accentColor.opacity(0.12)
+                : Color.clear
+        )
         .contentShape(Rectangle())
         .onTapGesture {
-            guard columnIndex == 1 else { return }
-            if allowsSelection {
-                toggleSelection(of: word)
-            } else {
-                onEnglishTap(word)
+            switch columnIndex {
+            case 0:
+                toggleDetails(for: word)
+            case 1:
+                if allowsSelection {
+                    toggleSelection(of: word)
+                } else {
+                    onEnglishTap(word)
+                }
+            default:
+                break
             }
         }
+        .accessibilityHint(columnIndex == 0 ? "이 단어의 상세 정보를 열거나 닫습니다." : "")
 
         if columnIndex == 1, let onEnglishLongPress {
             baseCell.simultaneousGesture(
@@ -208,6 +232,24 @@ struct WordDataTable: View {
         } else {
             selectedWordIDs.insert(word.id)
         }
+    }
+
+    private func toggleDetails(for word: VocaWord) {
+        usesRowSpecificDetails = true
+        withAnimation(.easeInOut(duration: 0.18)) {
+            expandedWordID = expandedWordID == word.id ? nil : word.id
+        }
+    }
+
+    private func isShowingDetails(for word: VocaWord) -> Bool {
+        if usesRowSpecificDetails {
+            return expandedWordID == word.id
+        }
+        return showsWordDetails
+    }
+
+    private func rowHeight(for word: VocaWord) -> CGFloat {
+        isShowingDetails(for: word) ? 192 : 45
     }
 
     private func rowActions(for word: VocaWord) -> some View {
@@ -259,11 +301,12 @@ struct WordDataTable: View {
             detailLine(label: "영어 예문", value: word.exampleEn)
             detailLine(label: "한국어 예문", value: word.exampleKo)
             detailLine(label: "메모", value: word.note)
+            detailLine(label: "태그", value: word.toeicTag)
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .padding(.bottom, 9)
-        .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
         .background(Color.secondary.opacity(0.035))
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -282,7 +325,7 @@ struct WordDataTable: View {
             Text(display(value))
                 .font(.caption)
                 .foregroundStyle(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

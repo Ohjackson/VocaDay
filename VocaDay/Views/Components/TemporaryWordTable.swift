@@ -5,119 +5,165 @@ struct TemporaryWordTable: View {
     @Binding var selectedWordID: UUID?
     var emptyTitle: String
 
-    private struct Column {
-        let title: String
-        let width: CGFloat
-    }
-
-    private let columns: [Column] = [
-        Column(title: "#", width: 56),
-        Column(title: "영단어", width: 180),
-        Column(title: "한국어 뜻", width: 220),
-        Column(title: "메모", width: 180),
-        Column(title: "TOEIC 태그", width: 150)
-    ]
+    @State private var expandedWordIDs: Set<UUID> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("4. 저장 전 확인")
+                    Text("저장 전 목록")
                         .font(.headline)
-                    Text("셀을 눌러 내용을 수정하세요. 행을 선택하면 아래에서 삭제할 수 있습니다.")
+                    Text("내용을 눌러 바로 수정할 수 있어요.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
 
-                Text("\(words.count)개")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                Text("\(words.count)")
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor.opacity(0.1), in: Capsule())
             }
 
             if words.isEmpty {
-                EmptyStateView(
-                    title: emptyTitle,
-                    systemImage: "square.and.pencil"
-                )
+                VStack(spacing: 9) {
+                    Image(systemName: "text.badge.plus")
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                    Text(emptyTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 30)
+                .padding(.horizontal, 20)
+                .background(AppTheme.raisedBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        tableRow(
-                            values: columns.map(\.title),
-                            isHeader: true
-                        )
-
-                        Divider()
-
-                        ForEach(Array(words.indices), id: \.self) { index in
-                            editableWordRow(index: index, word: $words[index])
-                            Divider()
-                        }
+                LazyVStack(spacing: 10) {
+                    ForEach(Array(words.indices), id: \.self) { index in
+                        editableWordCard(index: index, word: $words[index])
                     }
-                    .frame(minWidth: columns.reduce(0) { $0 + $1.width }, alignment: .leading)
                 }
             }
         }
-        .padding(18)
+        .padding(16)
         .calmCard()
     }
 
-    private func editableWordRow(index: Int, word: Binding<VocaWordJSON>) -> some View {
-        HStack(spacing: 0) {
-            Text("\(index + 1)")
-                .font(.body.monospacedDigit())
-                .frame(width: columns[0].width, alignment: .center)
-                .padding(.vertical, 10)
-                .padding(.horizontal, 12)
+    private func editableWordCard(index: Int, word: Binding<VocaWordJSON>) -> some View {
+        let wordID = word.wrappedValue.id
+        let isExpanded = expandedWordIDs.contains(wordID)
 
-            editableCell("영단어", text: word.english, columnIndex: 1)
-            editableCell("한국어 뜻", text: word.meaningKo, columnIndex: 2)
-            editableCell("메모", text: word.note, columnIndex: 3)
-            editableCell("TOEIC 태그", text: word.toeicTag, columnIndex: 4)
-        }
-        .background(rowBackground(isHeader: false, isSelected: selectedWordID == word.wrappedValue.id))
-        .contentShape(Rectangle())
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                selectedWordID = word.wrappedValue.id
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text("\(index + 1)")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.secondary.opacity(0.1), in: Circle())
+
+                TextField("영단어", text: word.english)
+                    .textFieldStyle(.plain)
+                    .font(.headline)
+                    .autocorrectionDisabled()
+
+                Button(role: .destructive) {
+                    removeWord(at: index)
+                } label: {
+                    Image(systemName: "trash")
+                        .frame(width: 30, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("\(word.wrappedValue.english) 삭제")
             }
-        )
+
+            if word.wrappedValue.meaningKo == "(번역 중...)" {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("한국어 뜻을 불러오는 중…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(minHeight: 34)
+            } else {
+                compactTextField("한국어 뜻", text: word.meaningKo)
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if isExpanded {
+                        expandedWordIDs.remove(wordID)
+                    } else {
+                        expandedWordIDs.insert(wordID)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(isExpanded ? "세부 정보 접기" : "예문 · 메모 · 태그")
+                        .font(.caption.weight(.semibold))
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+                editableField("영어 예문", text: word.exampleEn, placeholder: "영어 예문 입력")
+                editableField("예문 번역", text: word.exampleKo, placeholder: "한국어 번역 입력")
+                editableField("메모", text: word.note, placeholder: "암기 메모 입력")
+                editableField("TOEIC 태그", text: word.toeicTag, placeholder: "예: 동사, Part 5")
+            }
+        }
+        .padding(14)
+        .background(AppTheme.raisedBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.1))
+        }
+        .onTapGesture { selectedWordID = wordID }
     }
 
-    private func editableCell(_ placeholder: String, text: Binding<String>, columnIndex: Int) -> some View {
-        TextField(placeholder, text: text)
+    private func compactTextField(_ title: String, text: Binding<String>) -> some View {
+        TextField(title, text: text, axis: .vertical)
             .textFieldStyle(.plain)
             .font(.body)
-            .lineLimit(1)
-            .frame(width: columns[columnIndex].width, alignment: .leading)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
+            .lineLimit(1...3)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
-    private func tableRow(values: [String], isHeader: Bool, isSelected: Bool = false) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                Text(value)
-                    .font(isHeader ? .subheadline.weight(.semibold) : .body)
-                    .foregroundStyle(isHeader ? .secondary : .primary)
-                    .lineLimit(2)
-                    .frame(width: columns[index].width, alignment: index == 0 ? .center : .leading)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 12)
-            }
+    private func editableField(
+        _ title: String,
+        text: Binding<String>,
+        placeholder: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            compactTextField(placeholder, text: text)
         }
-        .background(rowBackground(isHeader: isHeader, isSelected: isSelected))
     }
 
-    private func rowBackground(isHeader: Bool, isSelected: Bool) -> Color {
-        if isHeader {
-            return Color.secondary.opacity(0.06)
+    private func removeWord(at index: Int) {
+        guard words.indices.contains(index) else { return }
+        let removedID = words[index].id
+        words.remove(at: index)
+        expandedWordIDs.remove(removedID)
+        if selectedWordID == removedID {
+            selectedWordID = words.indices.contains(index) ? words[index].id : words.last?.id
         }
-
-        return isSelected ? Color.accentColor.opacity(0.12) : Color.clear
     }
 }

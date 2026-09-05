@@ -21,11 +21,16 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
+    @Query(sort: \StudyPageCategory.createdAt) private var studyPageCategories: [StudyPageCategory]
 
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
-    @AppStorage("hasCompletedSpotlightOnboarding") private var hasCompletedSpotlightOnboarding = false
+    @AppStorage(SpotlightOnboardingCompletion.versionedKey) private var hasCompletedSpotlightOnboarding = false
     @State private var showsDeleteConfirmation = false
     @State private var deletionStatusMessage: String?
+    #if DEBUG
+    @State private var showsStudyMemoResetConfirmation = false
+    @State private var studyMemoDebugStatusMessage: String?
+    #endif
 
     private var wordCount: Int {
         vocabularyDays.reduce(0) { $0 + $1.wordList.count }
@@ -59,6 +64,7 @@ struct SettingsView: View {
 
                 LabeledContent("저장된 단어", value: "\(wordCount)개")
                 LabeledContent("학습 메모", value: "\(studyMemos.count)개")
+                LabeledContent("학습 메모 분류", value: "\(studyPageCategories.count)개")
             }
 
             Section {
@@ -101,6 +107,39 @@ struct SettingsView: View {
                 }
             }
 
+            #if DEBUG
+            Section {
+                Button {
+                    restartOnboarding()
+                } label: {
+                    Label("전체 스포트라이트 절차 체험", systemImage: "scope")
+                }
+
+                Button(role: .destructive) {
+                    showsStudyMemoResetConfirmation = true
+                } label: {
+                    Label("학습 메모 초기화", systemImage: "trash")
+                }
+                .disabled(studyMemos.isEmpty && studyPageCategories.isEmpty)
+
+                Button {
+                    recreateStudyMemoDemos()
+                } label: {
+                    Label("최초 설치 데모 생성", systemImage: "sparkles")
+                }
+
+                if let studyMemoDebugStatusMessage {
+                    Text(studyMemoDebugStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("디버그")
+            } footer: {
+                Text("스포트라이트 체험은 실제 데이터를 변경하지 않습니다. 초기화는 학습 메모와 분류만 삭제하며, 데모 생성은 사용자 메모를 유지하고 기본 데모 3개를 다시 만듭니다.")
+            }
+            #endif
+
             Section {
                 Button("모든 앱 데이터 삭제", role: .destructive) {
                     showsDeleteConfirmation = true
@@ -124,19 +163,27 @@ struct SettingsView: View {
         } message: {
             Text("저장한 데이, 단어, 복습 기록과 학습 메모가 모두 삭제되며 되돌릴 수 없습니다.")
         }
+        #if DEBUG
+        .confirmationDialog(
+            "학습 메모를 초기화할까요?",
+            isPresented: $showsStudyMemoResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("학습 메모와 분류 삭제", role: .destructive, action: resetStudyMemos)
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("모든 학습 메모와 직접 만든 분류가 삭제됩니다. 단어 데이와 복습 기록은 유지됩니다.")
+        }
+        #endif
     }
 
     private var hasStoredData: Bool {
-        !vocabularyDays.isEmpty || !studyMemos.isEmpty
+        !vocabularyDays.isEmpty || !studyMemos.isEmpty || !studyPageCategories.isEmpty
     }
 
     private func restartOnboarding() {
-        hasCompletedSpotlightOnboarding = true
+        hasCompletedSpotlightOnboarding = false
         dismiss()
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(300))
-            hasCompletedSpotlightOnboarding = false
-        }
     }
 
     private func deleteAllData() {
@@ -144,18 +191,46 @@ struct SettingsView: View {
             try AppDataBackupService.deleteAll(
                 in: modelContext,
                 vocabularyDays: vocabularyDays,
-                studyMemos: studyMemos
+                studyMemos: studyMemos,
+                studyPageCategories: studyPageCategories
             )
             deletionStatusMessage = "모든 앱 데이터를 삭제했습니다."
         } catch {
             deletionStatusMessage = "데이터를 삭제하지 못했습니다. 앱을 다시 연 뒤 시도하세요."
         }
     }
+
+    #if DEBUG
+    private func resetStudyMemos() {
+        do {
+            for memo in studyMemos {
+                modelContext.delete(memo)
+            }
+            for category in studyPageCategories {
+                modelContext.delete(category)
+            }
+            try modelContext.save()
+            studyMemoDebugStatusMessage = "학습 메모와 분류를 초기화했습니다."
+        } catch {
+            studyMemoDebugStatusMessage = "학습 메모를 초기화하지 못했습니다. 앱을 다시 연 뒤 시도하세요."
+        }
+    }
+
+    private func recreateStudyMemoDemos() {
+        do {
+            try StudyMemoDemoSeeder.recreateDemos(in: modelContext)
+            studyMemoDebugStatusMessage = "최초 설치용 학습 메모 데모 3개를 생성했습니다."
+        } catch {
+            studyMemoDebugStatusMessage = "데모를 생성하지 못했습니다. 앱을 다시 연 뒤 시도하세요."
+        }
+    }
+    #endif
 }
 
 private struct JSONBackupView: View {
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
+    @Query(sort: \StudyPageCategory.createdAt) private var studyPageCategories: [StudyPageCategory]
     @Environment(\.modelContext) private var modelContext
 
     @AppStorage("lastSuccessfulBackupAt") private var lastSuccessfulBackupAt = 0.0
@@ -195,6 +270,7 @@ private struct JSONBackupView: View {
                     LabeledContent("단어 데이", value: "\(vocabularyDays.count)개")
                     LabeledContent("저장된 단어", value: "\(wordCount)개")
                     LabeledContent("학습 메모", value: "\(studyMemos.count)개")
+                    LabeledContent("학습 메모 분류", value: "\(studyPageCategories.count)개")
                 }
             } header: {
                 Text("백업할 데이터")
@@ -275,7 +351,7 @@ private struct JSONBackupView: View {
     }
 
     private var hasStoredData: Bool {
-        !vocabularyDays.isEmpty || !studyMemos.isEmpty
+        !vocabularyDays.isEmpty || !studyMemos.isEmpty || !studyPageCategories.isEmpty
     }
 
     private var wordCount: Int {
@@ -313,7 +389,8 @@ private struct JSONBackupView: View {
             case .allData:
                 archive = AppDataBackupService.archiveAll(
                     vocabularyDays: vocabularyDays,
-                    studyMemos: studyMemos
+                    studyMemos: studyMemos,
+                    studyPageCategories: studyPageCategories
                 )
             case .vocabularyDay:
                 guard let selectedBackupDay else { return }
@@ -346,7 +423,8 @@ private struct JSONBackupView: View {
             let preview = AppDataBackupService.preview(
                 archive,
                 vocabularyDays: vocabularyDays,
-                studyMemos: studyMemos
+                studyMemos: studyMemos,
+                studyPageCategories: studyPageCategories
             )
             pendingRestoreArchive = archive
             restoreSummary = preview.summary
@@ -366,7 +444,8 @@ private struct JSONBackupView: View {
                 archive,
                 in: modelContext,
                 vocabularyDays: vocabularyDays,
-                studyMemos: studyMemos
+                studyMemos: studyMemos,
+                studyPageCategories: studyPageCategories
             )
             backupStatusMessage = "백업 데이터를 현재 데이터와 병합했습니다."
         } catch {
@@ -484,5 +563,5 @@ private struct SettingsNavigationLabel: View {
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self], inMemory: true)
 }

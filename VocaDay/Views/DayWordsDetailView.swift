@@ -112,7 +112,7 @@ struct DayWordsDetailView: View {
     }
 
     private var countText: String {
-        normalizedSearchText.isEmpty ? "\(orderedWords.count)" : "\(visibleWords.count)/\(orderedWords.count)"
+        "\(visibleWords.count)"
     }
 
     private func togglePlayback() {
@@ -183,15 +183,24 @@ struct DayWordsDetailView: View {
         }
         #else
         ToolbarItemGroup(placement: .primaryAction) {
-            Text(countText)
-                .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.secondary)
+            toolbarCountLabel
             detailToggle
             playButton
             editModeButton
             sortButton
         }
         #endif
+    }
+
+    private var toolbarCountLabel: some View {
+        Text(countText)
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 38, alignment: .trailing)
+            .padding(.leading, 8)
+            .accessibilityLabel("단어 \(countText)개")
     }
 
     private var detailToggle: some View {
