@@ -10,6 +10,7 @@ enum AppInteractionPolicy: Sendable {
 
 /// 프로덕션과 온보딩이 같은 Mac 내비게이션 구조를 사용하도록 하는 공용 셸입니다.
 struct MacAppNavigationShell<Detail: View>: View {
+    @Environment(\.activeSpotlightTarget) private var activeSpotlightTarget
     @Binding private var selectedSection: AppSection
     private let interactionPolicy: AppInteractionPolicy
     private let hidesSidebarFromAccessibility: Bool
@@ -30,6 +31,14 @@ struct MacAppNavigationShell<Detail: View>: View {
     var body: some View {
         NavigationSplitView {
             List {
+                if activeSpotlightTarget != nil {
+                    Text("VocaDay")
+                        .font(.headline)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 4)
+                        .spotlightSupportingContent()
+                        .accessibilityAddTraits(.isHeader)
+                }
                 ForEach(AppSection.allCases) { section in
                     Button {
                         guard interactionPolicy.permitsActions else { return }
@@ -49,7 +58,7 @@ struct MacAppNavigationShell<Detail: View>: View {
             .listStyle(.sidebar)
             // 시스템 제목 막대의 안전 영역을 따르므로 창 제어 버튼과 첫 행이 겹치지 않습니다.
             .safeAreaPadding(.top)
-            .navigationTitle("VocaDay")
+            .navigationTitle(activeSpotlightTarget == nil ? "VocaDay" : "")
             .navigationSplitViewColumnWidth(min: 220, ideal: 260)
             .accessibilityHidden(hidesSidebarFromAccessibility)
         } detail: {
@@ -75,7 +84,7 @@ private struct AppSidebarRow: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             // 선택 배경과 레이블을 같은 밝기 계층에서 처리합니다.
-            .componentSpotlight(.navigation)
+            .spotlightSupportingContent()
     }
 }
 #endif

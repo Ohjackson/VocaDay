@@ -26,10 +26,14 @@ struct SpotlightDescriptionCard: View {
                 .font(.title3.weight(.bold))
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(step.message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                Text(step.message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxHeight: 132)
 
             #if os(macOS)
             horizontalControls
@@ -77,6 +81,7 @@ struct SpotlightDescriptionCard: View {
         Button("건너뛰기", action: onSkip)
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
+            .frame(minHeight: 44)
     }
 
     @ViewBuilder
@@ -84,11 +89,13 @@ struct SpotlightDescriptionCard: View {
         if canGoBack {
             Button("이전", action: onBack)
                 .buttonStyle(.bordered)
+                .frame(minHeight: 44)
         }
     }
 
     private var nextButton: some View {
         Button(step == SpotlightStep.allCases.last ? "완료" : "다음", action: onNext)
             .buttonStyle(.borderedProminent)
+            .frame(minHeight: 44)
     }
 }

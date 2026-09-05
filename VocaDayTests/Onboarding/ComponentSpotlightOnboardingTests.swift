@@ -4,6 +4,11 @@ import SwiftUI
 
 @MainActor
 final class ComponentSpotlightOnboardingTests: XCTestCase {
+    func testEveryInstructionalTargetAppearsExactlyOnce() {
+        let targets = SpotlightStep.allCases.map(\.target)
+        XCTAssertEqual(Set(targets).count, targets.count, "한 대상을 둘 이상의 단계가 설명하면 안 됩니다.")
+    }
+
     func testEveryStepMatchesApprovedSnapshot() {
         let snapshots = SpotlightStep.allCases.map { step in
             "\(step.rawValue + 1)|\(step.target.rawValue)|\(step.placement.rawValue)|\(step.section.title)|\(step.title)"
@@ -42,12 +47,18 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
     }
 
     func testAllStepsRenderAtSupportedLayoutSizes() throws {
+        #if os(iOS)
         let layouts: [(name: String, width: CGFloat, height: CGFloat)] = [
             ("iPhone SE", 375, 667),
             ("일반 iPhone", 390, 844),
-            ("iPhone Pro Max", 440, 956),
-            ("Mac", 1_200, 800)
+            ("iPhone Pro Max", 440, 956)
         ]
+        #else
+        let layouts: [(name: String, width: CGFloat, height: CGFloat)] = [
+            ("Mac 최소 창", 760, 560),
+            ("Mac 넓은 창", 1_440, 900)
+        ]
+        #endif
 
         for layout in layouts {
             for step in SpotlightStep.allCases {
@@ -96,6 +107,23 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
         #endif
     }
 
+    func testLightAndDarkAppearanceVariantsRender() throws {
+        for colorScheme in [ColorScheme.light, .dark] {
+            let store = OnboardingCompletionStoreSpy()
+            let controller = SpotlightFlowController(initialStep: .saveWords, completionStore: store)
+            let view = VocaDayOnboardingScene(controller: controller)
+                .frame(width: 760, height: 560)
+                .environment(\.colorScheme, colorScheme)
+
+            let renderer = ImageRenderer(content: view)
+            #if os(iOS)
+            XCTAssertNotNil(renderer.uiImage)
+            #else
+            XCTAssertNotNil(renderer.nsImage)
+            #endif
+        }
+    }
+
     func testMockFlowDoesNotTouchDatabaseAPIOrSyncAndOnlyPersistsCompletion() throws {
         let store = OnboardingCompletionStoreSpy()
         let controller = SpotlightFlowController(
@@ -131,6 +159,48 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
 
     func testCompletionKeyIsVersioned() {
         XCTAssertEqual(SpotlightOnboardingCompletion.versionedKey, "hasCompletedComponentSpotlightOnboarding_v1")
+    }
+
+    func testOnboardingSourceDoesNotUseCoordinateOrCutoutTechniques() throws {
+        let sourceRoot = try onboardingSourceRoot()
+        let forbiddenTokens = [
+            "GeometryReader", "frame(in:", "PreferenceKey", "AnchorPreference",
+            "convert(", "Canvas", "mask(", "blendMode(.destinationOut"
+        ]
+
+        let files = try FileManager.default.contentsOfDirectory(
+            at: sourceRoot,
+            includingPropertiesForKeys: nil
+        ).filter { $0.pathExtension == "swift" }
+        let source = try files.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
+
+        for token in forbiddenTokens {
+            XCTAssertFalse(source.contains(token), "온보딩 소스에서 금지 API를 발견했습니다: \(token)")
+        }
+    }
+
+    func testMockSceneHasNoPersistenceNetworkNotificationOrTimerDependencies() throws {
+        let sceneURL = try onboardingSourceRoot().appendingPathComponent("VocaDayOnboardingScene.swift")
+        let source = try String(contentsOf: sceneURL, encoding: .utf8)
+        let forbiddenTokens = [
+            "ModelContext", "ModelContainer", "@Query", "URLSession",
+            "UNUserNotificationCenter", "ActivityKit", "Timer.", "UserDefaults"
+        ]
+
+        for token in forbiddenTokens {
+            XCTAssertFalse(source.contains(token), "Mock 장면이 외부 상태에 접근합니다: \(token)")
+        }
+    }
+
+    private func onboardingSourceRoot() throws -> URL {
+        let testsURL = URL(fileURLWithPath: #filePath)
+        let projectRoot = testsURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceRoot = projectRoot.appendingPathComponent("VocaDay/Onboarding", isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceRoot.path))
+        return sourceRoot
     }
 }
 

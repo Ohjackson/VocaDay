@@ -62,6 +62,7 @@ struct VocaDayOnboardingScene: View {
                     // 창이 아직 크기를 갖기 전에도 바깥 컨테이너에 음수 크기를
                     // 제안하지 않도록 카드 자체가 안전 여백을 포함합니다.
                     .padding(24)
+                    .frame(maxWidth: 520)
             }
 
             if controller.currentStep.placement != .bottom {
@@ -77,28 +78,28 @@ struct VocaDayOnboardingScene: View {
             NavigationStack { MockDaysOnboardingView() }
                 .tabItem {
                     Label(AppSection.days.title, systemImage: AppSection.days.systemImage)
-                        .componentSpotlight(.navigation)
+                        .spotlightSupportingContent()
                 }
                 .tag(AppSection.days)
 
             NavigationStack { MockAddWordsOnboardingView() }
                 .tabItem {
                     Label(AppSection.add.title, systemImage: AppSection.add.systemImage)
-                        .componentSpotlight(.navigation)
+                        .spotlightSupportingContent()
                 }
                 .tag(AppSection.add)
 
             NavigationStack { MockReviewOnboardingView() }
                 .tabItem {
                     Label(AppSection.review.title, systemImage: AppSection.review.systemImage)
-                        .componentSpotlight(.navigation)
+                        .spotlightSupportingContent()
                 }
                 .tag(AppSection.review)
 
             NavigationStack { MockStudyMemosOnboardingView() }
                 .tabItem {
                     Label(AppSection.studyMemos.title, systemImage: AppSection.studyMemos.systemImage)
-                        .componentSpotlight(.navigation)
+                        .spotlightSupportingContent()
                 }
                 .tag(AppSection.studyMemos)
         }
@@ -135,6 +136,7 @@ struct VocaDayOnboardingScene: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
+        .allowsHitTesting(true)
     }
 
     private var onboardingDescriptionCard: some View {
@@ -195,8 +197,9 @@ private struct MockDaysOnboardingView: View {
             }
         }
         .background(AppTheme.background)
-        .navigationTitle("VocaDay")
+        .navigationTitle("")
         .toolbar {
+            onboardingTitle("VocaDay")
             ToolbarItemGroup(placement: toolbarPlacement) {
                 Button(action: {}) { Image(systemName: "gearshape") }
                     .componentSpotlight(.settingsButton)
@@ -241,7 +244,7 @@ private struct MockAddWordsOnboardingView: View {
 
                         AddWordsGuideCard(
                             title: "영단어를 입력하고 Enter를 누르세요",
-                            message: "한국어 뜻이 자동으로 채워집니다. 필요한 내용만 고친 뒤 아래에서 저장하세요.",
+                            message: "Apple Intelligence가 뜻과 품사, 예문을 기기 안에서 만듭니다. 결과를 확인한 뒤 저장하세요.",
                             systemImage: "return",
                             showsHelpLink: false,
                             onDismiss: {}
@@ -290,8 +293,9 @@ private struct MockAddWordsOnboardingView: View {
             .background(.regularMaterial)
         }
         .background(AppTheme.background)
-        .navigationTitle("단어 추가")
+        .navigationTitle("")
         .toolbar {
+            onboardingTitle("단어 추가")
             ToolbarItem(placement: toolbarPlacement) {
                 Button(action: {}) { Image(systemName: "questionmark.circle") }
                     .componentSpotlight(.addHelpButton)
@@ -304,12 +308,16 @@ private struct MockAddWordsOnboardingView: View {
               activeTarget == .wordInput || activeTarget == .pendingWords else { return }
 
         if reduceMotion {
-            proxy.scrollTo(activeTarget, anchor: .center)
+            proxy.scrollTo(activeTarget, anchor: scrollAnchor)
         } else {
             withAnimation(.easeInOut(duration: 0.22)) {
-                proxy.scrollTo(activeTarget, anchor: .center)
+                proxy.scrollTo(activeTarget, anchor: scrollAnchor)
             }
         }
+    }
+
+    private var scrollAnchor: UnitPoint {
+        activeTarget == .pendingWords ? .bottom : .top
     }
 }
 
@@ -328,8 +336,9 @@ private struct MockReviewOnboardingView: View {
             }
         }
         .background(AppTheme.background)
-        .navigationTitle("복습")
+        .navigationTitle("")
         .toolbar {
+            onboardingTitle("복습")
             ToolbarItem(placement: toolbarPlacement) {
                 Button(action: {}) { Image(systemName: "square.and.pencil") }
                     .componentSpotlight(.editReviewButton)
@@ -353,11 +362,12 @@ private struct MockStudyMemosOnboardingView: View {
             }
         }
         .background(StudyPageStyle.background)
-        .navigationTitle("학습 메모")
+        .navigationTitle("")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
+            onboardingTitle("학습 메모")
             ToolbarItem(placement: toolbarPlacement) {
                 Button(action: {}) {
                     AppToolbarActionLabel(title: "새 페이지", systemImage: "plus")
@@ -375,6 +385,18 @@ private var toolbarPlacement: ToolbarItemPlacement {
     #else
     .primaryAction
     #endif
+}
+
+/// 시스템 navigationTitle은 개별 밝기 제어가 불가능하므로 온보딩에서만
+/// 같은 툴바 슬롯에 실제 텍스트 컴포넌트를 둡니다.
+private func onboardingTitle(_ title: String) -> some ToolbarContent {
+    ToolbarItem(placement: .principal) {
+        Text(title)
+            .font(.headline)
+            .lineLimit(1)
+            .spotlightSupportingContent()
+            .accessibilityAddTraits(.isHeader)
+    }
 }
 
 private extension View {
