@@ -18,14 +18,16 @@ struct AppDataArchive: Codable {
     var type: AppDataArchiveType
     var vocabularyDays: [VocabularyDayArchive]
     var studyMemos: [StudyMemoArchive]
+    var studyPageCategories: [StudyPageCategoryArchive]
 
     init(
-        schemaVersion: Int = 4,
+        schemaVersion: Int = 5,
         createdAt: Date = Date(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         type: AppDataArchiveType,
         vocabularyDays: [VocabularyDayArchive] = [],
-        studyMemos: [StudyMemoArchive] = []
+        studyMemos: [StudyMemoArchive] = [],
+        studyPageCategories: [StudyPageCategoryArchive] = []
     ) {
         self.schemaVersion = schemaVersion
         self.createdAt = createdAt
@@ -33,6 +35,7 @@ struct AppDataArchive: Codable {
         self.type = type
         self.vocabularyDays = vocabularyDays
         self.studyMemos = studyMemos
+        self.studyPageCategories = studyPageCategories
     }
 
     init(from decoder: Decoder) throws {
@@ -43,6 +46,29 @@ struct AppDataArchive: Codable {
         type = try container.decodeIfPresent(AppDataArchiveType.self, forKey: .type) ?? .allAppData
         vocabularyDays = try container.decodeIfPresent([VocabularyDayArchive].self, forKey: .vocabularyDays) ?? []
         studyMemos = try container.decodeIfPresent([StudyMemoArchive].self, forKey: .studyMemos) ?? []
+        studyPageCategories = try container.decodeIfPresent([StudyPageCategoryArchive].self, forKey: .studyPageCategories) ?? []
+    }
+}
+
+struct StudyPageCategoryArchive: Codable, Identifiable {
+    var id: UUID
+    var name: String
+    var colorRawValue: String
+    var createdAt: Date
+
+    init(id: UUID, name: String, colorRawValue: String, createdAt: Date) {
+        self.id = id
+        self.name = name
+        self.colorRawValue = colorRawValue
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "가져온 분류"
+        colorRawValue = try container.decodeIfPresent(String.self, forKey: .colorRawValue) ?? "gray"
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 }
 
@@ -51,6 +77,11 @@ struct StudyMemoArchive: Codable, Identifiable {
     var icon: String
     var coverStyle: String
     var blocksJSON: String
+    var richTextData: String
+    var plainTextContent: String
+    var categoryID: String
+    var categoryName: String
+    var categoryColor: String
     var typeRawValue: String
     var title: String
     var body: String
@@ -70,6 +101,11 @@ struct StudyMemoArchive: Codable, Identifiable {
         icon: String,
         coverStyle: String,
         blocksJSON: String,
+        richTextData: String,
+        plainTextContent: String,
+        categoryID: String,
+        categoryName: String,
+        categoryColor: String,
         typeRawValue: String,
         title: String,
         body: String,
@@ -88,6 +124,11 @@ struct StudyMemoArchive: Codable, Identifiable {
         self.icon = icon
         self.coverStyle = coverStyle
         self.blocksJSON = blocksJSON
+        self.richTextData = richTextData
+        self.plainTextContent = plainTextContent
+        self.categoryID = categoryID
+        self.categoryName = categoryName
+        self.categoryColor = categoryColor
         self.typeRawValue = typeRawValue
         self.title = title
         self.body = body
@@ -109,6 +150,11 @@ struct StudyMemoArchive: Codable, Identifiable {
         icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? "📄"
         coverStyle = try container.decodeIfPresent(String.self, forKey: .coverStyle) ?? "none"
         blocksJSON = try container.decodeIfPresent(String.self, forKey: .blocksJSON) ?? ""
+        richTextData = try container.decodeIfPresent(String.self, forKey: .richTextData) ?? ""
+        plainTextContent = try container.decodeIfPresent(String.self, forKey: .plainTextContent) ?? ""
+        categoryID = try container.decodeIfPresent(String.self, forKey: .categoryID) ?? ""
+        categoryName = try container.decodeIfPresent(String.self, forKey: .categoryName) ?? ""
+        categoryColor = try container.decodeIfPresent(String.self, forKey: .categoryColor) ?? "gray"
         typeRawValue = try container.decodeIfPresent(String.self, forKey: .typeRawValue) ?? ""
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? "가져온 학습 메모"
         body = try container.decodeIfPresent(String.self, forKey: .body) ?? ""
@@ -231,10 +277,13 @@ struct AppDataImportPreview {
     let wordsToUpdate: Int
     let studyMemosToCreate: Int
     let studyMemosToUpdate: Int
+    let categoriesToCreate: Int
+    let categoriesToUpdate: Int
 
     var isEmpty: Bool {
         vocabularyDaysToCreate == 0 && vocabularyDaysToUpdate == 0 && wordsToCreate == 0 &&
-        wordsToUpdate == 0 && studyMemosToCreate == 0 && studyMemosToUpdate == 0
+        wordsToUpdate == 0 && studyMemosToCreate == 0 && studyMemosToUpdate == 0 &&
+        categoriesToCreate == 0 && categoriesToUpdate == 0
     }
 
     var summary: String {
@@ -242,7 +291,8 @@ struct AppDataImportPreview {
         return [
             "단어 데이: 새로 만들기 \(vocabularyDaysToCreate)개, 업데이트 \(vocabularyDaysToUpdate)개",
             "단어: 새로 만들기 \(wordsToCreate)개, 업데이트 \(wordsToUpdate)개",
-            "학습 메모: 새로 만들기 \(studyMemosToCreate)개, 업데이트 \(studyMemosToUpdate)개"
+            "학습 메모: 새로 만들기 \(studyMemosToCreate)개, 업데이트 \(studyMemosToUpdate)개",
+            "페이지 분류: 새로 만들기 \(categoriesToCreate)개, 업데이트 \(categoriesToUpdate)개"
         ].joined(separator: "\n")
     }
 }
@@ -263,11 +313,16 @@ enum AppDataBackupError: LocalizedError {
 
 @MainActor
 enum AppDataBackupService {
-    static func archiveAll(vocabularyDays: [VocabularyDay], studyMemos: [StudyMemo]) -> AppDataArchive {
+    static func archiveAll(
+        vocabularyDays: [VocabularyDay],
+        studyMemos: [StudyMemo],
+        studyPageCategories: [StudyPageCategory]
+    ) -> AppDataArchive {
         AppDataArchive(
             type: .allAppData,
             vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.makeVocabularyDayArchive),
-            studyMemos: studyMemos.sorted { $0.createdAt < $1.createdAt }.map(Self.makeStudyMemoArchive)
+            studyMemos: studyMemos.sorted { $0.createdAt < $1.createdAt }.map(Self.makeStudyMemoArchive),
+            studyPageCategories: studyPageCategories.sorted { $0.createdAt < $1.createdAt }.map(Self.makeCategoryArchive)
         )
     }
 
@@ -287,7 +342,7 @@ enum AppDataBackupService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let archive = try decoder.decode(AppDataArchive.self, from: Data(json.utf8))
-        guard archive.schemaVersion <= 4 else {
+        guard archive.schemaVersion <= 5 else {
             throw AppDataBackupError.unsupportedVersion(archive.schemaVersion)
         }
         return archive
@@ -296,11 +351,13 @@ enum AppDataBackupService {
     static func preview(
         _ archive: AppDataArchive,
         vocabularyDays: [VocabularyDay],
-        studyMemos: [StudyMemo]
+        studyMemos: [StudyMemo],
+        studyPageCategories: [StudyPageCategory]
     ) -> AppDataImportPreview {
         let existingDayIDs = Set(vocabularyDays.map(\.id))
         let existingWordIDs = Set(vocabularyDays.flatMap { $0.wordList.map(\.id) })
         let existingMemoIDs = Set(studyMemos.map(\.id))
+        let existingCategoryIDs = Set(studyPageCategories.map(\.id))
         let incomingWordIDs = archive.vocabularyDays.flatMap { $0.words.map(\.id) }
 
         return AppDataImportPreview(
@@ -309,7 +366,9 @@ enum AppDataBackupService {
             wordsToCreate: incomingWordIDs.filter { !existingWordIDs.contains($0) }.count,
             wordsToUpdate: incomingWordIDs.filter { existingWordIDs.contains($0) }.count,
             studyMemosToCreate: archive.studyMemos.filter { !existingMemoIDs.contains($0.id) }.count,
-            studyMemosToUpdate: archive.studyMemos.filter { existingMemoIDs.contains($0.id) }.count
+            studyMemosToUpdate: archive.studyMemos.filter { existingMemoIDs.contains($0.id) }.count,
+            categoriesToCreate: archive.studyPageCategories.filter { !existingCategoryIDs.contains($0.id) }.count,
+            categoriesToUpdate: archive.studyPageCategories.filter { existingCategoryIDs.contains($0.id) }.count
         )
     }
 
@@ -317,13 +376,15 @@ enum AppDataBackupService {
         _ archive: AppDataArchive,
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
-        studyMemos: [StudyMemo]
+        studyMemos: [StudyMemo],
+        studyPageCategories: [StudyPageCategory]
     ) throws {
         var daysByID = Dictionary(uniqueKeysWithValues: vocabularyDays.map { ($0.id, $0) })
         var wordsByID = Dictionary(uniqueKeysWithValues: vocabularyDays.flatMap { day in
             day.wordList.map { ($0.id, $0) }
         })
         var memosByID = Dictionary(uniqueKeysWithValues: studyMemos.map { ($0.id, $0) })
+        var categoriesByID = Dictionary(uniqueKeysWithValues: studyPageCategories.map { ($0.id, $0) })
 
         for dayArchive in archive.vocabularyDays {
             let day = daysByID[dayArchive.id] ?? {
@@ -358,6 +419,16 @@ enum AppDataBackupService {
             }
         }
 
+        for categoryArchive in archive.studyPageCategories {
+            let category = categoriesByID[categoryArchive.id] ?? {
+                let newCategory = StudyPageCategory(id: categoryArchive.id, name: categoryArchive.name)
+                context.insert(newCategory)
+                categoriesByID[categoryArchive.id] = newCategory
+                return newCategory
+            }()
+            apply(categoryArchive, to: category)
+        }
+
         for memoArchive in archive.studyMemos {
             let memo = memosByID[memoArchive.id] ?? {
                 let newMemo = StudyMemo(id: memoArchive.id)
@@ -373,13 +444,17 @@ enum AppDataBackupService {
     static func deleteAll(
         in context: ModelContext,
         vocabularyDays: [VocabularyDay],
-        studyMemos: [StudyMemo]
+        studyMemos: [StudyMemo],
+        studyPageCategories: [StudyPageCategory]
     ) throws {
         for day in vocabularyDays {
             context.delete(day)
         }
         for memo in studyMemos {
             context.delete(memo)
+        }
+        for category in studyPageCategories {
+            context.delete(category)
         }
         try context.save()
     }
@@ -437,6 +512,11 @@ enum AppDataBackupService {
             icon: memo.icon,
             coverStyle: memo.coverStyle,
             blocksJSON: memo.blocksJSON,
+            richTextData: memo.richTextData,
+            plainTextContent: memo.plainTextContent,
+            categoryID: memo.categoryID,
+            categoryName: memo.categoryName,
+            categoryColor: memo.categoryColor,
             typeRawValue: memo.typeRawValue,
             title: memo.title,
             body: memo.body,
@@ -457,6 +537,11 @@ enum AppDataBackupService {
         memo.icon = archive.icon
         memo.coverStyle = archive.coverStyle
         memo.blocksJSON = archive.blocksJSON
+        memo.richTextData = archive.richTextData
+        memo.plainTextContent = archive.plainTextContent
+        memo.categoryID = archive.categoryID
+        memo.categoryName = archive.categoryName
+        memo.categoryColor = archive.categoryColor
         memo.typeRawValue = archive.typeRawValue
         memo.title = archive.title
         memo.body = archive.body
@@ -471,6 +556,21 @@ enum AppDataBackupService {
         memo.createdAt = archive.createdAt
         memo.updatedAt = archive.updatedAt
         memo.migrateLegacyContentIfNeeded()
+    }
+
+    private static func makeCategoryArchive(_ category: StudyPageCategory) -> StudyPageCategoryArchive {
+        StudyPageCategoryArchive(
+            id: category.id,
+            name: category.name,
+            colorRawValue: category.colorRawValue,
+            createdAt: category.createdAt
+        )
+    }
+
+    private static func apply(_ archive: StudyPageCategoryArchive, to category: StudyPageCategory) {
+        category.name = archive.name
+        category.colorRawValue = archive.colorRawValue
+        category.createdAt = archive.createdAt
     }
 }
 

@@ -77,6 +77,7 @@ struct StudyPageBlock: Codable, Identifiable, Hashable {
     var id: UUID
     var kind: StudyPageBlockKind
     var text: String
+    var richTextData: String
     var detail: String
     var isChecked: Bool
     var isExpanded: Bool
@@ -88,6 +89,7 @@ struct StudyPageBlock: Codable, Identifiable, Hashable {
         id: UUID = UUID(),
         kind: StudyPageBlockKind = .text,
         text: String = "",
+        richTextData: String = "",
         detail: String = "",
         isChecked: Bool = false,
         isExpanded: Bool = true,
@@ -98,6 +100,7 @@ struct StudyPageBlock: Codable, Identifiable, Hashable {
         self.id = id
         self.kind = kind
         self.text = text
+        self.richTextData = richTextData
         self.detail = detail
         self.isChecked = isChecked
         self.isExpanded = isExpanded
@@ -111,6 +114,7 @@ struct StudyPageBlock: Codable, Identifiable, Hashable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         kind = try container.decodeIfPresent(StudyPageBlockKind.self, forKey: .kind) ?? .text
         text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        richTextData = try container.decodeIfPresent(String.self, forKey: .richTextData) ?? ""
         detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
         isChecked = try container.decodeIfPresent(Bool.self, forKey: .isChecked) ?? false
         isExpanded = try container.decodeIfPresent(Bool.self, forKey: .isExpanded) ?? true
@@ -135,6 +139,11 @@ final class StudyMemo {
     var icon: String = "📄"
     var coverStyle: String = "none"
     var blocksJSON: String = ""
+    var richTextData: String = ""
+    var plainTextContent: String = ""
+    var categoryID: String = ""
+    var categoryName: String = ""
+    var categoryColor: String = "gray"
     var isPinned: Bool = false
     var needsReview: Bool = false
     var createdAt: Date = Date()
@@ -156,6 +165,11 @@ final class StudyMemo {
         icon: String = "📄",
         coverStyle: String = "none",
         blocks: [StudyPageBlock] = [StudyPageBlock()],
+        richTextData: String = "",
+        plainTextContent: String = "",
+        categoryID: String = "",
+        categoryName: String = "",
+        categoryColor: String = "gray",
         isPinned: Bool = false,
         needsReview: Bool = false,
         createdAt: Date = Date(),
@@ -165,6 +179,11 @@ final class StudyMemo {
         self.title = title
         self.icon = icon
         self.coverStyle = coverStyle
+        self.richTextData = richTextData
+        self.plainTextContent = plainTextContent
+        self.categoryID = categoryID
+        self.categoryName = categoryName
+        self.categoryColor = categoryColor
         self.isPinned = isPinned
         self.needsReview = needsReview
         self.createdAt = createdAt
@@ -235,11 +254,14 @@ final class StudyMemo {
     }
 
     var searchableText: String {
-        ([title, tags] + blocks.map(\.text) + blocks.map(\.detail) + blocks.flatMap(\.tableRows).flatMap { $0 })
+        ([title, categoryName, tags, plainTextContent] + blocks.map(\.text) + blocks.map(\.detail) + blocks.flatMap(\.tableRows).flatMap { $0 })
             .joined(separator: " ")
     }
 
     var previewText: String {
+        if !plainTextContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return plainTextContent
+        }
         for block in blocks {
             if !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return block.text
@@ -257,5 +279,25 @@ final class StudyMemo {
             !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         return filtered.isEmpty ? [StudyPageBlock()] : filtered
+    }
+}
+
+@Model
+final class StudyPageCategory {
+    var id: UUID = UUID()
+    var name: String = ""
+    var colorRawValue: String = "gray"
+    var createdAt: Date = Date()
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        colorRawValue: String = "gray",
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.colorRawValue = colorRawValue
+        self.createdAt = createdAt
     }
 }
