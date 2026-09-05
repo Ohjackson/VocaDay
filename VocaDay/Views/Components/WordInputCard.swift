@@ -4,6 +4,14 @@ struct WordInputCard: View {
     var title: String = "영단어 입력"
     @Binding var inputWord: String
     var isInputFocused: FocusState<Bool>.Binding
+    var submitHint: String = "Enter로 추가"
+    var statusMessage: String?
+    var statusIsWarning = false
+    var isProcessing = false
+    var primaryActionTitle: String?
+    var secondaryActionTitle: String?
+    var onPrimaryAction: (() -> Void)?
+    var onSecondaryAction: (() -> Void)?
     let onSubmit: () -> Void
 
     var body: some View {
@@ -14,12 +22,12 @@ struct WordInputCard: View {
 
                 Spacer()
 
-                Label("Enter로 추가", systemImage: "return")
+                Label(submitHint, systemImage: "return")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            TextField("영단어 또는 구문 입력", text: $inputWord)
+            TextField("영어 단어 하나 입력", text: $inputWord)
                 .textFieldStyle(.roundedBorder)
                 .font(.title3)
                 .submitLabel(.done)
@@ -29,6 +37,41 @@ struct WordInputCard: View {
                 .autocorrectionDisabled()
                 .focused(isInputFocused)
                 .onSubmit(onSubmit)
+                .disabled(isProcessing)
+
+            if let statusMessage {
+                Label(
+                    statusMessage,
+                    systemImage: statusIsWarning ? "exclamationmark.triangle" : "apple.intelligence"
+                )
+                .font(.caption)
+                .foregroundStyle(statusIsWarning ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if primaryActionTitle != nil || secondaryActionTitle != nil {
+                HStack(spacing: 10) {
+                    if let secondaryActionTitle, let onSecondaryAction {
+                        Button(secondaryActionTitle, action: onSecondaryAction)
+                            .buttonStyle(.bordered)
+                            .disabled(isProcessing || inputWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if isProcessing {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("생성 중…")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    } else if let primaryActionTitle, let onPrimaryAction {
+                        Button(primaryActionTitle, action: onPrimaryAction)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(inputWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity)

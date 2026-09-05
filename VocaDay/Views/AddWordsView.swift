@@ -1,11 +1,5 @@
 import SwiftData
 import SwiftUI
-import Translation
-
-private struct PendingTranslation: Identifiable, Equatable {
-    let id: UUID
-    let english: String
-}
 
 private struct DuplicateWordLocation: Identifiable, Hashable {
     var id: String { english.normalizedEnglish }
@@ -34,20 +28,35 @@ struct AddWordsView: View {
     @Binding var selectedDayID: UUID?
     @Binding var quickAddWord: String?
     @Binding var entryMode: AddEntryMode
+    private let wordGenerationService: any EnglishWordGenerating
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @AppStorage("hasDismissedAddWordsGuide") private var hasDismissedAddWordsGuide = false
     @AppStorage("hasDismissedJSONAddWordsGuide") private var hasDismissedJSONAddWordsGuide = false
+    @AppStorage("hasAcknowledgedAppleIntelligenceWordGeneration") private var hasAcknowledgedAppleIntelligence = false
     @State private var inputWord = ""
     @State private var jsonInput = ""
     @State private var temporaryWords: [VocaWordJSON] = []
     @State private var selectedTemporaryWordID: UUID?
     @State private var alert: VocaAlert?
-    @State private var pendingTranslations: [PendingTranslation] = []
-    @State private var translationConfiguration: TranslationSession.Configuration?
+    @State private var isGeneratingWord = false
+    @State private var generationTask: Task<Void, Never>?
     @State private var isShowingGuideDismissalConfirmation = false
     @State private var isShowingNewDayAlert = false
+    @State private var isShowingAppleIntelligenceDisclosure = false
     @State private var newDayTitle = ""
     @FocusState private var isInputFocused: Bool
+
+    init(
+        selectedDayID: Binding<UUID?>,
+        quickAddWord: Binding<String?>,
+        entryMode: Binding<AddEntryMode>,
+        wordGenerationService: any EnglishWordGenerating = AppleFoundationWordGenerationService()
+    ) {
+        _selectedDayID = selectedDayID
+        _quickAddWord = quickAddWord
+        _entryMode = entryMode
+        self.wordGenerationService = wordGenerationService
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -102,6 +111,18 @@ struct AddWordsView: View {
                 dismissButton: .default(Text("확인"))
             )
         }
+        .alert("Apple Intelligence 사용 안내", isPresented: $isShowingAppleIntelligenceDisclosure) {
+            Button("수동으로 추가") {
+                addManualInputWord()
+            }
+            Button("동의하고 생성") {
+                hasAcknowledgedAppleIntelligence = true
+                startGeneratingInputWord()
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("입력한 영단어는 Apple의 온디바이스 모델이 이 기기 안에서 처리하며 외부 AI 서비스로 전송되지 않습니다. iPhone에서는 15 Pro·15 Pro Max 및 이후 Apple Intelligence 지원 모델에서 사용할 수 있습니다.")
+        }
         .confirmationDialog(
             "이 안내 상자를 숨길까요?",
             isPresented: $isShowingGuideDismissalConfirmation,
@@ -140,8 +161,8 @@ struct AddWordsView: View {
         .onChange(of: isJSONImportEnabled) { _, _ in
             ensureAvailableEntryMode()
         }
-        .translationTask(translationConfiguration) { session in
-            await translatePendingWords(with: session)
+        .onDisappear {
+            generationTask?.cancel()
         }
     }
 
@@ -202,7 +223,7 @@ struct AddWordsView: View {
             return "모은 영단어는 아래에서 JSON으로 복사할 수 있습니다. AI는 VocaDay 밖에서 사용합니다."
         }
 
-        return "한국어 뜻이 자동으로 채워집니다. 필요한 내용만 고친 뒤 아래에서 저장하세요."
+        return "Apple Intelligence가 자주 쓰는 뜻과 품사, 예문을 기기 안에서 만듭니다. 결과를 확인하고 필요한 내용만 고친 뒤 저장하세요."
     }
 
     private var shouldShowUsageGuide: Bool {
@@ -237,7 +258,7 @@ struct AddWordsView: View {
                     title: "영단어 모으기",
                     inputWord: $inputWord,
                     isInputFocused: $isInputFocused,
-                    onSubmit: addInputWord
+                    onSubmit: addRawInputWord
                 )
                 jsonInputCard
             }
@@ -245,7 +266,15 @@ struct AddWordsView: View {
             WordInputCard(
                 inputWord: $inputWord,
                 isInputFocused: $isInputFocused,
-                onSubmit: addInputWord
+                submitHint: generationAvailability.isAvailable ? "Enter로 AI 생성" : "Enter로 직접 추가",
+                statusMessage: generationAvailability.statusMessage,
+                statusIsWarning: !generationAvailability.isAvailable,
+                isProcessing: isGeneratingWord,
+                primaryActionTitle: generationAvailability.isAvailable ? "AI로 생성" : nil,
+                secondaryActionTitle: "직접 추가",
+                onPrimaryAction: requestAIGeneration,
+                onSecondaryAction: addManualInputWord,
+                onSubmit: submitDirectInput
             )
         }
     }
@@ -389,17 +418,17 @@ struct AddWordsView: View {
         isJSONImportEnabled && entryMode == .json
     }
 
-    private var hasPendingTranslation: Bool {
-        temporaryWords.contains { $0.meaningKo == "(번역 중...)" }
+    private var generationAvailability: EnglishWordGenerationAvailability {
+        wordGenerationService.availability
     }
 
     private var isSaveDisabled: Bool {
-        temporaryWords.isEmpty || hasPendingTranslation || selectedDay == nil
+        temporaryWords.isEmpty || isGeneratingWord || selectedDay == nil
     }
 
     private var saveButtonTitle: String {
-        if hasPendingTranslation {
-            return "뜻을 불러오는 중"
+        if isGeneratingWord {
+            return "AI 학습 데이터 생성 중"
         }
 
         let destination = selectedDay?.title ?? "데이"
@@ -427,11 +456,91 @@ struct AddWordsView: View {
         .componentSpotlight(isProminent ? .saveWordsButton : .navigation)
     }
 
-    private func addInputWord() {
-        let english = inputWord.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !english.isEmpty else { return }
+    private func submitDirectInput() {
+        if generationAvailability.isAvailable {
+            requestAIGeneration()
+        } else {
+            addManualInputWord()
+        }
+    }
 
-        addEnglishWord(english)
+    private func requestAIGeneration() {
+        guard generationAvailability.isAvailable else {
+            addManualInputWord()
+            return
+        }
+
+        guard hasAcknowledgedAppleIntelligence else {
+            isShowingAppleIntelligenceDisclosure = true
+            return
+        }
+
+        startGeneratingInputWord()
+    }
+
+    private func addRawInputWord() {
+        guard let english = validatedInputWord() else { return }
+        appendManualDraft(english)
+    }
+
+    private func addManualInputWord() {
+        guard let english = validatedInputWord() else { return }
+        appendManualDraft(english)
+    }
+
+    private func startGeneratingInputWord() {
+        guard !isGeneratingWord, let english = validatedInputWord() else { return }
+
+        guard generationAvailability.isAvailable else {
+            alert = VocaAlert(title: "AI 자동 생성 사용 불가", message: generationAvailability.statusMessage)
+            return
+        }
+
+        isGeneratingWord = true
+        isInputFocused = false
+        generationTask?.cancel()
+        generationTask = Task {
+            do {
+                let generated = try await wordGenerationService.generateWord(for: english)
+                try Task.checkCancellation()
+                await MainActor.run {
+                    let draft = GeneratedWordDraftMapper.makeDraft(from: generated)
+                    temporaryWords.append(draft)
+                    selectedTemporaryWordID = draft.id
+                    inputWord = ""
+                    isGeneratingWord = false
+                    isInputFocused = true
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isGeneratingWord = false
+                }
+            } catch {
+                await MainActor.run {
+                    isGeneratingWord = false
+                    alert = VocaAlert(
+                        title: "AI 학습 데이터 생성 실패",
+                        message: (error as? LocalizedError)?.errorDescription
+                            ?? "다시 시도하거나 직접 추가를 사용하세요."
+                    )
+                    isInputFocused = true
+                }
+            }
+        }
+    }
+
+    private func validatedInputWord() -> String? {
+        do {
+            let english = try EnglishWordInputValidator.validate(inputWord)
+            guard validateDuplicate(english) else { return nil }
+            return english
+        } catch {
+            alert = VocaAlert(
+                title: "영단어를 확인하세요",
+                message: (error as? LocalizedError)?.errorDescription ?? "영어 단어 하나만 입력하세요."
+            )
+            return nil
+        }
     }
 
     private func copyTemporaryWordsAsJSON() {
@@ -468,15 +577,14 @@ struct AddWordsView: View {
         }
     }
 
-    private func addEnglishWord(_ english: String) {
+    private func validateDuplicate(_ english: String) -> Bool {
         guard !temporaryWords.contains(where: { $0.english.normalizedEnglish == english.normalizedEnglish }) else {
             alert = VocaAlert(
                 title: "중복 단어",
                 message: "\"\(english)\"은(는) 이미 저장 전 목록에 있습니다."
             )
-            inputWord = ""
             isInputFocused = true
-            return
+            return false
         }
 
         if let duplicateLocation = existingWordLocation(forNormalizedEnglish: english.normalizedEnglish) {
@@ -484,20 +592,19 @@ struct AddWordsView: View {
                 title: "중복 단어",
                 message: "\"\(english)\"은(는) 이미 \(duplicateLocation.dayTitles.joined(separator: ", "))에 있습니다."
             )
-            inputWord = ""
             isInputFocused = true
-            return
+            return false
         }
 
-        // Create immediately for responsiveness with a placeholder translation
-        var word = VocaWordJSON(english: english)
-        word.meaningKo = "(번역 중...)"
+        return true
+    }
+
+    private func appendManualDraft(_ english: String) {
+        let word = VocaWordJSON(english: english)
         temporaryWords.append(word)
         selectedTemporaryWordID = word.id
         inputWord = ""
         isInputFocused = true
-
-        enqueueTranslation(for: word.id, english: english)
     }
 
     private func consumeQuickAddWord() {
@@ -507,51 +614,12 @@ struct AddWordsView: View {
         }
 
         quickAddWord = nil
-        addEnglishWord(word)
-    }
-
-    private func enqueueTranslation(for id: UUID, english: String) {
-        pendingTranslations.removeAll { $0.id == id }
-        pendingTranslations.append(PendingTranslation(id: id, english: english))
-
-        if translationConfiguration == nil {
-            translationConfiguration = TranslationSession.Configuration(
-                source: Locale.Language(identifier: "en"),
-                target: Locale.Language(identifier: "ko")
-            )
-        } else {
-            translationConfiguration?.invalidate()
+        inputWord = word
+        if generationAvailability.isAvailable {
+            requestAIGeneration()
+        } else if let validated = validatedInputWord() {
+            appendManualDraft(validated)
         }
-    }
-
-    @MainActor
-    private func consumePendingTranslations() -> [PendingTranslation] {
-        let translations = pendingTranslations
-        pendingTranslations.removeAll()
-        return translations
-    }
-
-    private func translatePendingWords(with session: TranslationSession) async {
-        let translations = consumePendingTranslations()
-        guard !translations.isEmpty else { return }
-
-        for translation in translations {
-            do {
-                let response = try await session.translate(translation.english)
-                let korean = response.targetText.trimmingCharacters(in: .whitespacesAndNewlines)
-                updateTemporaryWord(id: translation.id, meaningKo: korean.isEmpty ? "(번역 실패)" : korean)
-            } catch {
-                updateTemporaryWord(id: translation.id, meaningKo: "(번역 실패)")
-                print("[Translate] Apple Translation error: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    @MainActor
-    private func updateTemporaryWord(id: UUID, meaningKo: String) {
-        guard let index = temporaryWords.firstIndex(where: { $0.id == id }) else { return }
-        guard temporaryWords[index].meaningKo == "(번역 중...)" else { return }
-        temporaryWords[index].meaningKo = meaningKo
     }
 
     private func pasteJSONIntoEditor() {
@@ -712,14 +780,8 @@ struct AddWordsView: View {
             guard !skippingNormalizedEnglish.contains(normalizedEnglish) else { continue }
             guard allowDuplicateEnglish || !existingEnglish.contains(normalizedEnglish) else { continue }
 
-            let word = VocaWord(
-                english: temporaryWord.english,
-                meaningKo: temporaryWord.meaningKo,
-                exampleEn: temporaryWord.exampleEn,
-                exampleKo: temporaryWord.exampleKo,
-                note: temporaryWord.note,
-                toeicTag: temporaryWord.toeicTag,
-                nextReviewAt: Date(),
+            let word = GeneratedWordDraftMapper.makeEntity(
+                from: temporaryWord,
                 day: selectedDay
             )
             modelContext.insert(word)
@@ -875,14 +937,15 @@ private struct AddWordsHelpView: View {
                 importantNotice
 
                 helpSection(
-                    title: "직접 입력으로 추가하기",
-                    systemImage: "square.and.pencil"
+                    title: "Apple Intelligence로 추가하기",
+                    systemImage: "apple.intelligence"
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
                         helpStep(number: 1, text: "‘추가’ 화면 위에서 저장할 데이를 선택하세요.")
-                        helpStep(number: 2, text: "영단어 또는 짧은 구문을 한 개 입력하고 키보드의 완료 또는 Return/Enter를 누르세요.")
-                        helpStep(number: 3, text: "기기의 번역 기능이 한국어 뜻을 채울 때까지 잠시 기다리세요. 처음에는 번역 언어 다운로드 안내가 나올 수 있습니다.")
-                        helpStep(number: 4, text: "저장 전 목록에서 내용을 고친 뒤 화면 아래의 저장 버튼을 누르세요.")
+                        helpStep(number: 2, text: "영어 단어 하나를 입력하고 ‘AI로 생성’ 또는 Return/Enter를 누르세요.")
+                        helpStep(number: 3, text: "Apple의 온디바이스 모델이 자주 쓰는 뜻을 최대 3개까지 품사와 예문으로 정리합니다.")
+                        helpStep(number: 4, text: "저장 전 목록에서 결과를 확인하고 필요한 부분을 고친 뒤 아래의 저장 버튼을 누르세요.")
+                        helpStep(number: 5, text: "Apple Intelligence를 쓸 수 없는 기기에서는 ‘직접 추가’로 빈 항목을 만든 뒤 직접 입력할 수 있습니다.")
                     }
                 }
 
@@ -938,13 +1001,13 @@ private struct AddWordsHelpView: View {
                 }
 
                 helpSection(
-                    title: "외부 AI 사용 시 알아두기",
+                    title: "JSON 모드의 외부 AI 사용 시 알아두기",
                     systemImage: "hand.raised"
                 ) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("VocaDay 안에는 AI가 내장되어 있지 않습니다.", systemImage: "xmark.circle")
+                        Label("JSON 모드는 외부 AI와 자동으로 연결되지 않습니다.", systemImage: "xmark.circle")
                             .font(.subheadline.weight(.semibold))
-                        Text("VocaDay는 외부 AI를 자동으로 열거나, 단어를 보내거나, 답변을 받아오지 않습니다. 사용자가 외부 AI에서 직접 생성하고 복사한 결과만 VocaDay에 붙여넣습니다.")
+                        Text("기본 직접 입력의 Apple Intelligence 생성과 달리, 고급 JSON 모드에서는 VocaDay가 외부 AI를 열거나 단어를 보내거나 답변을 받아오지 않습니다. 사용자가 외부 AI에서 직접 만든 결과만 붙여넣습니다.")
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         Text("외부 AI에 입력한 내용은 해당 AI 서비스의 개인정보 처리방침을 따릅니다. 개인정보나 민감한 내용은 프롬프트에 넣지 마세요.")
@@ -1041,10 +1104,10 @@ private struct AddWordsHelpView: View {
 
     private var importantNotice: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("중요: AI는 VocaDay 밖에서 사용합니다", systemImage: "exclamationmark.triangle.fill")
+            Label("기본 AI 생성은 기기 안에서 처리됩니다", systemImage: "apple.intelligence")
                 .font(.headline)
                 .foregroundStyle(Color.accentColor)
-            Text("VocaDay는 단어를 저장하고 복습하는 앱입니다. AI로 단어 정보 생성을 원하면 별도의 AI 앱이나 웹사이트를 직접 사용해야 합니다.")
+            Text("직접 입력의 뜻·품사·예문 생성은 Apple Foundation Models를 사용하며 외부 AI 서비스로 단어를 보내지 않습니다. 고급 JSON 가져오기만 사용자가 선택한 외부 AI를 별도로 이용합니다.")
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
         }

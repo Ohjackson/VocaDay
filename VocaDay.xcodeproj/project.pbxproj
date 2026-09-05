@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D7CFC7DD2FFBE06000D850F7 /* Translation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7CFC7DC2FFBE06000D850F7 /* Translation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,7 +22,6 @@
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* VocaDayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VocaDayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7AFCD7E2FFB8F9700F69564 /* VocaDay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VocaDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D7CFC7DC2FFBE06000D850F7 /* Translation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Translation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/Translation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -64,7 +62,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D7CFC7DD2FFBE06000D850F7 /* Translation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,7 +90,6 @@
 		D7CFC7DB2FFBE05F00D850F7 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				D7CFC7DC2FFBE06000D850F7 /* Translation.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

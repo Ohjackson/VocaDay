@@ -52,6 +52,10 @@ struct TemporaryWordTable: View {
         }
         .padding(16)
         .calmCard()
+        .onChange(of: words.map(\.id)) { oldIDs, newIDs in
+            let addedIDs = Set(newIDs).subtracting(oldIDs)
+            expandedWordIDs.formUnion(addedIDs)
+        }
     }
 
     private func editableWordCard(index: Int, word: Binding<VocaWordJSON>) -> some View {
@@ -83,18 +87,7 @@ struct TemporaryWordTable: View {
                 .accessibilityLabel("\(word.wrappedValue.english) 삭제")
             }
 
-            if word.wrappedValue.meaningKo == "(번역 중...)" {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("한국어 뜻을 불러오는 중…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(minHeight: 34)
-            } else {
-                compactTextField("한국어 뜻", text: word.meaningKo)
-            }
+            compactTextField("한국어 뜻", text: word.meaningKo)
 
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
