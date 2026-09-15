@@ -10,7 +10,7 @@ struct SpotlightDescriptionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                Text("처음 사용 안내")
+                Text("빠른 시작")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.accentColor)
 
@@ -94,7 +94,7 @@ struct SpotlightDescriptionCard: View {
     }
 
     private var nextButton: some View {
-        Button(step == SpotlightStep.allCases.last ? "완료" : "다음", action: onNext)
+        Button(step == SpotlightStep.allCases.last ? "시작하기" : "다음", action: onNext)
             .buttonStyle(.borderedProminent)
             .frame(minHeight: 44)
     }

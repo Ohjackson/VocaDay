@@ -223,7 +223,11 @@ struct AddWordsView: View {
             return "모은 영단어는 아래에서 JSON으로 복사할 수 있습니다. AI는 VocaDay 밖에서 사용합니다."
         }
 
-        return "Apple Intelligence가 자주 쓰는 뜻과 품사, 예문을 기기 안에서 만듭니다. 결과를 확인하고 필요한 내용만 고친 뒤 저장하세요."
+        if generationAvailability.isAvailable {
+            return "Enter를 누르면 빈 수동 입력 항목이 추가됩니다. 뜻과 예문을 자동으로 채우려면 AI로 생성 버튼을 따로 누르세요."
+        }
+
+        return "Enter를 누르면 수동 입력 항목이 추가됩니다. 뜻과 예문을 직접 채운 뒤 저장하세요."
     }
 
     private var shouldShowUsageGuide: Bool {
@@ -266,15 +270,13 @@ struct AddWordsView: View {
             WordInputCard(
                 inputWord: $inputWord,
                 isInputFocused: $isInputFocused,
-                submitHint: generationAvailability.isAvailable ? "Enter로 AI 생성" : "Enter로 직접 추가",
+                submitHint: "Enter로 수동 추가",
                 statusMessage: generationAvailability.statusMessage,
                 statusIsWarning: !generationAvailability.isAvailable,
                 isProcessing: isGeneratingWord,
                 primaryActionTitle: generationAvailability.isAvailable ? "AI로 생성" : nil,
-                secondaryActionTitle: "직접 추가",
                 onPrimaryAction: requestAIGeneration,
-                onSecondaryAction: addManualInputWord,
-                onSubmit: submitDirectInput
+                onSubmit: addManualInputWord
             )
         }
     }
@@ -456,14 +458,6 @@ struct AddWordsView: View {
         .componentSpotlight(isProminent ? .saveWordsButton : .navigation)
     }
 
-    private func submitDirectInput() {
-        if generationAvailability.isAvailable {
-            requestAIGeneration()
-        } else {
-            addManualInputWord()
-        }
-    }
-
     private func requestAIGeneration() {
         guard generationAvailability.isAvailable else {
             addManualInputWord()
@@ -615,9 +609,7 @@ struct AddWordsView: View {
 
         quickAddWord = nil
         inputWord = word
-        if generationAvailability.isAvailable {
-            requestAIGeneration()
-        } else if let validated = validatedInputWord() {
+        if let validated = validatedInputWord() {
             appendManualDraft(validated)
         }
     }

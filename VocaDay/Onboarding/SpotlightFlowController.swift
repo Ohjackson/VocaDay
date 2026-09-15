@@ -23,7 +23,7 @@ final class UserDefaultsOnboardingCompletionStore: OnboardingCompletionStoring {
 }
 
 enum SpotlightOnboardingCompletion {
-    nonisolated static let version = 1
+    nonisolated static let version = 3
     nonisolated static let versionedKey = "hasCompletedComponentSpotlightOnboarding_v\(version)"
 }
 

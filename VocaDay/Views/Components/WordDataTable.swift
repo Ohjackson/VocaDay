@@ -22,7 +22,13 @@ struct WordDataTable: View {
     @State private var usesRowSpecificDetails = false
 
     var body: some View {
-        fullWidthTable
+        Group {
+            #if os(iOS)
+            mobileWordList
+            #else
+            fullWidthTable
+            #endif
+        }
             .onChange(of: pressedKoreanWordID) { previousWordID, currentWordID in
                 handleKoreanMeaningPressChange(
                     previousWordID: previousWordID,
@@ -38,6 +44,171 @@ struct WordDataTable: View {
                 self.expandedWordID = nil
             }
     }
+
+    #if os(iOS)
+    private var mobileWordList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if showsTitle {
+                HStack {
+                    Text(title)
+                        .font(.headline)
+                    Spacer()
+                    Text("\(words.count)")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if words.isEmpty {
+                EmptyStateView(title: emptyTitle, systemImage: "text.page")
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 48)
+            } else {
+                LazyVStack(spacing: 10) {
+                    ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
+                        mobileWordCard(index: index, word: word)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func mobileWordCard(index: Int, word: VocaWord) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Button {
+                    toggleDetails(for: word)
+                } label: {
+                    Text("\(index + 1)")
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.secondary.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(word.english) 세부 정보")
+                .accessibilityHint("두 번 탭하여 예문과 메모를 열거나 닫습니다.")
+
+                mobileEnglishButton(for: word)
+
+                if isEditingRows {
+                    Button {
+                        onEditWord(word)
+                    } label: {
+                        Image(systemName: "pencil")
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("\(word.english) 편집")
+
+                    Button(role: .destructive) {
+                        onDeleteWord(word)
+                    } label: {
+                        Image(systemName: "trash")
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("\(word.english) 삭제")
+                }
+            }
+
+            mobileKoreanMeaning(for: word)
+
+            if word.wrongCount > 0 {
+                Label("다시 학습 \(word.wrongCount)회", systemImage: "arrow.counterclockwise")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isShowingDetails(for: word) {
+                Divider()
+                mobileDetailLine(label: "영어 예문", value: word.exampleEn)
+                mobileDetailLine(label: "예문 번역", value: word.exampleKo)
+                mobileDetailLine(label: "메모", value: word.note)
+                mobileDetailLine(label: "태그", value: word.toeicTag)
+            }
+        }
+        .padding(14)
+        .background(rowBackground(isHeader: false, isSelected: selectedWordIDs.contains(word.id)))
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    selectedWordIDs.contains(word.id) ? Color.accentColor.opacity(0.7) : AppTheme.softStroke,
+                    lineWidth: selectedWordIDs.contains(word.id) ? 2 : 1
+                )
+        }
+        .animation(.easeInOut(duration: 0.16), value: selectedWordIDs.contains(word.id))
+        .animation(.easeInOut(duration: 0.18), value: expandedWordID)
+    }
+
+    @ViewBuilder
+    private func mobileEnglishButton(for word: VocaWord) -> some View {
+        let button = Button {
+            if allowsSelection {
+                toggleSelection(of: word)
+            } else {
+                onEnglishTap(word)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(word.english)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if allowsSelection, selectedWordIDs.contains(word.id) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+
+        if let onEnglishLongPress {
+            button.simultaneousGesture(
+                LongPressGesture(minimumDuration: 1)
+                    .onEnded { didPress in
+                        guard didPress else { return }
+                        onEnglishLongPress(word)
+                    }
+            )
+        } else {
+            button
+        }
+    }
+
+    @ViewBuilder
+    private func mobileKoreanMeaning(for word: VocaWord) -> some View {
+        let meaning = Text(koreanMeaningText(for: word))
+            .font(.body)
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(AppTheme.raisedBackground, in: RoundedRectangle(cornerRadius: 9))
+
+        if hideKoreanMeaning, revealsHiddenKoreanWhilePressing {
+            meaning.simultaneousGesture(koreanPressGesture(for: word))
+        } else {
+            meaning
+        }
+    }
+
+    private func mobileDetailLine(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(display(value))
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    #endif
 
     private var fullWidthTable: some View {
         VStack(alignment: .leading, spacing: 0) {

@@ -244,7 +244,7 @@ private struct MockAddWordsOnboardingView: View {
 
                         AddWordsGuideCard(
                             title: "영단어를 입력하고 Enter를 누르세요",
-                            message: "Apple Intelligence가 뜻과 품사, 예문을 기기 안에서 만듭니다. 결과를 확인한 뒤 저장하세요.",
+                            message: "Enter는 수동 입력 항목을 추가합니다. 지원 기기에서는 AI로 생성 버튼을 따로 누를 수 있어요.",
                             systemImage: "return",
                             showsHelpLink: false,
                             onDismiss: {}
@@ -255,6 +255,11 @@ private struct MockAddWordsOnboardingView: View {
                         WordInputCard(
                             inputWord: $inputWord,
                             isInputFocused: $isInputFocused,
+                            submitHint: "Enter로 수동 추가",
+                            statusMessage: generationAvailability.statusMessage,
+                            statusIsWarning: !generationAvailability.isAvailable,
+                            primaryActionTitle: generationAvailability.isAvailable ? "AI로 생성" : nil,
+                            onPrimaryAction: {},
                             onSubmit: {}
                         )
                         .componentSpotlight(.wordInput)
@@ -319,6 +324,10 @@ private struct MockAddWordsOnboardingView: View {
     private var scrollAnchor: UnitPoint {
         activeTarget == .pendingWords ? .bottom : .top
     }
+
+    private var generationAvailability: EnglishWordGenerationAvailability {
+        AppleFoundationWordGenerationService().availability
+    }
 }
 
 private struct MockReviewOnboardingView: View {
@@ -337,13 +346,7 @@ private struct MockReviewOnboardingView: View {
         }
         .background(AppTheme.background)
         .navigationTitle("")
-        .toolbar {
-            onboardingTitle("복습")
-            ToolbarItem(placement: toolbarPlacement) {
-                Button(action: {}) { Image(systemName: "square.and.pencil") }
-                    .componentSpotlight(.editReviewButton)
-            }
-        }
+        .toolbar { onboardingTitle("복습") }
     }
 }
 

@@ -76,10 +76,18 @@ private final class GlobalQuickAddShortcut {
 @main
 struct VocaDayApp: App {
     private static let cloudKitContainerIdentifier = "iCloud.com.VocaDay.VocaDay"
+    private static let isRunningTests: Bool = {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || environment["XCInjectBundleInto"] != nil
+    }()
 
     init() {
         #if os(macOS)
-        GlobalQuickAddShortcut.shared.start()
+        if !Self.isRunningTests {
+            GlobalQuickAddShortcut.shared.start()
+        }
         #endif
     }
 
@@ -90,11 +98,21 @@ struct VocaDayApp: App {
             StudyMemo.self,
             StudyPageCategory.self,
         ])
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            cloudKitDatabase: .private(cloudKitContainerIdentifier)
-        )
+        let modelConfiguration: ModelConfiguration
+        if isRunningTests {
+            // XCTest가 임시 서명된 앱을 실행할 때 실제 CloudKit 컨테이너를
+            // 초기화하면 Core Data 내부 SIGTRAP과 크래시 알림이 발생할 수 있습니다.
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true
+            )
+        } else {
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .private(cloudKitContainerIdentifier)
+            )
+        }
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

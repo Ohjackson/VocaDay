@@ -10,6 +10,7 @@ struct DaysView: View {
     @State private var isShowingDayTitleAlert = false
     @State private var dayTitle = ""
     @State private var editingDay: VocabularyDay?
+    @State private var dayPendingDeletion: VocabularyDay?
     @State private var searchText = ""
 
     private var filteredDays: [VocabularyDay] {
@@ -103,6 +104,23 @@ struct DaysView: View {
         } message: {
             Text("데이 제목을 입력하세요.")
         }
+        .confirmationDialog(
+            "\(dayPendingDeletion?.title ?? "이 데이")을 삭제할까요?",
+            isPresented: Binding(
+                get: { dayPendingDeletion != nil },
+                set: { if !$0 { dayPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("데이와 단어 삭제", role: .destructive) {
+                deletePendingDay()
+            }
+            Button("취소", role: .cancel) {
+                dayPendingDeletion = nil
+            }
+        } message: {
+            Text("포함된 단어 \(dayPendingDeletion?.wordList.count ?? 0)개와 복습 기록이 함께 삭제되며 되돌릴 수 없습니다.")
+        }
     }
 
     @ViewBuilder
@@ -128,7 +146,7 @@ struct DaysView: View {
                 .accessibilityLabel("\(day.title) 이름 변경")
 
                 Button(role: .destructive) {
-                    delete(day)
+                    dayPendingDeletion = day
                 } label: {
                     Image(systemName: "trash")
                         .font(.headline)
@@ -186,6 +204,12 @@ struct DaysView: View {
         if days.count <= 1 {
             isEditingDays = false
         }
+    }
+
+    private func deletePendingDay() {
+        guard let dayPendingDeletion else { return }
+        delete(dayPendingDeletion)
+        self.dayPendingDeletion = nil
     }
 
     private var toolbarPlacement: ToolbarItemPlacement {

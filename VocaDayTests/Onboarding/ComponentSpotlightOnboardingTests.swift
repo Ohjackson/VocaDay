@@ -15,19 +15,10 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
         }
 
         XCTAssertEqual(snapshots, [
-            "1|dayCollection|bottom|데이|데이에서 학습 묶음을 확인하세요",
-            "2|createDayButton|bottom|데이|첫 데이를 만들어 보세요",
-            "3|editDaysButton|bottom|데이|데이 이름을 바꾸거나 삭제할 수 있어요",
-            "4|settingsButton|bottom|데이|설정과 백업은 여기에서 관리하세요",
-            "5|storageSelection|bottom|추가|단어를 저장할 데이를 선택하세요",
-            "6|wordInput|bottom|추가|학습할 영단어를 입력하세요",
-            "7|pendingWords|top|추가|저장 전에 내용을 확인하세요",
-            "8|saveWordsButton|top|추가|확인한 단어를 데이에 저장하세요",
-            "9|addHelpButton|bottom|추가|JSON 가져오기는 도움말에서 확인하세요",
-            "10|reviewDay|bottom|복습|저장한 단어를 복습하세요",
-            "11|editReviewButton|bottom|복습|필요 없는 복습 데이를 정리할 수 있어요",
-            "12|studyMemoCollection|bottom|학습 메모|학습 페이지를 다시 열어 보세요",
-            "13|createStudyMemoButton|bottom|학습 메모|배운 내용을 학습 메모로 정리하세요"
+            "1|dayCollection|bottom|데이|단어를 데이별로 모아요",
+            "2|wordInput|bottom|추가|원하는 방식으로 단어를 추가해요",
+            "3|saveWordsButton|top|추가|확인한 내용만 저장해요",
+            "4|reviewDay|bottom|복습|기억하면서 복습해요"
         ])
     }
 
@@ -158,7 +149,7 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
     }
 
     func testCompletionKeyIsVersioned() {
-        XCTAssertEqual(SpotlightOnboardingCompletion.versionedKey, "hasCompletedComponentSpotlightOnboarding_v1")
+        XCTAssertEqual(SpotlightOnboardingCompletion.versionedKey, "hasCompletedComponentSpotlightOnboarding_v3")
     }
 
     func testOnboardingSourceDoesNotUseCoordinateOrCutoutTechniques() throws {

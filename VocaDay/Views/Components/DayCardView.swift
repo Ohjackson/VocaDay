@@ -6,28 +6,32 @@ struct DayCardPresentation: Equatable, Sendable {
     let lastReviewedAt: Date?
     let wordCount: Int
     let reviewSessionCount: Int
+    let dueReviewCount: Int?
 
     init(
         title: String,
         createdAt: Date,
         lastReviewedAt: Date?,
         wordCount: Int,
-        reviewSessionCount: Int
+        reviewSessionCount: Int,
+        dueReviewCount: Int? = nil
     ) {
         self.title = title
         self.createdAt = createdAt
         self.lastReviewedAt = lastReviewedAt
         self.wordCount = wordCount
         self.reviewSessionCount = reviewSessionCount
+        self.dueReviewCount = dueReviewCount
     }
 
-    init(day: VocabularyDay) {
+    init(day: VocabularyDay, dueReviewCount: Int? = nil) {
         self.init(
             title: day.title,
             createdAt: day.createdAt,
             lastReviewedAt: day.lastReviewedAt,
             wordCount: day.wordList.count,
-            reviewSessionCount: day.reviewSessionCount
+            reviewSessionCount: day.reviewSessionCount,
+            dueReviewCount: dueReviewCount
         )
     }
 }
@@ -36,8 +40,8 @@ struct DayCardView: View {
     let presentation: DayCardPresentation
     let isSelected: Bool
 
-    init(day: VocabularyDay, isSelected: Bool) {
-        presentation = DayCardPresentation(day: day)
+    init(day: VocabularyDay, isSelected: Bool, dueReviewCount: Int? = nil) {
+        presentation = DayCardPresentation(day: day, dueReviewCount: dueReviewCount)
         self.isSelected = isSelected
     }
 
@@ -136,15 +140,19 @@ struct DayCardView: View {
 
     private var metrics: some View {
         HStack(spacing: 12) {
+            if let dueReviewCount = presentation.dueReviewCount {
+                metric(title: "오늘", value: dueReviewCount, emphasizesValue: dueReviewCount > 0)
+            }
             metric(title: "단어", value: presentation.wordCount)
             metric(title: "복습", value: presentation.reviewSessionCount)
         }
     }
 
-    private func metric(title: String, value: Int) -> some View {
+    private func metric(title: String, value: Int, emphasizesValue: Bool = false) -> some View {
         VStack(alignment: .trailing, spacing: 4) {
             Text("\(value)")
                 .font(.title3.weight(.semibold))
+                .foregroundStyle(emphasizesValue ? Color.accentColor : Color.primary)
                 .monospacedDigit()
             Text(title)
                 .font(.caption)

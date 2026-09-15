@@ -42,13 +42,15 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
 struct RootView: View {
     @AppStorage(SpotlightOnboardingCompletion.versionedKey) private var hasCompletedOnboarding = false
     @StateObject private var onboardingController = SpotlightFlowController()
+    @State private var initialProductionSection: AppSection = .days
 
     var body: some View {
         Group {
             if hasCompletedOnboarding {
-                ProductionRootView()
+                ProductionRootView(initialSection: initialProductionSection)
             } else {
                 VocaDayOnboardingScene(controller: onboardingController) {
+                    initialProductionSection = .add
                     hasCompletedOnboarding = true
                 }
             }
@@ -65,12 +67,16 @@ private struct ProductionRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
 
-    @State private var selectedSection: AppSection = .days
+    @State private var selectedSection: AppSection
     @State private var selectedDayID: UUID?
     @State private var isShowingQuickAdd = false
     @State private var quickAddText = ""
     @State private var quickAddWord: String?
     @State private var addEntryMode: AddEntryMode = .manual
+
+    init(initialSection: AppSection = .days) {
+        _selectedSection = State(initialValue: initialSection)
+    }
 
     var body: some View {
         Group {

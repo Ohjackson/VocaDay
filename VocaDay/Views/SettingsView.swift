@@ -79,7 +79,7 @@ struct SettingsView: View {
             } header: {
                 Text("단어 추가")
             } footer: {
-                Text("VocaDay에는 AI가 내장되어 있지 않으며 단어를 외부 AI로 자동 전송하지 않습니다.")
+                Text("지원 기기에서는 Apple Intelligence가 기기 안에서 단어 정보를 생성합니다. 입력한 단어를 외부 AI 서비스로 자동 전송하지 않습니다.")
             }
 
             Section("사용 안내") {
@@ -88,7 +88,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsNavigationLabel(
                         title: "스포트라이트 안내 다시 보기",
-                        subtitle: "주요 화면의 실제 사용 순서를 다시 확인",
+                        subtitle: "단어 추가와 복습의 핵심 4단계를 다시 확인",
                         systemImage: "sparkles.rectangle.stack"
                     )
                 }
