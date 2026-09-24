@@ -65,7 +65,11 @@ struct RootView: View {
 
 private struct ProductionRootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
+
+    @AppStorage("isReviewReminderEnabled") private var isReviewReminderEnabled = false
+    @AppStorage("reviewReminderMinutesSinceMidnight") private var reviewReminderMinutesSinceMidnight = 20 * 60
 
     @State private var selectedSection: AppSection
     @State private var selectedDayID: UUID?
@@ -85,6 +89,7 @@ private struct ProductionRootView: View {
                 NavigationStack {
                     destination(for: section)
                 }
+                .id(section)
             }
             #else
             TabView(selection: $selectedSection) {
@@ -131,9 +136,15 @@ private struct ProductionRootView: View {
         }
         .task {
             ensureInitialDay()
+            rescheduleReviewReminderIfNeeded()
         }
         .onChange(of: days.map(\.id)) { _, _ in
             ensureSelectedDay()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background || newPhase == .inactive {
+                rescheduleReviewReminderIfNeeded()
+            }
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: quickAddRequestedNotification)) { _ in
@@ -160,6 +171,16 @@ private struct ProductionRootView: View {
     private func ensureInitialDay() {
         DemoDataSeeder.seedIfNeeded(existingDays: days, in: modelContext)
         ensureSelectedDay()
+    }
+
+    private func rescheduleReviewReminderIfNeeded() {
+        guard isReviewReminderEnabled else { return }
+        let dueCount = ReviewScheduler.dueWordCount(in: days)
+        let hour = reviewReminderMinutesSinceMidnight / 60
+        let minute = reviewReminderMinutesSinceMidnight % 60
+        Task {
+            await ReviewReminderService.refreshReminder(dueWordCount: dueCount, hour: hour, minute: minute)
+        }
     }
 
     private func ensureSelectedDay() {

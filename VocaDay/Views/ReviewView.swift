@@ -178,6 +178,7 @@ private struct ReviewDayDetailView: View {
     @State private var showsWordDetails = false
     @State private var randomWordIDs: [UUID] = []
     @State private var reviewStartedAt = Date()
+    @State private var errorAlert: VocaAlert?
 
     private var eligibleWords: [VocaWord] {
         if dueOnly {
@@ -236,6 +237,9 @@ private struct ReviewDayDetailView: View {
         }
         .onDisappear {
             speechPlayer.stop()
+        }
+        .alert(item: $errorAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message))
         }
     }
 
@@ -455,7 +459,10 @@ private struct ReviewDayDetailView: View {
         day.reviewedWordCount += reviewWords.count
         day.lastReviewedAt = now
 
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+            return
+        }
         dismiss()
     }
 

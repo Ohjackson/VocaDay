@@ -5,8 +5,6 @@ struct WordInputCard: View {
     @Binding var inputWord: String
     var isInputFocused: FocusState<Bool>.Binding
     var submitHint: String = "Enter로 추가"
-    var statusMessage: String?
-    var statusIsWarning = false
     var isProcessing = false
     var primaryActionTitle: String?
     var secondaryActionTitle: String?
@@ -38,16 +36,6 @@ struct WordInputCard: View {
                 .focused(isInputFocused)
                 .onSubmit(onSubmit)
                 .disabled(isProcessing)
-
-            if let statusMessage {
-                Label(
-                    statusMessage,
-                    systemImage: statusIsWarning ? "exclamationmark.triangle" : "apple.intelligence"
-                )
-                .font(.caption)
-                .foregroundStyle(statusIsWarning ? .orange : .secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
 
             if primaryActionTitle != nil || secondaryActionTitle != nil {
                 HStack(spacing: 10) {

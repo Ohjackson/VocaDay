@@ -23,6 +23,12 @@ enum ReviewScheduler {
         word.nextReviewAt <= now
     }
 
+    static func dueWordCount(in days: [VocabularyDay], now: Date = Date()) -> Int {
+        days.reduce(0) { count, day in
+            count + day.wordList.filter { isDue($0, now: now) }.count
+        }
+    }
+
     private static func status(for word: VocaWord) -> WordStatus {
         if word.wrongCount >= 3 && word.masteryLevel < 4 {
             return .weak

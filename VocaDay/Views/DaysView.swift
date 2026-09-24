@@ -12,6 +12,7 @@ struct DaysView: View {
     @State private var editingDay: VocabularyDay?
     @State private var dayPendingDeletion: VocabularyDay?
     @State private var searchText = ""
+    @State private var errorAlert: VocaAlert?
 
     private var filteredDays: [VocabularyDay] {
         let query = normalizedSearchText
@@ -88,6 +89,7 @@ struct DaysView: View {
                     AppToolbarActionLabel(title: "새 데이", systemImage: "plus")
                 }
                 .componentSpotlight(.createDayButton)
+                .accessibilityHint("이름을 입력하는 창이 열립니다.")
             }
         }
         .alert(editingDay == nil ? "새 데이" : "데이 이름 변경", isPresented: $isShowingDayTitleAlert) {
@@ -120,6 +122,9 @@ struct DaysView: View {
             }
         } message: {
             Text("포함된 단어 \(dayPendingDeletion?.wordList.count ?? 0)개와 복습 기록이 함께 삭제되며 되돌릴 수 없습니다.")
+        }
+        .alert(item: $errorAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message))
         }
     }
 
@@ -166,6 +171,8 @@ struct DaysView: View {
                 .componentSpotlight(.dayCollection)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(day.title), 단어 \(day.wordList.count)개")
+            .accessibilityHint("두 번 탭하여 단어 목록을 엽니다.")
             .simultaneousGesture(TapGesture().onEnded {
                 selectedDayID = day.id
             })
@@ -184,7 +191,10 @@ struct DaysView: View {
             selectedDayID = day.id
         }
 
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+            return
+        }
         resetDayTitleEditor()
     }
 
@@ -199,7 +209,10 @@ struct DaysView: View {
         }
 
         modelContext.delete(day)
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+            return
+        }
 
         if days.count <= 1 {
             isEditingDays = false

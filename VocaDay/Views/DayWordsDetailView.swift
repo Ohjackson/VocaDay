@@ -14,6 +14,7 @@ struct DayWordsDetailView: View {
     @State private var selectedWordIDs: Set<UUID> = []
     @State private var editingWord: VocaWord?
     @State private var searchText = ""
+    @State private var errorAlert: VocaAlert?
 
     init(initialDay: VocabularyDay) {
         self.initialDay = initialDay
@@ -95,7 +96,10 @@ struct DayWordsDetailView: View {
         }
         .sheet(item: $editingWord) { word in
             EditWordSheet(word: word) {
-                try? modelContext.save()
+                if let error = modelContext.saveReportingError() {
+                    errorAlert = .saveFailure(error)
+                    return
+                }
                 selectedWordIDs = [word.id]
             }
         }
@@ -108,6 +112,9 @@ struct DayWordsDetailView: View {
         }
         .onDisappear {
             speechPlayer.stop()
+        }
+        .alert(item: $errorAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message))
         }
     }
 
@@ -143,7 +150,9 @@ struct DayWordsDetailView: View {
         }
 
         selectedWordIDs.removeAll()
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+        }
     }
 
     private func delete(_ word: VocaWord, savesImmediately: Bool = true) {
@@ -153,7 +162,9 @@ struct DayWordsDetailView: View {
         selectedWordIDs.remove(word.id)
 
         if savesImmediately {
-            try? modelContext.save()
+            if let error = modelContext.saveReportingError() {
+                errorAlert = .saveFailure(error)
+            }
             if visibleWords.count <= 1 {
                 isEditingWords = false
             }

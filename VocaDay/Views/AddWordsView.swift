@@ -33,6 +33,7 @@ struct AddWordsView: View {
     @AppStorage("hasDismissedAddWordsGuide") private var hasDismissedAddWordsGuide = false
     @AppStorage("hasDismissedJSONAddWordsGuide") private var hasDismissedJSONAddWordsGuide = false
     @AppStorage("hasAcknowledgedAppleIntelligenceWordGeneration") private var hasAcknowledgedAppleIntelligence = false
+    @AppStorage("isAppleIntelligenceWordGenerationEnabled") private var isAppleIntelligenceWordGenerationEnabled = true
     @State private var inputWord = ""
     @State private var jsonInput = ""
     @State private var temporaryWords: [VocaWordJSON] = []
@@ -186,7 +187,10 @@ struct AddWordsView: View {
         guard !title.isEmpty else { return }
 
         let day = DayFactory.createDay(title: title, in: modelContext)
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            alert = .saveFailure(error)
+            return
+        }
         selectedDayID = day.id
         newDayTitle = ""
     }
@@ -271,8 +275,6 @@ struct AddWordsView: View {
                 inputWord: $inputWord,
                 isInputFocused: $isInputFocused,
                 submitHint: "Enter로 수동 추가",
-                statusMessage: generationAvailability.statusMessage,
-                statusIsWarning: !generationAvailability.isAvailable,
                 isProcessing: isGeneratingWord,
                 primaryActionTitle: generationAvailability.isAvailable ? "AI로 생성" : nil,
                 onPrimaryAction: requestAIGeneration,
@@ -421,7 +423,10 @@ struct AddWordsView: View {
     }
 
     private var generationAvailability: EnglishWordGenerationAvailability {
-        wordGenerationService.availability
+        guard isAppleIntelligenceWordGenerationEnabled else {
+            return .unavailable(.disabledInSettings)
+        }
+        return wordGenerationService.availability
     }
 
     private var isSaveDisabled: Bool {
@@ -499,7 +504,7 @@ struct AddWordsView: View {
                 try Task.checkCancellation()
                 await MainActor.run {
                     let draft = GeneratedWordDraftMapper.makeDraft(from: generated)
-                    temporaryWords.append(draft)
+                    temporaryWords.insert(draft, at: 0)
                     selectedTemporaryWordID = draft.id
                     inputWord = ""
                     isGeneratingWord = false
@@ -595,7 +600,7 @@ struct AddWordsView: View {
 
     private func appendManualDraft(_ english: String) {
         let word = VocaWordJSON(english: english)
-        temporaryWords.append(word)
+        temporaryWords.insert(word, at: 0)
         selectedTemporaryWordID = word.id
         inputWord = ""
         isInputFocused = true
@@ -1172,12 +1177,6 @@ private struct AddWordsHelpView: View {
             }
         }
     }
-}
-
-struct VocaAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
 }
 
 extension String {

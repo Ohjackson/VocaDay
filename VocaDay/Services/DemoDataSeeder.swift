@@ -15,7 +15,11 @@ enum DemoDataSeeder {
             markSeeded()
         }
 
-        try? context.save()
+        if let error = context.saveReportingError() {
+            #if DEBUG
+            print("DemoDataSeeder failed to save: \(error)")
+            #endif
+        }
     }
 
     private static var hasSeededDemoData: Bool {

@@ -256,8 +256,6 @@ private struct MockAddWordsOnboardingView: View {
                             inputWord: $inputWord,
                             isInputFocused: $isInputFocused,
                             submitHint: "Enter로 수동 추가",
-                            statusMessage: generationAvailability.statusMessage,
-                            statusIsWarning: !generationAvailability.isAvailable,
                             primaryActionTitle: generationAvailability.isAvailable ? "AI로 생성" : nil,
                             onPrimaryAction: {},
                             onSubmit: {}

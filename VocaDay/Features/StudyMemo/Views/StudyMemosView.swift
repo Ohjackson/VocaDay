@@ -6,6 +6,7 @@ struct StudyMemosView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var memos: [StudyMemo]
 
+    @StateObject private var viewModel = StudyMemosListViewModel()
     @State private var selectedMemoID: UUID?
     @State private var memoPendingDeletion: StudyMemo?
 
@@ -36,9 +37,7 @@ struct StudyMemosView: View {
                         .buttonStyle(.plain)
                         .contextMenu {
                             Button {
-                                memo.isPinned.toggle()
-                                memo.updatedAt = Date()
-                                try? modelContext.save()
+                                viewModel.togglePin(memo, in: modelContext)
                             } label: {
                                 Label(memo.isPinned ? "고정 해제" : "고정", systemImage: memo.isPinned ? "pin.slash" : "pin")
                             }
@@ -91,8 +90,11 @@ struct StudyMemosView: View {
             Text("삭제한 페이지는 복구할 수 없습니다.")
         }
         .task {
-            try? StudyMemoDemoSeeder.repair(existingMemos: memos, in: modelContext)
-            migrateLegacyPages()
+            viewModel.repairLegacyData(memos, in: modelContext)
+            viewModel.migrateLegacyPages(memos, in: modelContext)
+        }
+        .alert(item: $viewModel.errorAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message))
         }
     }
 
@@ -114,47 +116,20 @@ struct StudyMemosView: View {
     }
 
     private func createPage() {
-        let memo = StudyMemo(title: "", icon: "", plainTextContent: "")
-        modelContext.insert(memo)
-        try? modelContext.save()
+        guard let memo = viewModel.createPage(in: modelContext) else { return }
         selectedMemoID = memo.id
     }
 
     private func duplicate(_ source: StudyMemo) {
-        let copy = StudyMemo(
-            title: source.title.isEmpty ? "페이지 복사본" : "\(source.title) 복사본",
-            icon: "",
-            blocks: source.blocks,
-            plainTextContent: StudyMarkdownMigration.markdown(for: source),
-            categoryID: source.categoryID,
-            categoryName: source.categoryName,
-            categoryColor: source.categoryColor,
-            isPinned: false
-        )
-        modelContext.insert(copy)
-        try? modelContext.save()
+        guard let copy = viewModel.duplicate(source, in: modelContext) else { return }
         selectedMemoID = copy.id
-    }
-
-    private func migrateLegacyPages() {
-        var changed = false
-        for memo in memos {
-            if memo.migrateLegacyContentIfNeeded() { changed = true }
-            if memo.plainTextContent.isEmpty,
-               !memo.blocksJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                memo.plainTextContent = StudyMarkdownMigration.markdown(for: memo)
-                memo.richTextData = ""
-                changed = true
-            }
-        }
-        if changed { try? modelContext.save() }
     }
 
     private func deletePendingMemo() {
         guard let memoPendingDeletion else { return }
-        modelContext.delete(memoPendingDeletion)
-        try? modelContext.save()
-        self.memoPendingDeletion = nil
+        if viewModel.deletePendingMemo(memoPendingDeletion, in: modelContext) {
+            self.memoPendingDeletion = nil
+        }
     }
 
     private var toolbarPlacement: ToolbarItemPlacement {
@@ -194,6 +169,7 @@ private struct StudyPageEditorView: View {
     @State private var pendingMarkdownPage: ImportedMarkdownPage?
     @State private var showsMarkdownImportOptions = false
     @State private var markdownStatusMessage: String?
+    @State private var errorAlert: VocaAlert?
 
     init(memo: StudyMemo) {
         self.memo = memo
@@ -212,6 +188,9 @@ private struct StudyPageEditorView: View {
             .onDisappear {
                 saveTask?.cancel()
                 saveImmediately()
+            }
+            .alert(item: $errorAlert) { alert in
+                Alert(title: Text(alert.title), message: Text(alert.message))
             }
     }
 
@@ -1083,7 +1062,9 @@ private struct StudyPageEditorView: View {
 
     private func persistMetadata() {
         memo.updatedAt = Date()
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+        }
     }
 
     private func saveImmediately() {
@@ -1096,7 +1077,9 @@ private struct StudyPageEditorView: View {
         memo.plainTextContent = StudyNotionCodec.markdown(from: blocks, texts: logicalTexts)
         memo.richTextData = ""
         memo.updatedAt = Date()
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+        }
     }
 
     private func importMarkdown(_ result: Result<[URL], Error>) {
@@ -1199,7 +1182,10 @@ private struct StudyPageEditorView: View {
 
     private func deletePage() {
         modelContext.delete(memo)
-        try? modelContext.save()
+        if let error = modelContext.saveReportingError() {
+            errorAlert = .saveFailure(error)
+            return
+        }
         dismiss()
     }
 
@@ -1635,6 +1621,7 @@ private struct StudyCategoryPicker: View {
     @Query private var memos: [StudyMemo]
     @Bindable var memo: StudyMemo
 
+    @StateObject private var viewModel = StudyCategoryPickerViewModel()
     @State private var newName = ""
     @State private var selectedColor = StudyCategoryColor.gray
     @State private var isCreatingCategory = false
@@ -1683,8 +1670,9 @@ private struct StudyCategoryPicker: View {
                 } else {
                     Section("분류 선택") {
                         Button {
-                            assign(nil)
-                            dismiss()
+                            if viewModel.assign(nil, to: memo, in: modelContext) {
+                                dismiss()
+                            }
                         } label: {
                             HStack {
                                 Label("분류 없음", systemImage: "tag.slash")
@@ -1695,8 +1683,9 @@ private struct StudyCategoryPicker: View {
 
                         ForEach(categories) { category in
                             Button {
-                                assign(category)
-                                dismiss()
+                                if viewModel.assign(category, to: memo, in: modelContext) {
+                                    dismiss()
+                                }
                             } label: {
                                 HStack {
                                     StudyCategoryBadge(name: category.name, colorRawValue: category.colorRawValue)
@@ -1741,6 +1730,9 @@ private struct StudyCategoryPicker: View {
         }
         .presentationDetents([.medium, .large])
         .onAppear { if categories.isEmpty { showCategoryCreation() } }
+        .alert(item: $viewModel.errorAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message))
+        }
     }
 
     private func showCategoryCreation() {
@@ -1752,44 +1744,21 @@ private struct StudyCategoryPicker: View {
     }
 
     private func createAndAssign() {
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        if let existing = categories.first(where: {
-            $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                .localizedCaseInsensitiveCompare(name) == .orderedSame
-        }) {
-            assign(existing)
+        let didAssign = viewModel.createAndAssign(
+            name: newName,
+            color: selectedColor,
+            existingCategories: categories,
+            to: memo,
+            in: modelContext
+        )
+        if didAssign {
             dismiss()
-            return
         }
-        let category = StudyPageCategory(name: name, colorRawValue: selectedColor.rawValue)
-        modelContext.insert(category)
-        assign(category)
-        try? modelContext.save()
-        dismiss()
-    }
-
-    private func assign(_ category: StudyPageCategory?) {
-        memo.categoryID = category?.id.uuidString ?? ""
-        memo.categoryName = category?.name ?? ""
-        memo.categoryColor = category?.colorRawValue ?? StudyCategoryColor.gray.rawValue
-        memo.updatedAt = Date()
-        try? modelContext.save()
     }
 
     private func deleteCategories(at offsets: IndexSet) {
-        for index in offsets {
-            let category = categories[index]
-            let categoryID = category.id.uuidString
-            for affectedMemo in memos where affectedMemo.categoryID == categoryID {
-                affectedMemo.categoryID = ""
-                affectedMemo.categoryName = ""
-                affectedMemo.categoryColor = StudyCategoryColor.gray.rawValue
-                affectedMemo.updatedAt = Date()
-            }
-            modelContext.delete(category)
-        }
-        try? modelContext.save()
+        let categoriesToDelete = offsets.map { categories[$0] }
+        viewModel.deleteCategories(categoriesToDelete, affecting: memos, in: modelContext)
         if categories.count <= offsets.count { showCategoryCreation() }
     }
 }

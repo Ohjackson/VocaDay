@@ -88,6 +88,7 @@ enum EnglishWordGenerationUnavailableReason: Sendable, Equatable {
     case deviceNotEligible
     case appleIntelligenceNotEnabled
     case modelNotReady
+    case disabledInSettings
 
     var userMessage: String {
         switch self {
@@ -97,6 +98,8 @@ enum EnglishWordGenerationUnavailableReason: Sendable, Equatable {
             "Apple Intelligence가 꺼져 있습니다. 시스템 설정에서 켜거나 직접 추가를 사용하세요."
         case .modelNotReady:
             "온디바이스 모델이 아직 준비되지 않았습니다. 잠시 후 다시 시도하거나 직접 추가를 사용하세요."
+        case .disabledInSettings:
+            "설정에서 Apple Intelligence 단어 생성이 꺼져 있습니다. 설정 > 단어 추가에서 다시 켤 수 있습니다."
         }
     }
 }
@@ -107,6 +110,13 @@ enum EnglishWordGenerationAvailability: Sendable, Equatable {
 
     var isAvailable: Bool {
         self == .available
+    }
+
+    /// 하드웨어가 Apple Intelligence를 지원하는지 여부입니다. 시스템 설정에서 아직 켜지 않았거나
+    /// 모델이 준비 중이어도, 기기 자체가 지원 대상이면 true입니다.
+    var isDeviceEligible: Bool {
+        if case .unavailable(.deviceNotEligible) = self { return false }
+        return true
     }
 
     var statusMessage: String {

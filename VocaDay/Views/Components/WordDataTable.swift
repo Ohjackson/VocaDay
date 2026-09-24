@@ -20,6 +20,9 @@ struct WordDataTable: View {
     @State private var lingeringRevealToken = UUID()
     @State private var expandedWordID: UUID?
     @State private var usesRowSpecificDetails = false
+    @State private var measuredContainerWidth: CGFloat = 0
+
+    private static let twoColumnMinWidth: CGFloat = 900
 
     var body: some View {
         Group {
@@ -234,38 +237,108 @@ struct WordDataTable: View {
                 )
                 .frame(maxWidth: .infinity)
                 .padding(.top, 48)
-            } else {
-                GeometryReader { proxy in
-                    let availableWidth = max(proxy.size.width - (isEditingRows ? rowActionWidth : 0), 1)
-                    let widths = columnWidths(totalWidth: availableWidth)
-
-                    VStack(spacing: 0) {
-                        HStack(spacing: 0) {
-                            if isEditingRows {
-                                Color.clear
-                                    .frame(width: rowActionWidth)
-                            }
-
-                            proportionalRow(
-                                values: ["#", "영단어", "한국어 뜻"],
-                                widths: widths,
-                                isHeader: true
-                            )
-                        }
-
-                        Divider()
-
-                        ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
-                            wordRow(index: index, word: word, widths: widths)
-                            Divider()
-                        }
-                    }
+            } else if measuredContainerWidth > 0 {
+                if isTwoColumnLayout {
+                    twoColumnTable
+                } else {
+                    singleColumnTable
                 }
-                .frame(height: tableHeight)
+            } else {
+                Color.clear.frame(height: 1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(AppTheme.cardBackground)
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { measuredContainerWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, newValue in
+                        measuredContainerWidth = newValue
+                    }
+            }
+        )
+    }
+
+    private var isTwoColumnLayout: Bool {
+        measuredContainerWidth >= Self.twoColumnMinWidth
+    }
+
+    private var singleColumnTable: some View {
+        let availableWidth = max(measuredContainerWidth - (isEditingRows ? rowActionWidth : 0), 1)
+        let widths = columnWidths(totalWidth: availableWidth)
+
+        return VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                if isEditingRows {
+                    Color.clear
+                        .frame(width: rowActionWidth)
+                }
+
+                proportionalRow(
+                    values: ["#", "영단어", "한국어 뜻"],
+                    widths: widths,
+                    isHeader: true
+                )
+            }
+
+            Divider()
+
+            ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
+                wordRow(index: index, word: word, widths: widths)
+                Divider()
+            }
+        }
+    }
+
+    private var indexedWords: [(index: Int, word: VocaWord)] {
+        Array(words.enumerated()).map { (index: $0.offset, word: $0.element) }
+    }
+
+    private var leftColumnIndexedWords: [(index: Int, word: VocaWord)] {
+        indexedWords.filter { $0.index.isMultiple(of: 2) }
+    }
+
+    private var rightColumnIndexedWords: [(index: Int, word: VocaWord)] {
+        indexedWords.filter { !$0.index.isMultiple(of: 2) }
+    }
+
+    private var twoColumnTable: some View {
+        let columnSpacing: CGFloat = 24
+        let columnWidth = max((measuredContainerWidth - columnSpacing) / 2, 1)
+
+        return HStack(alignment: .top, spacing: columnSpacing) {
+            tableColumn(indexedWords: leftColumnIndexedWords, containerWidth: columnWidth)
+            tableColumn(indexedWords: rightColumnIndexedWords, containerWidth: columnWidth)
+        }
+    }
+
+    private func tableColumn(indexedWords: [(index: Int, word: VocaWord)], containerWidth: CGFloat) -> some View {
+        let availableWidth = max(containerWidth - (isEditingRows ? rowActionWidth : 0), 1)
+        let widths = columnWidths(totalWidth: availableWidth)
+
+        return VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                if isEditingRows {
+                    Color.clear
+                        .frame(width: rowActionWidth)
+                }
+
+                proportionalRow(
+                    values: ["#", "영단어", "한국어 뜻"],
+                    widths: widths,
+                    isHeader: true
+                )
+            }
+
+            Divider()
+
+            ForEach(indexedWords, id: \.word.id) { entry in
+                wordRow(index: entry.index, word: entry.word, widths: widths)
+                Divider()
+            }
+        }
+        .frame(width: containerWidth, alignment: .topLeading)
     }
 
     private func columnWidths(totalWidth: CGFloat) -> [CGFloat] {
@@ -276,13 +349,6 @@ struct WordDataTable: View {
         ]
     }
 
-    private var tableHeight: CGFloat {
-        let headerHeight: CGFloat = 45
-        return headerHeight + words.reduce(0) { height, word in
-            height + rowHeight(for: word)
-        }
-    }
-
     private var rowActionWidth: CGFloat {
         98
     }
@@ -291,7 +357,8 @@ struct WordDataTable: View {
         HStack(alignment: .top, spacing: 0) {
             if isEditingRows {
                 rowActions(for: word)
-                    .frame(width: rowActionWidth, height: rowHeight(for: word) - 1, alignment: .top)
+                    .frame(width: rowActionWidth, alignment: .top)
+                    .frame(maxHeight: .infinity)
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
@@ -419,10 +486,6 @@ struct WordDataTable: View {
         return showsWordDetails
     }
 
-    private func rowHeight(for word: VocaWord) -> CGFloat {
-        isShowingDetails(for: word) ? 192 : 45
-    }
-
     private func rowActions(for word: VocaWord) -> some View {
         HStack(spacing: 6) {
             Button {
@@ -468,38 +531,72 @@ struct WordDataTable: View {
     }
 
     private func wordDetailLines(for word: VocaWord) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            detailLine(label: "영어 예문", value: word.exampleEn)
-            detailLine(label: "한국어 예문", value: word.exampleKo)
-            detailLine(label: "메모", value: word.note)
-            detailLine(label: "태그", value: word.toeicTag)
+        let hasExample = !isBlank(word.exampleEn) || !isBlank(word.exampleKo)
+        let hasNote = !isBlank(word.note)
+        let hasTag = !isBlank(word.toeicTag)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            if hasExample {
+                VStack(alignment: .leading, spacing: 3) {
+                    if !isBlank(word.exampleEn) {
+                        Text(word.exampleEn)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !isBlank(word.exampleKo) {
+                        Text(word.exampleKo)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if hasNote {
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "note.text")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(word.note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if hasTag {
+                detailTagBadge(word.toeicTag)
+            }
+
+            if !hasExample && !hasNote && !hasTag {
+                Text("등록된 예문/메모가 없습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 9)
-        .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
-        .background(Color.secondary.opacity(0.035))
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(AppTheme.raisedBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.secondary.opacity(0.32))
+                .fill(AppTheme.softStroke)
                 .frame(height: 1)
         }
     }
 
-    private func detailLine(label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
+    private func detailTagBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.08), in: Capsule())
+    }
 
-            Text(display(value))
-                .font(.caption)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+    private func isBlank(_ value: String) -> Bool {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func cell(value: String, count: Int?, index: Int, isHeader: Bool) -> some View {
