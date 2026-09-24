@@ -1,0 +1,29 @@
+<task>
+The learner already has these words in their English vocabulary book. For EACH item, build the same vocabulary entry described in <entry_rules>, keeping the learner's own data as the source of truth.
+</task>
+
+<items>
+${items_json}
+</items>
+<!-- items_json 예:
+[
+  {"id":"8F2C...","term":"bank","user_meaning_ko":"둑","user_example":""},
+  {"id":"1A9B...","term":"reluctant","user_meaning_ko":"","user_example":"She was reluctant to lend him money again."}
+]
+-->
+
+<batch_rules>
+- Return a JSON array with exactly one object per input item, in the same order.
+- Copy each item's id unchanged into the "id" field. Never merge, skip, reorder, or add items.
+- Treat each item independently. Do not reuse the same example situation for two items in this batch.
+- If an item cannot be handled (unknown word, meaningless input), still return an object with its id and term, and set every other string field to "" and every array to [].
+</batch_rules>
+
+<entry_rules>
+${entry_rules}
+</entry_rules>
+<!-- entry_rules 자리에 en_words_prompt.txt 의 <rules>…</rules> 블록 전체와 <examples>…</examples> 블록을 그대로 삽입한다.
+     외부 AI(ChatGPT/Claude 웹)에 붙여넣을 땐 en_word_system.txt 내용을 이 파일 맨 위에 붙이고,
+     맨 아래 문장을 "Return only a JSON array inside one ```json code block." 으로 바꾼다. -->
+
+Return only a JSON array. Each element is an object with "id" plus every field of the single-entry JSON schema.

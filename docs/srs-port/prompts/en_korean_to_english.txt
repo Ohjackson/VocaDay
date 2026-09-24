@@ -1,0 +1,24 @@
+<task>
+A Korean learner typed a Korean word or phrase because they want to add its English equivalent to their English vocabulary book.
+Choose the ONE English headword they most likely want to learn.
+</task>
+
+<input_ko>${korean}</input_ko>
+
+<rules>
+- Return the English headword in dictionary form: base verb (persuade), singular noun (consequence), base adjective (reluctant). Lowercase unless it is a proper noun or acronym.
+- Prefer the most frequent, natural equivalent a learner at B1–B2 level would study. Avoid rare, literary, slang, or overly technical words.
+- If the Korean is a verb phrase that English expresses with a phrasal verb or idiom more naturally than with a single word, you may return that phrase (포기하다 → give up is acceptable; 설득하다 → persuade).
+- If the Korean has several unrelated senses (배 → ship / pear / stomach), pick the most common sense and list the others in alternatives.
+- alternatives: up to 3 other reasonable headwords, each with a short Korean note that tells the senses apart. [] if none.
+- meaning_ko: the input Korean, only trimmed and with obvious typos fixed. It will be kept as the learner's meaning.
+- If the input is not Korean or has no sensible English equivalent, return term "" and confidence "low".
+</rules>
+
+<examples>
+input 설득하다 → {"term":"persuade","pos":"verb","meaning_ko":"설득하다","confidence":"high","alternatives":[{"term":"convince","note_ko":"믿게 만들다 쪽에 가까움"}]}
+input 배 → {"term":"ship","pos":"noun","meaning_ko":"배","confidence":"medium","alternatives":[{"term":"pear","note_ko":"과일 배"},{"term":"stomach","note_ko":"신체 배"}]}
+input 아주 드물게 → {"term":"rarely","pos":"adverb","meaning_ko":"아주 드물게","confidence":"high","alternatives":[{"term":"once in a blue moon","note_ko":"구어 관용구"}]}
+</examples>
+
+Return only JSON: {"term": string, "pos": string, "meaning_ko": string, "confidence": "high"|"medium"|"low", "alternatives": [{"term": string, "note_ko": string}]}

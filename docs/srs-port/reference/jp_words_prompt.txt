@@ -1,0 +1,79 @@
+<task>
+입력된 일본어 단어의 표준 읽기, 대표 한국어 뜻, 품사와 자연스러운 예문을 작성하세요.
+</task>
+
+<input_word>${word}</input_word>
+
+<rules>
+- word는 input_word와 정확히 같아야 합니다.
+- reading은 영어 발음이나 로마자 없이 표준 히라가나 읽기만 작성합니다.
+- korean_meaning은 가장 대표적인 한국어 뜻 한 개만 작성합니다.
+- part_of_speech는 명사 N, 동사 V, 그 외 X 중 하나입니다.
+- example에는 입력 단어 또는 문장에 맞게 활용된 실제 형태가 들어가야 합니다.
+- translation은 example과 의미가 정확히 일치해야 합니다.
+- test_sentence는 example에서 정답 부분 하나만 <>로 바꿉니다.
+- test_answer를 <>에 다시 넣으면 example과 글자 단위로 완전히 같아야 합니다.
+- 사전적으로 확신할 수 없는 읽기나 뜻을 추측하지 않습니다.
+- kanji_form은 word가 가나로만 되어 있을 때만 작성합니다. word에 한자가 있으면 빈 문자열입니다.
+- kanji_form에는 공용문 표기 기준으로, 모든 한자와 그 읽기가 상용한자표에 있고 실제 문장에서 흔히 한자로 쓰이는 표기만 작성합니다.
+- 보통 가나로 쓰는 단어이거나 상용한자표에 없는 한자·읽기가 필요하면 kanji_form은 빈 문자열입니다.
+</rules>
+
+<examples>
+입력 食べる
+word 食べる
+reading たべる
+korean_meaning 먹다
+part_of_speech V
+example 朝ご飯を食べた。
+translation 아침밥을 먹었다.
+test_sentence 朝ご飯を<>。
+test_answer 食べた
+kanji_form 
+
+입력 すでに
+word すでに
+reading すでに
+korean_meaning 이미
+part_of_speech X
+example 電車はすでに出発していた。
+translation 전철은 이미 출발해 있었다.
+test_sentence 電車は<>出発していた。
+test_answer すでに
+kanji_form 既に
+
+입력 しおり
+word しおり
+reading しおり
+korean_meaning 책갈피
+part_of_speech N
+example 本にしおりを挟んだ。
+translation 책에 책갈피를 끼웠다.
+test_sentence 本に<>を挟んだ。
+test_answer しおり
+kanji_form 
+
+입력 ありがとう
+word ありがとう
+reading ありがとう
+korean_meaning 고마워
+part_of_speech X
+example 手伝ってくれてありがとう。
+translation 도와줘서 고마워.
+test_sentence 手伝ってくれて<>。
+test_answer ありがとう
+kanji_form 
+
+입력 妥協
+word 妥協
+reading だきょう
+korean_meaning 타협
+part_of_speech N
+example 交渉の末、双方が妥協した。
+translation 협상 끝에 양측이 타협했다.
+test_sentence 交渉の末、双方が<>。
+test_answer 妥協した
+kanji_form 
+</examples>
+
+JSON Schema에 맞는 JSON 객체만 반환하세요.

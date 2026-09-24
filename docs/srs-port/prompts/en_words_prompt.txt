@@ -1,0 +1,96 @@
+<task>
+Build one vocabulary entry for a Korean learner of English, based on the learner's own input below.
+The entry feeds four quiz types: English↔Korean matching, fill-in-the-blank with multiple choice, fill-in-the-blank typing, and Korean→English typing.
+</task>
+
+<input>
+<term>${term}</term>
+<user_meaning_ko>${user_meaning_ko}</user_meaning_ko>
+<user_example>${user_example}</user_example>
+</input>
+
+<rules>
+<identity>
+- term: copy the input term exactly, only trimming spaces and lowercasing it unless it is a proper noun or an acronym. Do not correct it to a different word. If the term is misspelled so badly that you cannot identify it, still copy it and set every other string field to "".
+- pos: one of noun, verb, adjective, adverb, phrasal_verb, idiom, preposition, conjunction, other.
+  - Multi-word verb + particle (give up, look after, run out of) → phrasal_verb.
+  - Fixed multi-word expression that is not a phrasal verb (once in a blue moon, by the way) → idiom.
+  - If the term has several parts of speech, pick the one that matches user_meaning_ko; if user_meaning_ko is empty, pick the most frequent one.
+- cefr: the CEFR level (A1, A2, B1, B2, C1, C2) of this sense.
+</identity>
+
+<meaning>
+- If user_meaning_ko is not empty: the entry MUST describe that sense. meaning_ko = user_meaning_ko, only trimmed and with obvious typos fixed. Never replace it with a different sense, even if another sense is more common (e.g. bank + "둑" → the river-bank sense, not 은행).
+- If user_meaning_ko is empty: meaning_ko = the single most representative Korean gloss of the most frequent sense.
+- Style of meaning_ko: at most 20 characters, no English, no parentheses, no lists separated by commas.
+  - verb / phrasal_verb → Korean dictionary form ending in -다 (포기하다, 버리다)
+  - adjective → Korean adnominal form (꺼리는, 중요한)
+  - adverb → adverb form (간신히, 드물게)
+  - noun → noun (결과, 둑)
+- disambiguation_ko: if a Korean learner who sees only meaning_ko could reasonably write a different common English word, write a short Korean note (max 40 characters) that points to THIS word's nuance, e.g. "강·호수 가장자리의 비탈 (은행 아님)". Otherwise "".
+- near_miss_synonyms: 0–4 other common English words or phrases (base form) a learner might write for meaning_ko. Never include the term itself or any of its inflected forms. [] if none.
+</meaning>
+
+<forms>
+- forms has all eight keys. Fill only the keys that apply to the pos; every other key is "".
+  - noun: base (singular), plural. Uncountable-only nouns → plural "".
+  - verb, phrasal_verb: base, past, past_participle, present_participle, third_person. For phrasal verbs inflect the verb and keep the particle(s): gave up, given up, giving up, gives up.
+  - adjective: base, comparative, superlative (more reluctant / most reluctant when periphrastic). Non-gradable adjectives → comparative "" and superlative "".
+  - adverb, idiom, preposition, conjunction, other: base only.
+- forms.base must equal term.
+- Use standard American spelling in forms. Put a British spelling of the base in term_variants, not in forms.
+- term_variants: other accepted spellings of the base term only (colour, e-mail, well known → well-known). Never synonyms. [] if none.
+</forms>
+
+<example>
+- If user_example is not empty AND it is a grammatical, natural English sentence AND it contains the term (in any inflected form, contiguous) used in the sense of meaning_ko → example = user_example exactly as written (keep its punctuation and capitalization).
+- Otherwise write a new example that follows ALL of these:
+  1. 8–16 words, one sentence, ends with . ! or ?
+  2. Everyday, concrete situation. No names of real people, brands, politics, religion, violence, or sexual content.
+  3. Uses the term exactly once, in the sense of meaning_ko. No other form of the term appears anywhere else in the sentence.
+  4. The term is NOT the first word of the sentence.
+  5. The word directly before the term is NOT "a" or "an" (for singular countable nouns use the/my/this/his… or choose a plural or other construction), so the article cannot reveal the answer.
+  6. Context makes this term the most natural fit, but the sentence must not define the word, paraphrase it, or contain one of its synonyms.
+  7. Every other word in the sentence is at or below the term's CEFR level.
+  8. Phrasal verbs and idioms appear as one contiguous span (He gave up smoking — not He gave it up).
+  9. Prefer an inflected form (past, plural, -ing, third person, comparative) when it is natural; the base form is fine when the grammar needs it.
+- example_ko: natural Korean translation of the example that matches it exactly in meaning. It should express the target naturally with meaning_ko or its conjugation where Korean grammar allows.
+</example>
+
+<cloze>
+- cloze_answer: the exact span of the example that is the term (with its inflection), copied character for character. For phrasal verbs and idioms, the whole contiguous span.
+- cloze_sentence: the example with exactly that one span replaced by <>. Nothing else changes (spacing, punctuation, capitalization).
+- Check: replacing <> in cloze_sentence with cloze_answer must give back example exactly.
+- cloze_form: which forms key cloze_answer equals (compare case-insensitively): base, past, past_participle, present_participle, third_person, plural, comparative, superlative. If past and past_participle are identical, choose the one that matches the grammar of the sentence. Use "other" only when cloze_answer matches no forms value.
+- cloze_accepted: other spellings of cloze_answer that must also be marked correct when typed (British spelling, accepted hyphenation, e.g. "travelled" for "traveled"). Never synonyms or other forms. [] if none.
+</cloze>
+</rules>
+
+<examples>
+<example_entry>
+input: term=abandon, user_meaning_ko=, user_example=
+{"term":"abandon","pos":"verb","cefr":"B2","meaning_ko":"버리다","disambiguation_ko":"사람·장소·물건을 두고 떠나다","near_miss_synonyms":["leave","desert","throw away"],"forms":{"base":"abandon","past":"abandoned","past_participle":"abandoned","present_participle":"abandoning","third_person":"abandons","plural":"","comparative":"","superlative":""},"term_variants":[],"example":"The crew had to abandon the ship before it sank.","example_ko":"선원들은 배가 가라앉기 전에 배를 버리고 떠나야 했다.","cloze_sentence":"The crew had to <> the ship before it sank.","cloze_answer":"abandon","cloze_form":"base","cloze_accepted":[]}
+</example_entry>
+
+<example_entry>
+input: term=give up, user_meaning_ko=포기하다, user_example=
+{"term":"give up","pos":"phrasal_verb","cefr":"A2","meaning_ko":"포기하다","disambiguation_ko":"하던 노력이나 시도를 그만두다","near_miss_synonyms":["quit","abandon"],"forms":{"base":"give up","past":"gave up","past_participle":"given up","present_participle":"giving up","third_person":"gives up","plural":"","comparative":"","superlative":""},"term_variants":[],"example":"He never gave up on his dream of becoming a pilot.","example_ko":"그는 조종사가 되겠다는 꿈을 결코 포기하지 않았다.","cloze_sentence":"He never <> on his dream of becoming a pilot.","cloze_answer":"gave up","cloze_form":"past","cloze_accepted":[]}
+</example_entry>
+
+<example_entry>
+input: term=bank, user_meaning_ko=둑, user_example=
+{"term":"bank","pos":"noun","cefr":"B1","meaning_ko":"둑","disambiguation_ko":"강·호수 가장자리의 비탈 (은행 아님)","near_miss_synonyms":["shore","riverside"],"forms":{"base":"bank","past":"","past_participle":"","present_participle":"","third_person":"","plural":"banks","comparative":"","superlative":""},"term_variants":[],"example":"We had a picnic on the grassy bank of the river.","example_ko":"우리는 풀이 무성한 강둑에서 소풍을 했다.","cloze_sentence":"We had a picnic on the grassy <> of the river.","cloze_answer":"bank","cloze_form":"base","cloze_accepted":[]}
+</example_entry>
+
+<example_entry>
+input: term=consequence, user_meaning_ko=, user_example=Nobody thought about the long-term consequences of the new law.
+{"term":"consequence","pos":"noun","cefr":"B2","meaning_ko":"결과","disambiguation_ko":"어떤 행동이 가져온 (주로 나쁜) 결과","near_miss_synonyms":["result","outcome","effect"],"forms":{"base":"consequence","past":"","past_participle":"","present_participle":"","third_person":"","plural":"consequences","comparative":"","superlative":""},"term_variants":[],"example":"Nobody thought about the long-term consequences of the new law.","example_ko":"아무도 새 법이 가져올 장기적인 결과를 생각하지 않았다.","cloze_sentence":"Nobody thought about the long-term <> of the new law.","cloze_answer":"consequences","cloze_form":"plural","cloze_accepted":[]}
+</example_entry>
+
+<example_entry>
+input: term=once in a blue moon, user_meaning_ko=, user_example=
+{"term":"once in a blue moon","pos":"idiom","cefr":"B2","meaning_ko":"아주 드물게","disambiguation_ko":"거의 일어나지 않을 만큼 드물게 (관용구)","near_miss_synonyms":["rarely","seldom","hardly ever"],"forms":{"base":"once in a blue moon","past":"","past_participle":"","present_participle":"","third_person":"","plural":"","comparative":"","superlative":""},"term_variants":[],"example":"My brother lives abroad, so I see him once in a blue moon.","example_ko":"형은 해외에 살아서 아주 드물게 만난다.","cloze_sentence":"My brother lives abroad, so I see him <>.","cloze_answer":"once in a blue moon","cloze_form":"base","cloze_accepted":[]}
+</example_entry>
+</examples>
+
+Return only one JSON object that matches the JSON schema.
