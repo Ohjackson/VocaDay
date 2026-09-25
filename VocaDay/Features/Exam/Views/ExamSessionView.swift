@@ -249,7 +249,7 @@ struct ExamResultView: View {
                     .padding(.top, 12)
 
                     if summary.retryScheduledAt != nil {
-                        Label("\(SRSEngine.retryDelayHours)시간 뒤 재도전 알림을 보냈어요", systemImage: "bell.badge")
+                        Label("\(SRSEngine.retryDelayHours)시간 뒤 재도전 알림을 예약했어요", systemImage: "bell.badge")
                             .examFont(.subheadline)
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)

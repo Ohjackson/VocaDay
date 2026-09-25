@@ -184,7 +184,7 @@ struct ExamView: View {
             let extra = overdueTotal - snapshot.targetIDs.count
             return extra > 0
                 ? "하루 최대 \(SRSEngine.dailyReviewLimit)개씩 나와요. 남은 \(extra)개는 다음 학습에 먼저 나와요."
-                : "짝 맞추기·뜻 고르기·빈칸 고르기·빈칸 쓰기가 섞여 나와요."
+                : "짝 맞추기·뜻 고르기·빈칸 고르기로 시작해, 익숙해질수록 글자 조각·쓰기·듣고 쓰기가 섞여 나와요."
         case .waitingForRetry(_, let availableAt):
             return "\(availableAt.formatted(date: .omitted, time: .shortened))부터 다시 풀 수 있어요. 재도전을 마치면 오늘 학습이 끝나요."
         case .readyForRetry:
@@ -203,7 +203,7 @@ struct ExamView: View {
             Label("문제 준비", systemImage: "sparkles")
                 .font(.headline)
 
-            Text("\(words.count)개 중 \(words.count - notReady.count)개 단어가 네 가지 유형을 모두 풀 수 있어요.")
+            Text("\(words.count)개 중 \(words.count - notReady.count)개 단어가 모든 문제 유형을 풀 수 있어요.")
                 .font(.subheadline)
 
             if !notReady.isEmpty {

@@ -55,14 +55,14 @@ struct ExamSettingsView: View {
             }
 
             Section {
-                Toggle("한 글자 오타는 정답으로 인정", isOn: $allowsTypo)
+                Toggle("가벼운 오타는 정답으로 인정", isOn: $allowsTypo)
                 Toggle("다른 형태·비슷한 단어는 한 번 더 기회", isOn: $allowsNearMissRetry)
                 Toggle("빈칸 문제의 예문 해석 처음부터 보기", isOn: $showsExampleTranslation)
                 Toggle("처음 보는 단어는 먼저 뜻 보여 주기", isOn: $introducesNewWords)
             } header: {
                 Text("채점")
             } footer: {
-                Text("하루 최대 \(SRSEngine.dailyReviewLimit)개, 틀린 단어는 \(SRSEngine.retryDelayHours)시간 뒤 재도전해요. 빈칸 문제에서 해석을 열어 본 문제는 세션 끝에 해석 없이 한 번 더 나와요.")
+                Text("오타는 5~8글자 단어에서 1자, 9글자 이상에서 2자까지 인정해요. 하루 최대 \(SRSEngine.dailyReviewLimit)개, 틀린 단어는 \(SRSEngine.retryDelayHours)시간 뒤 재도전해요. 빈칸 문제에서 해석을 열어 본 문제는 세션 끝에 해석 없이 한 번 더 나와요.")
             }
         }
         .formStyle(.grouped)

@@ -12,7 +12,7 @@ nonisolated struct SessionPlannerConfig: Equatable, Sendable {
     var recentOptionWindow = 5
     /// 처음 보는 단어 앞에 "새 단어 카드"(채점 X)를 넣을지. 기본은 끔 — 복습 카드가 첫 노출 역할을 한다.
     var introducesNewWords = false
-    /// 무작위로 섞을 유형. 기본은 네 가지 모두.
+    /// 무작위로 섞을 유형. 기본은 전부 (randomModes).
     var enabledModes: Set<ExamItemKind> = Set(SessionPlanner.randomModes)
 
     static let standard = SessionPlannerConfig()
@@ -20,7 +20,7 @@ nonisolated struct SessionPlannerConfig: Equatable, Sendable {
 
 /// 오늘 대상 → 유형 배정 → M1 묶기 → 순서 → 보기 생성 → 레슨 분할 (SPEC §3, §4). UI와 저장소에 의존하지 않는다.
 ///
-/// 유형은 네 가지(짝 맞추기·빈칸 고르기·빈칸 쓰기·뜻 고르기)를 **가중 무작위**로 섞는다.
+/// 유형(짝 맞추기·뜻 고르기·빈칸 고르기·글자 조각·빈칸 쓰기·한→영·듣고 쓰기)을 **가중 무작위**로 섞는다.
 /// 단계(stage)가 오를수록 알아보기(고르기)보다 떠올리기(쓰기) 비중을 높인다 — 인출 연습은
 /// 어려울수록 기억에 오래 남는다(바람직한 어려움). 같은 단어·학습일이면 같은 유형이 나오도록 결정적 난수를 쓴다.
 nonisolated enum SessionPlanner {

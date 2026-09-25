@@ -167,7 +167,7 @@
 				};
 			};
 			buildConfigurationList = D7AFCD792FFB8F9700F69564 /* Build configuration list for PBXProject "VocaDay" */;
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,

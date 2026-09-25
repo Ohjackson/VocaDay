@@ -750,7 +750,7 @@ struct AddWordsView: View {
         }
         let notReady = checks.filter { !WordDataCheck.isQuizReady($0.2) }
         if !notReady.isEmpty {
-            dataWarningMessage = "\(notReady.map(\.1.english).joined(separator: ", "))은(는) 영어 예문에 단어가 없어 빈칸 고르기·빈칸 쓰기가 나오지 않아요. 단어가 들어간 예문으로 고치면 네 가지 유형을 모두 풀 수 있어요."
+            dataWarningMessage = "\(notReady.map(\.1.english).joined(separator: ", "))은(는) 영어 예문에 단어가 없어 빈칸 고르기·빈칸 쓰기가 나오지 않아요. 단어가 들어간 예문으로 고치면 모든 문제 유형을 풀 수 있어요."
             return false
         }
         return true
