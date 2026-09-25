@@ -64,9 +64,7 @@ struct DaysView: View {
         .searchable(text: $searchText, prompt: "데이 검색")
         .toolbar {
             ToolbarItemGroup(placement: toolbarPlacement) {
-                NavigationLink {
-                    SettingsView()
-                } label: {
+                NavigationLink(value: AppRoute.settings) {
                     Image(systemName: "gearshape")
                 }
                 .componentSpotlight(.settingsButton)
@@ -161,9 +159,7 @@ struct DaysView: View {
                 .accessibilityLabel("\(day.title) 삭제")
             }
         } else {
-            NavigationLink {
-                DayWordsDetailView(initialDay: day)
-            } label: {
+            NavigationLink(value: AppRoute.dayWords(dayID: day.id)) {
                 DayCardView(
                     day: day,
                     isSelected: selectedDayID == day.id

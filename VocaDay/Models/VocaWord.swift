@@ -20,6 +20,31 @@ final class VocaWord {
     var lastReviewedAt: Date?
     var day: VocabularyDay?
 
+    // MARK: 시험보기 SRS (단고초 SRSCard와 같은 의미, docs/srs-port/SPEC.md §1.2)
+    // 별도 엔티티 대신 단어에 둔다. CloudKit 동기화 중 기기마다 카드가 중복 생성되는 것을 막고,
+    // 기본값 0이 곧 "stage 0, nextLearningDay 0" 마이그레이션이 된다.
+    var srsStage: Int = 0
+    var srsNextLearningDay: Int = 0
+    var srsIdkCount: Int = 0
+
+    // MARK: 시험보기 보강 데이터 (SPEC §1.1). 사용자 필드(meaningKo, exampleEn…)는 덮어쓰지 않는다.
+    var quizPos: String = ""
+    var quizCefr: String = ""
+    var quizMeaningKo: String = ""
+    var quizDisambiguationKo: String = ""
+    var quizFormsJSON: String = ""
+    var quizTermVariantsJSON: String = ""
+    var quizExample: String = ""
+    var quizExampleKo: String = ""
+    var quizClozeSentence: String = ""
+    var quizClozeAnswer: String = ""
+    var quizClozeForm: String = ""
+    var quizClozeAcceptedJSON: String = ""
+    var quizNearMissJSON: String = ""
+    var quizEnrichmentVersion: Int = 0
+    /// 보강 당시 english·meaningKo·exampleEn 지문. 사용자가 단어를 고치면 달라져 재보강 대상이 된다.
+    var quizEnrichmentFingerprint: String = ""
+
     init(
         id: UUID = UUID(),
         english: String,

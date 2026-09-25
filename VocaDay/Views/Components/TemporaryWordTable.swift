@@ -80,11 +80,16 @@ struct TemporaryWordTable: View {
                 selectedWordID = word.id
                 editingWordID = word.id
             } label: {
-                Text(word.english.isEmpty ? "영단어 입력" : word.english)
-                    .font(.headline)
-                    .foregroundStyle(word.english.isEmpty ? .secondary : .primary)
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
-                    .contentShape(Rectangle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(word.english.isEmpty ? "영단어 입력" : word.english)
+                        .font(.headline)
+                        .foregroundStyle(word.english.isEmpty ? .secondary : .primary)
+                    if !word.english.isEmpty {
+                        WordDataCheckView(issues: WordDataCheck.issues(for: word), compact: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(word.english) 편집")
@@ -137,11 +142,20 @@ private struct EditDraftWordSheet: View {
                     TextField("TOEIC 태그", text: $word.toeicTag)
                 }
 
-                Section("예문") {
-                    TextField("영어 예문", text: $word.exampleEn, axis: .vertical)
+                Section {
+                    TextField("영어 예문 (단어가 들어간 한 문장)", text: $word.exampleEn, axis: .vertical)
                         .lineLimit(2...4)
                     TextField("한국어 예문", text: $word.exampleKo, axis: .vertical)
                         .lineLimit(2...4)
+                } header: {
+                    Text("예문")
+                } footer: {
+                    WordDataCheckView(issues: WordDataCheck.issues(
+                        english: word.english,
+                        meaningKo: word.meaningKo,
+                        exampleEn: word.exampleEn,
+                        exampleKo: word.exampleKo
+                    ))
                 }
             }
             .navigationTitle("단어 편집")

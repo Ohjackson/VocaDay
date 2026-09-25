@@ -77,8 +77,74 @@ final class AppDataBackupServiceTests: XCTestCase {
         XCTAssertEqual(decoded.studyPageCategories.first?.id, categoryID)
     }
 
+    func testQuizAndSRSFieldsRoundTripAndOldBackupsKeepThem() throws {
+        let context = try makeContext()
+        let day = VocabularyDay(title: "Day 1")
+        context.insert(day)
+        let word = VocaWord(english: "abandon", meaningKo: "v. 버리다", day: day)
+        word.srsStage = 4
+        word.srsNextLearningDay = 12
+        word.srsIdkCount = 2
+        word.quizMeaningKo = "버리다"
+        word.quizClozeSentence = "The crew had to <> the ship."
+        word.quizEnrichmentVersion = 1
+        context.insert(word)
+        try context.save()
+
+        let json = try AppDataBackupService.encode(AppDataBackupService.archiveVocabularyDay(day))
+        let decoded = try AppDataBackupService.decode(json)
+        XCTAssertEqual(decoded.schemaVersion, AppDataBackupService.currentSchemaVersion)
+
+        let restoreContext = try makeContext()
+        try AppDataBackupService.applyUpsert(decoded, in: restoreContext, vocabularyDays: [], studyMemos: [], studyPageCategories: [])
+        let restored = try XCTUnwrap(restoreContext.fetch(FetchDescriptor<VocaWord>()).first)
+        XCTAssertEqual(restored.srsCard, SRSCardState(stage: 4, nextLearningDay: 12, idkCount: 2))
+        XCTAssertEqual(restored.quizMeaningKo, "버리다")
+        XCTAssertEqual(restored.quizClozeSentence, "The crew had to <> the ship.")
+
+        // schema 5 백업(quiz 없음)을 가져와도 기존 SRS 값은 그대로 둔다.
+        var legacy = decoded
+        legacy.vocabularyDays[0].words[0].quiz = nil
+        legacy.vocabularyDays[0].words[0].meaningKo = "v. 버리다, 포기하다"
+        try AppDataBackupService.applyUpsert(legacy, in: restoreContext, vocabularyDays: [restored.day!], studyMemos: [], studyPageCategories: [])
+        XCTAssertEqual(restored.srsStage, 4)
+        XCTAssertEqual(restored.meaningKo, "v. 버리다, 포기하다")
+    }
+
+    func testReviewLogsRoundTripInFullBackup() throws {
+        let schema: [any PersistentModel.Type] = [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self]
+        let source = ModelContext(try ModelContainer(for: Schema(schema), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let day = VocabularyDay(title: "Day 1")
+        source.insert(day)
+        let word = VocaWord(english: "abandon", day: day)
+        source.insert(word)
+        let log = ReviewLog(
+            wordID: word.id, sessionID: UUID(), learningDay: 3, sessionKind: "first", mode: "M2",
+            isCorrect: true, stageBefore: 2, stageAfter: 3, answeredAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        source.insert(log)
+        try source.save()
+
+        let json = try AppDataBackupService.encode(
+            AppDataBackupService.archiveAll(vocabularyDays: [day], studyMemos: [], studyPageCategories: [])
+        )
+        let archive = try AppDataBackupService.decode(json)
+        XCTAssertEqual(archive.reviewLogs?.count, 1)
+
+        let target = ModelContext(try ModelContainer(for: Schema(schema), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        try AppDataBackupService.applyUpsert(archive, in: target, vocabularyDays: [], studyMemos: [], studyPageCategories: [])
+        try AppDataBackupService.applyUpsert(archive, in: target, vocabularyDays: try target.fetch(FetchDescriptor<VocabularyDay>()), studyMemos: [], studyPageCategories: [])
+        let restored = try target.fetch(FetchDescriptor<ReviewLog>())
+        XCTAssertEqual(restored.count, 1, "같은 백업을 두 번 가져와도 중복되지 않는다")
+        XCTAssertEqual(restored.first?.id, log.id)
+        XCTAssertEqual(restored.first?.mode, "M2")
+
+        try AppDataBackupService.deleteAll(in: target, vocabularyDays: try target.fetch(FetchDescriptor<VocabularyDay>()), studyMemos: [], studyPageCategories: [])
+        XCTAssertTrue(try target.fetch(FetchDescriptor<ReviewLog>()).isEmpty)
+    }
+
     func testDecodeThrowsForUnsupportedSchemaVersion() throws {
-        let archive = AppDataArchive(schemaVersion: 6, type: .allAppData)
+        let archive = AppDataArchive(schemaVersion: AppDataBackupService.currentSchemaVersion + 1, type: .allAppData)
         let json = try AppDataBackupService.encode(archive)
 
         XCTAssertThrowsError(try AppDataBackupService.decode(json)) { error in
@@ -86,7 +152,7 @@ final class AppDataBackupServiceTests: XCTestCase {
                 XCTFail("Expected unsupportedVersion, got \(error)")
                 return
             }
-            XCTAssertEqual(version, 6)
+            XCTAssertEqual(version, AppDataBackupService.currentSchemaVersion + 1)
         }
     }
 

@@ -8,6 +8,8 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     case days
     case add
     case review
+    case exam
+    case stats
     case studyMemos
 
     var id: Self { self }
@@ -20,6 +22,10 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "추가"
         case .review:
             return "복습"
+        case .exam:
+            return "시험"
+        case .stats:
+            return "통계"
         case .studyMemos:
             return "학습 메모"
         }
@@ -33,6 +39,10 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "plus.circle"
         case .review:
             return "rectangle.stack"
+        case .exam:
+            return "checkmark.seal"
+        case .stats:
+            return "chart.bar.xaxis"
         case .studyMemos:
             return "note.text"
         }
@@ -71,7 +81,7 @@ private struct ProductionRootView: View {
     @AppStorage("isReviewReminderEnabled") private var isReviewReminderEnabled = false
     @AppStorage("reviewReminderMinutesSinceMidnight") private var reviewReminderMinutesSinceMidnight = 20 * 60
 
-    @State private var selectedSection: AppSection
+    @State private var navigation: AppNavigationState
     @State private var selectedDayID: UUID?
     @State private var isShowingQuickAdd = false
     @State private var quickAddText = ""
@@ -79,47 +89,50 @@ private struct ProductionRootView: View {
     @State private var addEntryMode: AddEntryMode = .manual
 
     init(initialSection: AppSection = .days) {
-        _selectedSection = State(initialValue: initialSection)
+        _navigation = State(initialValue: AppNavigationState(selectedSection: initialSection))
+    }
+
+    /// 사이드바/탭 선택은 반드시 `AppNavigationState.select` 를 거쳐 스택과 함께 바뀝니다.
+    private var sectionBinding: Binding<AppSection> {
+        Binding(
+            get: { navigation.selectedSection },
+            set: { navigation.select($0) }
+        )
+    }
+
+    private func pathBinding(for section: AppSection) -> Binding<[AppRoute]> {
+        Binding(
+            get: { navigation.path(for: section) },
+            set: { navigation.setPath($0, for: section) }
+        )
+    }
+
+    /// 섹션마다 경로가 바인딩된 스택을 만듭니다. 화면 이동은 모두 이 경로를 통합니다.
+    private func sectionStack(_ section: AppSection) -> some View {
+        NavigationStack(path: pathBinding(for: section)) {
+            destination(for: section)
+                .appRouteDestinations()
+        }
     }
 
     var body: some View {
         Group {
             #if os(macOS)
-            MacAppNavigationShell(selectedSection: $selectedSection) { section in
-                NavigationStack {
-                    destination(for: section)
-                }
-                .id(section)
+            // 스택 하나를 유지하고 루트 내용만 바꿉니다. 섹션 변경 시 경로는 AppNavigationState 가 비웁니다.
+            MacAppNavigationShell(selectedSection: sectionBinding) { section in
+                sectionStack(section)
             }
             #else
-            TabView(selection: $selectedSection) {
-                NavigationStack {
-                    DaysView(selectedDayID: $selectedDayID)
+            TabView(selection: sectionBinding) {
+                ForEach(AppSection.allCases) { section in
+                    sectionStack(section)
+                        .tabItem { Label(section.title, systemImage: section.systemImage) }
+                        .tag(section)
                 }
-                .tabItem { Label(AppSection.days.title, systemImage: AppSection.days.systemImage) }
-                .tag(AppSection.days)
-
-                NavigationStack {
-                    AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
-                }
-                .tabItem { Label(AppSection.add.title, systemImage: AppSection.add.systemImage) }
-                .tag(AppSection.add)
-
-                NavigationStack {
-                    ReviewView()
-                }
-                .tabItem { Label(AppSection.review.title, systemImage: AppSection.review.systemImage) }
-                .tag(AppSection.review)
-
-                NavigationStack {
-                    StudyMemoFeatureView()
-                }
-                .tabItem { Label(AppSection.studyMemos.title, systemImage: AppSection.studyMemos.systemImage) }
-                .tag(AppSection.studyMemos)
-
             }
             #endif
         }
+        .environment(\.appNavigate, AppNavigateAction { navigation.push($0) })
         .overlay {
             if isShowingQuickAdd {
                 quickAddOverlay
@@ -163,6 +176,10 @@ private struct ProductionRootView: View {
             AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
         case .review:
             ReviewView()
+        case .exam:
+            ExamView()
+        case .stats:
+            StudyStatsView()
         case .studyMemos:
             StudyMemoFeatureView()
         }
@@ -175,7 +192,7 @@ private struct ProductionRootView: View {
 
     private func rescheduleReviewReminderIfNeeded() {
         guard isReviewReminderEnabled else { return }
-        let dueCount = ReviewScheduler.dueWordCount(in: days)
+        let dueCount = StudyQueue.snapshot(in: modelContext).reminderCount
         let hour = reviewReminderMinutesSinceMidnight / 60
         let minute = reviewReminderMinutesSinceMidnight % 60
         Task {
@@ -233,7 +250,7 @@ private struct ProductionRootView: View {
 
         let targetDay = mostRecentDay() ?? DayFactory.createNextDay(existingDays: days, in: modelContext)
         selectedDayID = targetDay.id
-        selectedSection = .add
+        navigation.select(.add)
         addEntryMode = .manual
         quickAddWord = english
         closeQuickAdd()
@@ -304,5 +321,5 @@ private struct QuickAddWordPanel: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self], inMemory: true)
+        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self], inMemory: true)
 }

@@ -42,6 +42,8 @@ struct AddWordsView: View {
     @State private var isGeneratingWord = false
     @State private var generationTask: Task<Void, Never>?
     @State private var isShowingGuideDismissalConfirmation = false
+    /// 예문 문제로 빈칸 문제를 못 만드는 단어가 있을 때 저장 전 확인.
+    @State private var dataWarningMessage: String?
     @State private var isShowingNewDayAlert = false
     @State private var isShowingAppleIntelligenceDisclosure = false
     @State private var newDayTitle = ""
@@ -136,6 +138,24 @@ struct AddWordsView: View {
         } message: {
             Text("현재 입력 방식에서는 다시 표시되지 않습니다. 오른쪽 위 ? 도움말은 언제든 열 수 있습니다.")
         }
+        .confirmationDialog(
+            "예문을 보완할까요?",
+            isPresented: Binding(
+                get: { dataWarningMessage != nil },
+                set: { if !$0 { dataWarningMessage = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("그대로 저장") {
+                dataWarningMessage = nil
+                saveAfterDataCheck()
+            }
+            Button("예문 고치기", role: .cancel) {
+                dataWarningMessage = nil
+            }
+        } message: {
+            Text(dataWarningMessage ?? "")
+        }
         .alert("새 데이", isPresented: $isShowingNewDayAlert) {
             TextField("데이 이름", text: $newDayTitle)
 
@@ -202,15 +222,11 @@ struct AddWordsView: View {
             systemImage: entryMode == .json ? "curlybraces" : "return",
             showsHelpLink: isJSONImportEnabled && entryMode == .json,
             onDismiss: { isShowingGuideDismissalConfirmation = true }
-        ) {
-            AddWordsHelpView()
-        }
+        )
     }
 
     private var helpNavigationLink: some View {
-        NavigationLink {
-            AddWordsHelpView()
-        } label: {
+        NavigationLink(value: AppRoute.addWordsHelp) {
             Image(systemName: "questionmark.circle")
         }
         .componentSpotlight(.addHelpButton)
@@ -717,7 +733,30 @@ struct AddWordsView: View {
         }
 
         guard validateTemporaryWordsForSave() else { return }
+        guard validateStudyData() else { return }
+        saveAfterDataCheck()
+    }
 
+    /// 뜻이 없는 단어는 저장하지 않는다. 예문이 부족한 단어는 무엇이 빠지는지 알리고 확인을 받는다.
+    private func validateStudyData() -> Bool {
+        let checks = temporaryWords.enumerated().map { ($0.offset + 1, $0.element, WordDataCheck.issues(for: $0.element)) }
+        let missingMeaning = checks.filter { $0.2.contains(.missingMeaning) }
+        if !missingMeaning.isEmpty {
+            alert = VocaAlert(
+                title: "한국어 뜻을 입력하세요",
+                message: "\(missingMeaning.map { "\($0.0)번 \($0.1.english)" }.joined(separator: ", "))에 뜻이 없습니다. 뜻이 있어야 복습 카드와 시험 문제를 만들 수 있어요."
+            )
+            return false
+        }
+        let notReady = checks.filter { !WordDataCheck.isQuizReady($0.2) }
+        if !notReady.isEmpty {
+            dataWarningMessage = "\(notReady.map(\.1.english).joined(separator: ", "))은(는) 영어 예문에 단어가 없어 빈칸 고르기·빈칸 쓰기가 나오지 않아요. 단어가 들어간 예문으로 고치면 네 가지 유형을 모두 풀 수 있어요."
+            return false
+        }
+        return true
+    }
+
+    private func saveAfterDataCheck() {
         let duplicateLocations = existingWordLocations(for: temporaryWords)
         guard duplicateLocations.isEmpty else {
             alert = VocaAlert(
@@ -868,7 +907,7 @@ struct AddWordsView: View {
     }
 }
 
-private struct AddWordsHelpView: View {
+struct AddWordsHelpView: View {
     @AppStorage("isJSONImportEnabled") private var isJSONImportEnabled = false
     @State private var isPromptCopied = false
 
@@ -879,9 +918,9 @@ private struct AddWordsHelpView: View {
     - 설명, 제목, ``` 표시 없이 JSON 배열만 출력해줘.
     - 각 항목은 english, meaningKo, exampleEn, exampleKo, note, toeicTag 키를 모두 포함해줘.
     - 모든 값은 문자열로 작성해줘.
-    - meaningKo에는 자연스러운 한국어 뜻을 넣어줘.
-    - exampleEn에는 해당 단어를 사용한 자연스러운 영어 예문을 넣어줘.
-    - exampleKo에는 영어 예문의 자연스러운 한국어 번역을 넣어줘.
+    - meaningKo에는 품사 약어를 붙인 자연스러운 한국어 뜻을 넣어줘. 예: "v. 연기하다, 미루다" / "n. 결과; adj. 최종의"
+    - exampleEn에는 자연스러운 영어 예문 한 문장을 넣어줘. 반드시 english 단어 자체(또는 -s, -ed, -ing 같은 활용형)를 그대로 한 번 포함해야 해. 동의어나 대명사로 바꾸지 마. 이 단어 자리가 빈칸 문제의 정답이 돼.
+    - exampleKo에는 영어 예문의 자연스러운 한국어 번역을 반드시 넣어줘. 빈칸 문제의 힌트로 쓰여.
     - note에는 암기에 도움이 되는 짧은 설명을 넣어줘.
     - toeicTag에는 품사 또는 TOEIC 관련 분류를 짧게 넣어줘.
     - 값이 없으면 빈 문자열을 사용해줘.
@@ -903,7 +942,7 @@ private struct AddWordsHelpView: View {
     [
       {
         "english": "acquire",
-        "meaningKo": "습득하다, 얻다",
+        "meaningKo": "v. 습득하다, 얻다",
         "exampleEn": "She acquired new skills at work.",
         "exampleKo": "그녀는 직장에서 새로운 기술을 습득했다.",
         "note": "노력해서 지식이나 능력을 얻을 때 자주 사용",
@@ -932,6 +971,21 @@ private struct AddWordsHelpView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 importantNotice
+
+                helpSection(
+                    title: "복습·시험에 필요한 단어 데이터",
+                    systemImage: "checkmark.seal"
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        helpStep(number: 1, text: "한국어 뜻: 짝 맞추기·뜻 고르기·복습 카드에 쓰여요. 없으면 저장할 수 없어요.")
+                        helpStep(number: 2, text: "단어가 들어간 영어 예문: 예문 속 단어 자리가 빈칸 문제의 정답이 돼요. postponed처럼 활용형도 괜찮아요.")
+                        helpStep(number: 3, text: "예문 번역: 빈칸 문제에서 뜻을 짐작하는 힌트로 보여 줘요.")
+                        Text("저장 전 목록의 각 단어 아래에 준비 상태가 표시돼요. Apple Intelligence 생성과 JSON 프롬프트는 이 조건에 맞춰 예문을 만들어요.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
 
                 helpSection(
                     title: "Apple Intelligence로 추가하기",

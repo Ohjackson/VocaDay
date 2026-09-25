@@ -97,6 +97,8 @@ struct VocaDayApp: App {
             VocaWord.self,
             StudyMemo.self,
             StudyPageCategory.self,
+            StudyProgress.self,
+            ReviewLog.self,
         ])
         let modelConfiguration: ModelConfiguration
         if isRunningTests {

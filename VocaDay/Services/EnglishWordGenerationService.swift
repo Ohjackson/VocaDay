@@ -50,7 +50,7 @@ struct GeneratedWordMeaning: Sendable, Equatable {
     @Guide(description: "반드시 한글로 작성한 간결하고 자연스러운 한국어 사전식 뜻.")
     var meaning: String
 
-    @Guide(description: "A short natural English sentence that clearly uses this exact meaning.")
+    @Guide(description: "One short natural English sentence that clearly uses this exact meaning and contains the headword itself exactly once (an inflected form such as -s, -ed or -ing is allowed). Never replace the headword with a synonym or pronoun.")
     var englishExample: String
 
     @Guide(description: "반드시 한글로 작성한 영어 예문의 자연스러운 한국어 번역.")
@@ -239,6 +239,7 @@ struct AppleFoundationWordGenerationService: EnglishWordGenerating {
                     영단어 \(resolvedHeadword)의 학습 데이터를 다시 생성하세요. word는 반드시 \(resolvedHeadword)로 반환하세요.
                     뜻, 예문 번역, 암기 메모, 활용 분류, 철자 교정 설명은 반드시 자연스러운 한글로 쓰세요. 한국어 뜻 자리에 영어 정의를 쓰면 안 됩니다.
                     \(resolvedHeadword) 자체에 실제로 존재하는 뜻과 품사만 포함하고 파생어나 관련 단어의 품사는 제외하세요.
+                    영어 예문마다 \(resolvedHeadword)(또는 그 활용형)를 반드시 그대로 한 번 넣으세요.
                     """
                 }
             }
@@ -280,6 +281,7 @@ struct AppleFoundationWordGenerationService: EnglishWordGenerating {
     - 개수를 채우려고 희귀하거나 낡았거나 전문적인 뜻을 추가하지 않습니다.
     - 각 뜻의 품사를 구분하되 반환한 표제어 자체에 존재하는 품사만 사용합니다. 파생어의 품사를 넣지 않습니다.
     - 각 뜻마다 그 의미가 분명한 짧고 자연스러운 영어 예문 하나를 만듭니다.
+    - 영어 예문에는 반드시 표제어 자체(또는 -s, -ed, -ing 같은 활용형)를 한 번 그대로 넣습니다. 동의어나 대명사로 바꾸지 않습니다. 이 자리가 빈칸 문제의 정답이 됩니다.
     - 뜻, 한국어 예문 번역, 암기 메모, 활용 분류, 철자 교정 설명은 반드시 한글이 포함된 자연스러운 한국어로 작성합니다. 영어 정의를 한국어 필드에 쓰지 않습니다.
     - 한국어 뜻은 간결한 사전식 표현으로 쓰고 사실상 같은 뜻은 중복하지 않습니다.
     - 일상이나 일반 업무에서 유용한 상황을 우선합니다.
@@ -339,6 +341,17 @@ enum EnglishWordGenerationValidator {
 
         guard !validatedMeanings.isEmpty else {
             throw EnglishWordGenerationError.invalidResponse("서로 다른 일반적인 뜻을 생성하지 못했습니다.")
+        }
+        // 빈칸 문제는 단어가 들어간 예문으로 만든다. 그런 예문이 하나도 없으면 다시 생성한다.
+        let hasCloze: (GeneratedWordMeaning) -> Bool = { meaning in
+            LocalCloze.build(
+                term: generatedWord,
+                example: meaning.englishExample,
+                allowsComparative: meaning.partOfSpeech == .adjective
+            ) != nil
+        }
+        guard validatedMeanings.contains(where: hasCloze) else {
+            throw EnglishWordGenerationError.invalidResponse("예문에 ‘\(generatedWord)’가 들어가지 않아 빈칸 문제를 만들 수 없습니다. 다시 시도해 주세요.")
         }
 
         let usageNote = result.usageNote.trimmingCharacters(in: .whitespacesAndNewlines)

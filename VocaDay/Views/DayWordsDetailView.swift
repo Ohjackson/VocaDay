@@ -267,11 +267,20 @@ private struct EditWordSheet: View {
                     TextField("TOEIC 태그", text: $word.toeicTag)
                 }
 
-                Section("예문") {
-                    TextField("영어 예문", text: $word.exampleEn, axis: .vertical)
+                Section {
+                    TextField("영어 예문 (단어가 들어간 한 문장)", text: $word.exampleEn, axis: .vertical)
                         .lineLimit(2...4)
                     TextField("한국어 예문", text: $word.exampleKo, axis: .vertical)
                         .lineLimit(2...4)
+                } header: {
+                    Text("예문")
+                } footer: {
+                    WordDataCheckView(issues: WordDataCheck.issues(
+                        english: word.english,
+                        meaningKo: word.meaningKo,
+                        exampleEn: word.exampleEn,
+                        exampleKo: word.exampleKo
+                    ))
                 }
             }
             .navigationTitle("단어 편집")

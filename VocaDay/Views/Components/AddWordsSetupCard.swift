@@ -75,13 +75,12 @@ struct AddWordsSetupCard: View {
     }
 }
 
-struct AddWordsGuideCard<HelpDestination: View>: View {
+struct AddWordsGuideCard: View {
     let title: String
     let message: String
     let systemImage: String
     let showsHelpLink: Bool
     let onDismiss: () -> Void
-    @ViewBuilder let helpDestination: () -> HelpDestination
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -100,7 +99,7 @@ struct AddWordsGuideCard<HelpDestination: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if showsHelpLink {
-                    NavigationLink("JSON 사용법 보기", destination: helpDestination)
+                    NavigationLink("JSON 사용법 보기", value: AppRoute.addWordsHelp)
                         .font(.caption.weight(.semibold))
                 }
             }

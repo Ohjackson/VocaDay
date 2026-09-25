@@ -1,0 +1,164 @@
+{
+  "type": "OBJECT",
+  "properties": {
+    "term": {
+      "type": "STRING",
+      "description": "입력 term 그대로 (trim, 고유명사가 아니면 소문자)"
+    },
+    "pos": {
+      "type": "STRING",
+      "enum": [
+        "noun",
+        "verb",
+        "adjective",
+        "adverb",
+        "phrasal_verb",
+        "idiom",
+        "preposition",
+        "conjunction",
+        "other"
+      ]
+    },
+    "cefr": {
+      "type": "STRING",
+      "enum": [
+        "A1",
+        "A2",
+        "B1",
+        "B2",
+        "C1",
+        "C2"
+      ]
+    },
+    "meaning_ko": {
+      "type": "STRING",
+      "description": "user_meaning_ko가 있으면 그것, 없으면 대표 뜻 1개. 20자 이내"
+    },
+    "disambiguation_ko": {
+      "type": "STRING",
+      "description": "다른 영어 단어와 헷갈릴 때만 40자 이내 설명, 아니면 빈 문자열"
+    },
+    "near_miss_synonyms": {
+      "type": "ARRAY",
+      "items": {
+        "type": "STRING"
+      },
+      "description": "학습자가 meaning_ko로 쓸 법한 다른 영어 단어 0~4개 (term과 그 활용형 제외)"
+    },
+    "forms": {
+      "type": "OBJECT",
+      "properties": {
+        "base": {
+          "type": "STRING"
+        },
+        "past": {
+          "type": "STRING"
+        },
+        "past_participle": {
+          "type": "STRING"
+        },
+        "present_participle": {
+          "type": "STRING"
+        },
+        "third_person": {
+          "type": "STRING"
+        },
+        "plural": {
+          "type": "STRING"
+        },
+        "comparative": {
+          "type": "STRING"
+        },
+        "superlative": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "base",
+        "past",
+        "past_participle",
+        "present_participle",
+        "third_person",
+        "plural",
+        "comparative",
+        "superlative"
+      ],
+      "description": "품사에 해당하지 않는 키는 빈 문자열"
+    },
+    "term_variants": {
+      "type": "ARRAY",
+      "items": {
+        "type": "STRING"
+      },
+      "description": "표제어의 다른 철자만"
+    },
+    "example": {
+      "type": "STRING",
+      "description": "유효한 user_example이면 그대로, 아니면 새 예문"
+    },
+    "example_ko": {
+      "type": "STRING"
+    },
+    "cloze_sentence": {
+      "type": "STRING",
+      "description": "example에서 정답 구간 하나만 <>로 치환"
+    },
+    "cloze_answer": {
+      "type": "STRING",
+      "description": "<>에 넣으면 example이 글자 단위로 복원되는 실제 구간"
+    },
+    "cloze_form": {
+      "type": "STRING",
+      "enum": [
+        "base",
+        "past",
+        "past_participle",
+        "present_participle",
+        "third_person",
+        "plural",
+        "comparative",
+        "superlative",
+        "other"
+      ]
+    },
+    "cloze_accepted": {
+      "type": "ARRAY",
+      "items": {
+        "type": "STRING"
+      },
+      "description": "cloze_answer의 다른 철자만"
+    }
+  },
+  "required": [
+    "term",
+    "pos",
+    "cefr",
+    "meaning_ko",
+    "disambiguation_ko",
+    "near_miss_synonyms",
+    "forms",
+    "term_variants",
+    "example",
+    "example_ko",
+    "cloze_sentence",
+    "cloze_answer",
+    "cloze_form",
+    "cloze_accepted"
+  ],
+  "propertyOrdering": [
+    "term",
+    "pos",
+    "cefr",
+    "meaning_ko",
+    "disambiguation_ko",
+    "near_miss_synonyms",
+    "forms",
+    "term_variants",
+    "example",
+    "example_ko",
+    "cloze_answer",
+    "cloze_sentence",
+    "cloze_form",
+    "cloze_accepted"
+  ]
+}

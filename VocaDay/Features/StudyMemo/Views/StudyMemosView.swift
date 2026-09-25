@@ -7,7 +7,7 @@ struct StudyMemosView: View {
     @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var memos: [StudyMemo]
 
     @StateObject private var viewModel = StudyMemosListViewModel()
-    @State private var selectedMemoID: UUID?
+    @Environment(\.appNavigate) private var navigate
     @State private var memoPendingDeletion: StudyMemo?
 
     private var sortedMemos: [StudyMemo] {
@@ -28,9 +28,7 @@ struct StudyMemosView: View {
             } else {
                 LazyVStack(spacing: 2) {
                     ForEach(sortedMemos) { memo in
-                        Button {
-                            selectedMemoID = memo.id
-                        } label: {
+                        NavigationLink(value: AppRoute.studyMemo(memoID: memo.id)) {
                             StudyPageListRow(presentation: StudyPageRowPresentation(memo: memo))
                                 .componentSpotlight(.studyMemoCollection)
                         }
@@ -67,13 +65,6 @@ struct StudyMemosView: View {
                     AppToolbarActionLabel(title: "새 페이지", systemImage: "plus")
                 }
                 .componentSpotlight(.createStudyMemoButton)
-            }
-        }
-        .navigationDestination(item: $selectedMemoID) { memoID in
-            if let memo = memos.first(where: { $0.id == memoID }) {
-                StudyPageEditorView(memo: memo)
-            } else {
-                ContentUnavailableView("페이지를 찾을 수 없습니다", systemImage: "doc.text")
             }
         }
         .confirmationDialog(
@@ -117,12 +108,12 @@ struct StudyMemosView: View {
 
     private func createPage() {
         guard let memo = viewModel.createPage(in: modelContext) else { return }
-        selectedMemoID = memo.id
+        navigate(.studyMemo(memoID: memo.id))
     }
 
     private func duplicate(_ source: StudyMemo) {
         guard let copy = viewModel.duplicate(source, in: modelContext) else { return }
-        selectedMemoID = copy.id
+        navigate(.studyMemo(memoID: copy.id))
     }
 
     private func deletePendingMemo() {
@@ -141,7 +132,7 @@ struct StudyMemosView: View {
     }
 }
 
-private struct StudyPageEditorView: View {
+struct StudyPageEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \StudyPageCategory.createdAt) private var categories: [StudyPageCategory]

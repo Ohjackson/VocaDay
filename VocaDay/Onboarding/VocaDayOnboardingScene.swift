@@ -118,6 +118,8 @@ struct VocaDayOnboardingScene: View {
         case .days: MockDaysOnboardingView()
         case .add: MockAddWordsOnboardingView()
         case .review: MockReviewOnboardingView()
+        case .exam: EmptyStateView(title: "안내가 끝나면 시험보기를 사용할 수 있어요.", systemImage: AppSection.exam.systemImage)
+        case .stats: EmptyStateView(title: "시험을 보면 학습 통계가 쌓여요.", systemImage: AppSection.stats.systemImage)
         case .studyMemos: MockStudyMemosOnboardingView()
         }
     }
@@ -248,7 +250,7 @@ private struct MockAddWordsOnboardingView: View {
                             systemImage: "return",
                             showsHelpLink: false,
                             onDismiss: {}
-                        ) { EmptyView() }
+                        )
                         .componentSpotlight(.addGuide)
                         .id(SpotlightTarget.addGuide)
 

@@ -66,9 +66,7 @@ struct SettingsView: View {
             }
 
             Section("데이터") {
-                NavigationLink {
-                    JSONBackupView()
-                } label: {
+                NavigationLink(value: AppRoute.settingsBackup) {
                     SettingsNavigationLabel(
                         title: "JSON 파일 백업 및 복원",
                         subtitle: "전체 데이터 또는 선택한 데이를 파일로 보관",
@@ -106,7 +104,7 @@ struct SettingsView: View {
             } header: {
                 Text("단어 추가")
             } footer: {
-                Text("지원 기기에서는 Apple Intelligence가 기기 안에서 단어 정보를 생성합니다. 입력한 단어를 외부 AI 서비스로 자동 전송하지 않습니다.")
+                Text("지원 기기에서는 Apple Intelligence가 기기 안에서 단어 정보를 생성합니다. 단어 추가 과정에서는 입력한 단어를 외부 AI 서비스로 전송하지 않습니다. 시험 탭에서 Gemini API 키를 직접 입력한 경우에만 시험 문제 준비를 위해 Gemini를 사용합니다.")
             }
 
             Section {
@@ -159,9 +157,7 @@ struct SettingsView: View {
             }
 
             Section("정보") {
-                NavigationLink {
-                    PrivacyAndServiceView()
-                } label: {
+                NavigationLink(value: AppRoute.settingsPrivacy) {
                     SettingsNavigationLabel(
                         title: "개인정보 및 서비스 안내",
                         subtitle: "로그인, 결제, 광고와 데이터 처리 확인",
@@ -296,7 +292,7 @@ struct SettingsView: View {
 
     private func rescheduleReviewReminder() async {
         guard isReviewReminderEnabled else { return }
-        let dueCount = ReviewScheduler.dueWordCount(in: vocabularyDays)
+        let dueCount = StudyQueue.snapshot(in: modelContext).reminderCount
         await ReviewReminderService.refreshReminder(
             dueWordCount: dueCount,
             hour: reviewReminderMinutesSinceMidnight / 60,
@@ -371,7 +367,7 @@ struct SettingsView: View {
     #endif
 }
 
-private struct JSONBackupView: View {
+struct JSONBackupView: View {
     @Query(sort: \VocabularyDay.createdAt) private var vocabularyDays: [VocabularyDay]
     @Query(sort: \StudyMemo.updatedAt, order: .reverse) private var studyMemos: [StudyMemo]
     @Query(sort: \StudyPageCategory.createdAt) private var studyPageCategories: [StudyPageCategory]
@@ -614,7 +610,7 @@ private struct JSONBackupView: View {
     }
 }
 
-private struct PrivacyAndServiceView: View {
+struct PrivacyAndServiceView: View {
     var body: some View {
         Form {
             Section("서비스 운영") {
@@ -642,8 +638,8 @@ private struct PrivacyAndServiceView: View {
                     systemImage: "icloud"
                 )
                 serviceRow(
-                    title: "외부 AI 자동 전송 없음",
-                    description: "JSON 기능은 사용자가 직접 복사하고 붙여넣을 때만 동작합니다.",
+                    title: "외부 AI는 사용자가 켤 때만",
+                    description: "JSON 기능은 사용자가 직접 복사하고 붙여넣을 때만 동작합니다. 시험 설정에 본인의 Gemini API 키를 입력하면, 시험 문제를 만들기 위해 단어·뜻·예문을 Google Gemini API로 보냅니다. 키는 이 기기의 키체인에만 저장됩니다.",
                     systemImage: "hand.raised"
                 )
             }
@@ -710,5 +706,5 @@ private struct SettingsNavigationLabel: View {
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self], inMemory: true)
 }

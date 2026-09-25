@@ -19,15 +19,21 @@ struct AppDataArchive: Codable {
     var vocabularyDays: [VocabularyDayArchive]
     var studyMemos: [StudyMemoArchive]
     var studyPageCategories: [StudyPageCategoryArchive]
+    /// 시험보기 학습일 (schema 6+). 단어의 srsNextLearningDay가 이 값에 상대적이라 함께 옮긴다.
+    var studyProgress: StudyProgressArchive?
+    /// 시험 풀이 로그 (schema 6+, 전체 백업에만).
+    var reviewLogs: [ReviewLogArchive]?
 
     init(
-        schemaVersion: Int = 5,
+        schemaVersion: Int = AppDataBackupService.currentSchemaVersion,
         createdAt: Date = Date(),
         appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         type: AppDataArchiveType,
         vocabularyDays: [VocabularyDayArchive] = [],
         studyMemos: [StudyMemoArchive] = [],
-        studyPageCategories: [StudyPageCategoryArchive] = []
+        studyPageCategories: [StudyPageCategoryArchive] = [],
+        studyProgress: StudyProgressArchive? = nil,
+        reviewLogs: [ReviewLogArchive]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.createdAt = createdAt
@@ -36,6 +42,8 @@ struct AppDataArchive: Codable {
         self.vocabularyDays = vocabularyDays
         self.studyMemos = studyMemos
         self.studyPageCategories = studyPageCategories
+        self.studyProgress = studyProgress
+        self.reviewLogs = reviewLogs
     }
 
     init(from decoder: Decoder) throws {
@@ -47,7 +55,49 @@ struct AppDataArchive: Codable {
         vocabularyDays = try container.decodeIfPresent([VocabularyDayArchive].self, forKey: .vocabularyDays) ?? []
         studyMemos = try container.decodeIfPresent([StudyMemoArchive].self, forKey: .studyMemos) ?? []
         studyPageCategories = try container.decodeIfPresent([StudyPageCategoryArchive].self, forKey: .studyPageCategories) ?? []
+        studyProgress = try container.decodeIfPresent(StudyProgressArchive.self, forKey: .studyProgress)
+        reviewLogs = try container.decodeIfPresent([ReviewLogArchive].self, forKey: .reviewLogs)
     }
+}
+
+struct ReviewLogArchive: Codable {
+    var id: UUID
+    var wordID: UUID
+    var sessionID: UUID
+    var learningDay: Int
+    var sessionKind: String
+    var mode: String
+    var isCorrect: Bool
+    var outcomeDetail: String
+    var stageBefore: Int
+    var stageAfter: Int
+    var answeredAt: Date
+}
+
+struct StudyProgressArchive: Codable {
+    var currentLearningDay: Int
+}
+
+/// 시험보기 SRS·보강 필드 (schema 6+). 없는 백업을 가져오면 기존 값을 건드리지 않는다.
+struct VocaWordQuizArchive: Codable {
+    var srsStage: Int = 0
+    var srsNextLearningDay: Int = 0
+    var srsIdkCount: Int = 0
+    var pos: String = ""
+    var cefr: String = ""
+    var meaningKo: String = ""
+    var disambiguationKo: String = ""
+    var formsJSON: String = ""
+    var termVariantsJSON: String = ""
+    var example: String = ""
+    var exampleKo: String = ""
+    var clozeSentence: String = ""
+    var clozeAnswer: String = ""
+    var clozeForm: String = ""
+    var clozeAcceptedJSON: String = ""
+    var nearMissJSON: String = ""
+    var enrichmentVersion: Int = 0
+    var enrichmentFingerprint: String = ""
 }
 
 struct StudyPageCategoryArchive: Codable, Identifiable {
@@ -226,12 +276,14 @@ struct VocaWordArchive: Codable, Identifiable {
     var status: String
     var nextReviewAt: Date
     var lastReviewedAt: Date?
+    var quiz: VocaWordQuizArchive?
 
     init(
         id: UUID = UUID(), english: String, meaningKo: String = "", exampleEn: String = "",
         exampleKo: String = "", note: String = "", toeicTag: String = "", createdAt: Date = Date(),
         reviewCount: Int = 0, correctCount: Int = 0, wrongCount: Int = 0, masteryLevel: Int = 0,
-        status: String = WordStatus.new.rawValue, nextReviewAt: Date = Date(), lastReviewedAt: Date? = nil
+        status: String = WordStatus.new.rawValue, nextReviewAt: Date = Date(), lastReviewedAt: Date? = nil,
+        quiz: VocaWordQuizArchive? = nil
     ) {
         self.id = id
         self.english = english
@@ -248,6 +300,7 @@ struct VocaWordArchive: Codable, Identifiable {
         self.status = status
         self.nextReviewAt = nextReviewAt
         self.lastReviewedAt = lastReviewedAt
+        self.quiz = quiz
     }
 
     init(from decoder: Decoder) throws {
@@ -267,6 +320,7 @@ struct VocaWordArchive: Codable, Identifiable {
         status = try container.decodeIfPresent(String.self, forKey: .status) ?? WordStatus.new.rawValue
         nextReviewAt = try container.decodeIfPresent(Date.self, forKey: .nextReviewAt) ?? Date()
         lastReviewedAt = try container.decodeIfPresent(Date.self, forKey: .lastReviewedAt)
+        quiz = try container.decodeIfPresent(VocaWordQuizArchive.self, forKey: .quiz)
     }
 }
 
@@ -313,16 +367,32 @@ enum AppDataBackupError: LocalizedError {
 
 @MainActor
 enum AppDataBackupService {
+    nonisolated static let currentSchemaVersion = 6
+
     static func archiveAll(
         vocabularyDays: [VocabularyDay],
         studyMemos: [StudyMemo],
         studyPageCategories: [StudyPageCategory]
     ) -> AppDataArchive {
-        AppDataArchive(
+        let context = vocabularyDays.first?.modelContext
+        let progress = context
+            .flatMap { try? $0.fetch(FetchDescriptor<StudyProgress>()) }
+            .flatMap(StudyProgressStore.preferred)
+        let logs = context
+            .flatMap { try? $0.fetch(FetchDescriptor<ReviewLog>(sortBy: [SortDescriptor(\.answeredAt)])) } ?? []
+        return AppDataArchive(
             type: .allAppData,
             vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.makeVocabularyDayArchive),
             studyMemos: studyMemos.sorted { $0.createdAt < $1.createdAt }.map(Self.makeStudyMemoArchive),
-            studyPageCategories: studyPageCategories.sorted { $0.createdAt < $1.createdAt }.map(Self.makeCategoryArchive)
+            studyPageCategories: studyPageCategories.sorted { $0.createdAt < $1.createdAt }.map(Self.makeCategoryArchive),
+            studyProgress: progress.map { StudyProgressArchive(currentLearningDay: $0.currentLearningDay) },
+            reviewLogs: logs.map {
+                ReviewLogArchive(
+                    id: $0.id, wordID: $0.wordID, sessionID: $0.sessionID, learningDay: $0.learningDay,
+                    sessionKind: $0.sessionKind, mode: $0.mode, isCorrect: $0.isCorrect, outcomeDetail: $0.outcomeDetail,
+                    stageBefore: $0.stageBefore, stageAfter: $0.stageAfter, answeredAt: $0.answeredAt
+                )
+            }
         )
     }
 
@@ -342,7 +412,7 @@ enum AppDataBackupService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let archive = try decoder.decode(AppDataArchive.self, from: Data(json.utf8))
-        guard archive.schemaVersion <= 5 else {
+        guard archive.schemaVersion <= currentSchemaVersion else {
             throw AppDataBackupError.unsupportedVersion(archive.schemaVersion)
         }
         return archive
@@ -438,7 +508,27 @@ enum AppDataBackupService {
             }()
             apply(memoArchive, to: memo)
         }
+
+        if let logArchives = archive.reviewLogs, !logArchives.isEmpty {
+            let existingIDs = Set(((try? context.fetch(FetchDescriptor<ReviewLog>())) ?? []).map(\.id))
+            for log in logArchives where !existingIDs.contains(log.id) {
+                context.insert(ReviewLog(
+                    id: log.id, wordID: log.wordID, sessionID: log.sessionID, learningDay: log.learningDay,
+                    sessionKind: log.sessionKind, mode: log.mode, isCorrect: log.isCorrect, outcomeDetail: log.outcomeDetail,
+                    stageBefore: log.stageBefore, stageAfter: log.stageAfter, answeredAt: log.answeredAt
+                ))
+            }
+        }
+
+        if let progressArchive = archive.studyProgress {
+            let progress = StudyProgressStore.fetchOrCreate(in: context)
+            progress.currentLearningDay = max(progress.currentLearningDay, progressArchive.currentLearningDay)
+        }
         try context.save()
+
+        // 가져온 SRS 값이 기기에 남은 최고값에 막혀 되돌아가지 않도록 기준을 다시 잡는다.
+        SRSProgressHighWaterStore.standard.reset()
+        SRSProgressHighWaterStore.standard.record(Array(wordsByID.values))
     }
 
     static func deleteAll(
@@ -456,7 +546,16 @@ enum AppDataBackupService {
         for category in studyPageCategories {
             context.delete(category)
         }
+        for progress in (try? context.fetch(FetchDescriptor<StudyProgress>())) ?? [] {
+            context.delete(progress)
+        }
+        for log in (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? [] {
+            context.delete(log)
+        }
         try context.save()
+        SRSProgressHighWaterStore.standard.reset()
+        ExamSessionStore.standard.clear()
+        StudyDayLedgerStore.standard.clear()
     }
 
     private static func makeVocabularyDayArchive(_ day: VocabularyDay) -> VocabularyDayArchive {
@@ -483,7 +582,27 @@ enum AppDataBackupService {
                     masteryLevel: word.masteryLevel,
                     status: word.status,
                     nextReviewAt: word.nextReviewAt,
-                    lastReviewedAt: word.lastReviewedAt
+                    lastReviewedAt: word.lastReviewedAt,
+                    quiz: VocaWordQuizArchive(
+                        srsStage: word.srsStage,
+                        srsNextLearningDay: word.srsNextLearningDay,
+                        srsIdkCount: word.srsIdkCount,
+                        pos: word.quizPos,
+                        cefr: word.quizCefr,
+                        meaningKo: word.quizMeaningKo,
+                        disambiguationKo: word.quizDisambiguationKo,
+                        formsJSON: word.quizFormsJSON,
+                        termVariantsJSON: word.quizTermVariantsJSON,
+                        example: word.quizExample,
+                        exampleKo: word.quizExampleKo,
+                        clozeSentence: word.quizClozeSentence,
+                        clozeAnswer: word.quizClozeAnswer,
+                        clozeForm: word.quizClozeForm,
+                        clozeAcceptedJSON: word.quizClozeAcceptedJSON,
+                        nearMissJSON: word.quizNearMissJSON,
+                        enrichmentVersion: word.quizEnrichmentVersion,
+                        enrichmentFingerprint: word.quizEnrichmentFingerprint
+                    )
                 )
             }
         )
@@ -504,6 +623,27 @@ enum AppDataBackupService {
         word.status = WordStatus(rawValue: archive.status)?.rawValue ?? WordStatus.new.rawValue
         word.nextReviewAt = archive.nextReviewAt
         word.lastReviewedAt = archive.lastReviewedAt
+
+        if let quiz = archive.quiz {
+            word.srsStage = max(0, min(quiz.srsStage, SRSEngine.maxStage))
+            word.srsNextLearningDay = max(0, quiz.srsNextLearningDay)
+            word.srsIdkCount = max(0, quiz.srsIdkCount)
+            word.quizPos = quiz.pos
+            word.quizCefr = quiz.cefr
+            word.quizMeaningKo = quiz.meaningKo
+            word.quizDisambiguationKo = quiz.disambiguationKo
+            word.quizFormsJSON = quiz.formsJSON
+            word.quizTermVariantsJSON = quiz.termVariantsJSON
+            word.quizExample = quiz.example
+            word.quizExampleKo = quiz.exampleKo
+            word.quizClozeSentence = quiz.clozeSentence
+            word.quizClozeAnswer = quiz.clozeAnswer
+            word.quizClozeForm = quiz.clozeForm
+            word.quizClozeAcceptedJSON = quiz.clozeAcceptedJSON
+            word.quizNearMissJSON = quiz.nearMissJSON
+            word.quizEnrichmentVersion = quiz.enrichmentVersion
+            word.quizEnrichmentFingerprint = quiz.enrichmentFingerprint
+        }
     }
 
     private static func makeStudyMemoArchive(_ memo: StudyMemo) -> StudyMemoArchive {
