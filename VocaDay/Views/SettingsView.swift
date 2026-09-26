@@ -110,13 +110,13 @@ struct SettingsView: View {
             Section {
                 Toggle(isOn: $isReviewReminderEnabled) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("복습 알림")
-                        Text("설정한 시간에 오늘 복습할 단어가 있을 때만 알려드려요.")
+                        Text("학습 알림")
+                        Text("설정한 시간에 오늘 학습할 단어가 있을 때만 알려드려요.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .accessibilityHint("켜면 알림 권한을 요청하고, 복습할 단어가 있는 날에만 알림을 보냅니다.")
+                .accessibilityHint("켜면 알림 권한을 요청하고, 학습할 단어가 있는 날에만 알림을 보냅니다.")
                 .onChange(of: isReviewReminderEnabled) { _, isEnabled in
                     handleReviewReminderToggleChange(isEnabled)
                 }
@@ -140,7 +140,7 @@ struct SettingsView: View {
             } header: {
                 Text("알림")
             } footer: {
-                Text("복습할 단어가 없는 날에는 알림을 보내지 않습니다. 기기의 알림 권한이 꺼져 있으면 이 화면에서 다시 켜도 알림이 오지 않으니 설정 앱에서 허용해주세요.")
+                Text("학습할 단어가 없는 날에는 알림을 보내지 않습니다. 기기의 알림 권한이 꺼져 있으면 이 화면에서 다시 켜도 알림이 오지 않으니 설정 앱에서 허용해주세요.")
             }
 
             Section("정보") {
@@ -196,13 +196,6 @@ struct SettingsView: View {
                 }
                 .accessibilityHint("기본 데모 학습 메모 3개를 다시 만듭니다.")
 
-                Button {
-                    importEvenlyDistributedRealData()
-                } label: {
-                    Label("균등배분 데이터 넣기", systemImage: "square.stack.3d.up")
-                }
-                .accessibilityHint("앱에 포함된 실제 단어 데이터를 데이별로 균등하게 나누어 현재 데이터와 병합합니다.")
-
                 if let studyMemoDebugStatusMessage {
                     Text(studyMemoDebugStatusMessage)
                         .font(.caption)
@@ -211,7 +204,7 @@ struct SettingsView: View {
             } header: {
                 Text("디버그")
             } footer: {
-                Text("스포트라이트 체험은 실제 데이터를 변경하지 않습니다. 전체 절차는 앱의 모든 안내 단계를, 첫 실행 안내는 새 사용자가 보는 3단계만 보여 줍니다. 초기화는 학습 메모와 분류만 삭제하며, 데모 생성은 사용자 메모를 유지하고 기본 데모 3개를 다시 만듭니다. 균등배분 데이터 넣기는 번들에 포함된 실제 단어 데이터를 데이별로 고르게 나눠 현재 데이터에 병합합니다.")
+                Text("스포트라이트 체험은 실제 데이터를 변경하지 않습니다. 전체 절차는 앱의 모든 안내 단계를, 첫 실행 안내는 새 사용자가 보는 3단계만 보여 줍니다. 초기화는 학습 메모와 분류만 삭제하며, 데모 생성은 사용자 메모를 유지하고 기본 데모 3개를 다시 만듭니다.")
             }
             #endif
 
@@ -220,7 +213,7 @@ struct SettingsView: View {
                     showsDeleteConfirmation = true
                 }
                 .disabled(!hasStoredData)
-                .accessibilityHint("저장한 데이, 단어, 복습 기록과 학습 메모를 모두 삭제합니다. 되돌릴 수 없습니다.")
+                .accessibilityHint("저장한 데이, 단어, 학습 기록과 학습 메모를 모두 삭제합니다. 되돌릴 수 없습니다.")
 
                 if let deletionStatusMessage {
                     Text(deletionStatusMessage)
@@ -228,7 +221,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("저장한 데이, 단어, 복습 기록과 학습 메모를 모두 삭제하며 되돌릴 수 없습니다.")
+                Text("저장한 데이, 단어, 학습 기록과 학습 메모를 모두 삭제하며 되돌릴 수 없습니다.")
             }
         }
         .formStyle(.grouped)
@@ -237,7 +230,7 @@ struct SettingsView: View {
             Button("모든 데이터 삭제", role: .destructive, action: deleteAllData)
             Button("취소", role: .cancel) {}
         } message: {
-            Text("저장한 데이, 단어, 복습 기록과 학습 메모가 모두 삭제되며 되돌릴 수 없습니다.")
+            Text("저장한 데이, 단어, 학습 기록과 학습 메모가 모두 삭제되며 되돌릴 수 없습니다.")
         }
         #if DEBUG
         .confirmationDialog(
@@ -248,7 +241,7 @@ struct SettingsView: View {
             Button("학습 메모와 분류 삭제", role: .destructive, action: resetStudyMemos)
             Button("취소", role: .cancel) {}
         } message: {
-            Text("모든 학습 메모와 직접 만든 분류가 삭제됩니다. 단어 데이와 복습 기록은 유지됩니다.")
+            Text("모든 학습 메모와 직접 만든 분류가 삭제됩니다. 단어 데이와 학습 기록은 유지됩니다.")
         }
         #endif
     }
@@ -358,22 +351,6 @@ struct SettingsView: View {
             studyMemoDebugStatusMessage = "데모를 생성하지 못했습니다. 앱을 다시 연 뒤 시도하세요."
         }
     }
-
-    private func importEvenlyDistributedRealData() {
-        do {
-            let archive = try RealDataImporter.loadArchive()
-            try AppDataBackupService.applyUpsert(
-                archive,
-                in: modelContext,
-                vocabularyDays: vocabularyDays,
-                studyMemos: studyMemos,
-                studyPageCategories: studyPageCategories
-            )
-            studyMemoDebugStatusMessage = "균등배분한 실제 데이터를 현재 데이터와 병합했습니다."
-        } catch {
-            studyMemoDebugStatusMessage = "균등배분 데이터를 불러오지 못했습니다: \(error.localizedDescription)"
-        }
-    }
     #endif
 }
 
@@ -426,8 +403,8 @@ struct JSONBackupView: View {
                 Text("백업할 데이터")
             } footer: {
                 Text(backupExportScope == .allData
-                     ? "모든 단어 데이, 단어·복습 기록과 학습 메모를 포함합니다."
-                     : "선택한 단어 데이와 그 안의 단어·복습 기록만 포함합니다.")
+                     ? "모든 단어 데이, 단어·학습 기록과 학습 메모를 포함합니다."
+                     : "선택한 단어 데이와 그 안의 단어·학습 기록만 포함합니다.")
             }
 
             Section {
@@ -465,7 +442,7 @@ struct JSONBackupView: View {
             }
 
             Section("보안 안내") {
-                Label("파일에는 입력한 단어, 복습 기록과 학습 메모가 그대로 포함됩니다.", systemImage: "lock.doc")
+                Label("파일에는 입력한 단어, 학습 기록과 학습 메모가 그대로 포함됩니다.", systemImage: "lock.doc")
                 Text("공유 기기나 공개 폴더에는 저장하지 마세요. 복원할 때는 현재 데이터를 지우지 않고 같은 항목을 업데이트하며 없는 항목을 추가합니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -644,7 +621,7 @@ struct PrivacyAndServiceView: View {
             Section("데이터 처리") {
                 serviceRow(
                     title: "개인 iCloud 동기화",
-                    description: "단어, 복습 기록과 학습 메모는 사용자의 개인 CloudKit 저장소를 통해 기기 사이에서 동기화될 수 있습니다.",
+                    description: "단어, 학습 기록과 학습 메모는 사용자의 개인 CloudKit 저장소를 통해 기기 사이에서 동기화될 수 있습니다.",
                     systemImage: "icloud"
                 )
                 serviceRow(

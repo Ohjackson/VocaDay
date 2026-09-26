@@ -5,16 +5,16 @@ enum VocaDayOnboardingMockData {
         DayCardPresentation(
             title: "Day 1 · 출퇴근 영어",
             createdAt: Date(timeIntervalSince1970: 1_787_856_000),
-            lastReviewedAt: Date(timeIntervalSince1970: 1_788_028_800),
+            lastStudiedAt: Date(timeIntervalSince1970: 1_788_028_800),
             wordCount: 24,
-            reviewSessionCount: 2
+            learnedCount: 6
         ),
         DayCardPresentation(
             title: "Day 2 · 회의 표현",
             createdAt: Date(timeIntervalSince1970: 1_787_942_400),
-            lastReviewedAt: nil,
+            lastStudiedAt: nil,
             wordCount: 18,
-            reviewSessionCount: 0
+            learnedCount: 0
         )
     ]
 

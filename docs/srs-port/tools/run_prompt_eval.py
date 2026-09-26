@@ -7,7 +7,6 @@
 사용법 (docs/srs-port 에서):
   python3 tools/run_prompt_eval.py --dry-run                 # 키 없이 프롬프트 조립만 점검
   GEMINI_API_KEY=... python3 tools/run_prompt_eval.py         # samples 의 input 8개
-  GEMINI_API_KEY=... python3 tools/run_prompt_eval.py --real 10   # 앱 번들 RealDataBackup.json 의 실제 단어 10개도
 옵션: --model gemini-3.5-flash-lite  --thinking low
 """
 import argparse, json, os, re, sys, time, urllib.request, urllib.error
@@ -34,19 +33,6 @@ def esc(v):
 
 def substitute(template, values):
     return re.sub(r"\$\{([a-z_]+)\}", lambda m: values.get(m.group(1), m.group(0)), template)
-
-
-# 앱의 ExamText.strippingPartOfSpeechMarkers / firstExampleLine 과 같은 전처리
-POS_RE = re.compile(r"(?i)(?<![A-Za-z])(n|v|vt|vi|adj|adv|phr|prep|conj|pron|interj|int|idiom|aux)\.\s*")
-
-
-def strip_pos(s):
-    return POS_RE.sub("", s).strip()
-
-
-def first_line(s):
-    line = next((l.strip() for l in s.splitlines() if l.strip()), "")
-    return re.sub(r"^\d+[.)]\s*", "", line)
 
 
 def call_gemini(api_key, model, thinking, system, prompt, schema):
@@ -78,7 +64,6 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--model", default="gemini-3.5-flash-lite")
     ap.add_argument("--thinking", default="low")
-    ap.add_argument("--real", type=int, default=0)
     args = ap.parse_args()
 
     system = read("en_word_system.txt")
@@ -87,11 +72,6 @@ def main():
 
     samples = json.load(open(os.path.join(PORT, "samples", "sample_words.json"), encoding="utf-8"))
     cases = [("sample", s["input"]) for s in samples["valid"]]
-    if args.real:
-        backup = json.load(open(os.path.join(REPO, "VocaDay", "Resources", "RealDataBackup.json"), encoding="utf-8"))
-        words = [w for d in backup["vocabularyDays"] for w in d["words"]][: args.real]
-        cases += [("real", {"term": w["english"].strip(), "user_meaning_ko": strip_pos(w["meaningKo"]),
-                            "user_example": first_line(w["exampleEn"])}) for w in words]
 
     if args.dry_run:
         for kind, inp in cases:

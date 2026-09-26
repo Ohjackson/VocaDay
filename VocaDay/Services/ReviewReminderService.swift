@@ -29,8 +29,8 @@ enum ReviewReminderService {
         guard let fireDate = nextFireDate(hour: hour, minute: minute, from: now) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "오늘 복습할 단어 \(dueWordCount)개"
-        content.body = "지금 VocaDay를 열어 복습을 마쳐보세요."
+        content.title = "오늘 학습할 단어 \(dueWordCount)개"
+        content.body = "지금 VocaDay를 열어 오늘 학습을 마쳐보세요."
         content.sound = .default
         content.badge = NSNumber(value: dueWordCount)
 

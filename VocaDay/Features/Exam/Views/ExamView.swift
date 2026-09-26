@@ -26,9 +26,12 @@ struct ExamView: View {
 
     /// 장부가 바뀌면(복습 카드 기록) 남은 수를 다시 계산한다.
     @AppStorage(StudyDayLedgerStore.storageKey) private var ledgerData: Data?
+    /// 다른 기기에서 이어하기가 오면 "이어서 풀기"를 다시 계산한다.
+    @AppStorage(ExamSessionStore.storageKey) private var examSessionData: Data?
 
     private func snapshot(now: Date) -> StudyQueueSnapshot {
         _ = ledgerData
+        _ = examSessionData
         return StudyQueue.snapshot(words: words, progress: progress, now: now)
     }
 
@@ -159,6 +162,7 @@ struct ExamView: View {
 
     private func buttonTitle(for snapshot: StudyQueueSnapshot, resumable: Bool) -> String {
         if snapshot.isDoneForToday { return "오늘 학습 완료" }
+        if snapshot.isAwaitingSync { return "동기화 중" }
         guard snapshot.status.isButtonEnabled else { return snapshot.status.buttonTitle }
         if snapshot.isReadyToFinalize { return "오늘 결과 반영하기" }
         if resumable { return "이어서 풀기" }
@@ -167,9 +171,10 @@ struct ExamView: View {
 
     private func headline(for snapshot: StudyQueueSnapshot) -> String {
         if snapshot.isDoneForToday { return "오늘 학습을 마쳤어요" }
+        if snapshot.isAwaitingSync { return "다른 기기의 학습을 불러오는 중" }
         switch snapshot.status {
         case .readyForFirstSession:
-            return snapshot.targetIDs.isEmpty ? "오늘 복습할 단어가 없어요" : "오늘 복습할 단어 \(snapshot.remainingCount)개"
+            return snapshot.targetIDs.isEmpty ? "오늘 학습할 단어가 없어요" : "오늘 학습할 단어 \(snapshot.remainingCount)개"
         case .waitingForRetry:
             return "틀린 단어 \(sessionState.wrongAnswerWordIDs.count)개 재도전 대기 중"
         case .readyForRetry:
@@ -182,6 +187,9 @@ struct ExamView: View {
             return snapshot.upcomingCount > 0
                 ? "다음 학습(단어 \(snapshot.upcomingCount)개)은 내일 열려요. 하루 한 번씩 간격을 두어야 오래 기억해요."
                 : "새 단어를 추가하면 내일 학습에 나와요."
+        }
+        if snapshot.isAwaitingSync {
+            return "다른 기기에서 푼 결과가 iCloud로 반영되면 이어서 풀 수 있어요."
         }
         switch snapshot.status {
         case .readyForFirstSession:

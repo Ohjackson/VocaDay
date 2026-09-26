@@ -23,7 +23,7 @@ extension ExamItemKind {
         case .clozeChoiceWithoutTranslation: "빈칸 고르기(번역 없이)"
         case .letterTiles: "글자 조각 맞추기"
         case .dictation: "듣고 쓰기"
-        case .flashcard: "복습 카드"
+        case .flashcard: "카드"
         }
     }
 }

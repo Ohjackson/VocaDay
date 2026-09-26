@@ -107,7 +107,7 @@ struct StatsForecastSection: View {
                 if let overflow {
                     Text("\(overflow == 0 ? "오늘" : "\(overflow)학습일 뒤")부터 하루 \(SRSEngine.dailyReviewLimit)개를 넘어요")
                         .font(.headline)
-                    Text("약 \(history.estimatedDate(afterLearningDays: overflow).formatted(.dateTime.month().day())) 무렵. 넘친 단어는 다음 학습으로 밀리고, 새 단어가 먼저 나와서 복습이 늦어져요.")
+                    Text("약 \(history.estimatedDate(afterLearningDays: overflow).formatted(.dateTime.month().day())) 무렵. 넘친 단어는 다음 학습으로 밀리고, 새 단어가 먼저 나와서 전에 본 단어가 늦게 나와요.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

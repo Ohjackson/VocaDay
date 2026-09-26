@@ -37,7 +37,7 @@ struct LearningMethodCard: View {
                     point(
                         "calendar.badge.clock",
                         "간격 반복",
-                        "맞힐 때마다 다음 복습까지 간격이 1 → 2 → 4 → 7 → 13 → 30학습일처럼 늘어나요. 잊을 즈음에 다시 보여 주는 방식은 망각 곡선 연구 이후 여러 실험에서 효과가 확인된 방법이에요."
+                        "맞힐 때마다 다시 나올 때까지 간격이 1 → 2 → 4 → 7 → 13 → 30학습일처럼 늘어나요. 잊을 즈음에 다시 보여 주는 방식은 망각 곡선 연구 이후 여러 실험에서 효과가 확인된 방법이에요."
                     )
                     point(
                         "lightbulb",
@@ -52,7 +52,7 @@ struct LearningMethodCard: View {
                     point(
                         "arrow.counterclockwise",
                         "틀리면 곧바로 다시",
-                        "틀린 단어는 단계가 내려가고 \(SRSEngine.retryDelayHours)시간 뒤 재도전에서 한 번 더 나와요. 미리 복습하다 ‘다시’를 고른 단어도 오늘 목록에 들어가요."
+                        "틀린 단어는 단계가 내려가고 \(SRSEngine.retryDelayHours)시간 뒤 재도전에서 한 번 더 나와요. 미리 카드로 보다가 ‘다시’를 고른 단어도 오늘 목록에 들어가요."
                     )
                 }
                 .transition(.opacity)

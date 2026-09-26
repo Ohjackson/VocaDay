@@ -93,7 +93,7 @@ enum WordStatus: String, CaseIterable {
         switch self {
         case .new: "새 단어"
         case .learning: "학습 중"
-        case .review: "복습 예정"
+        case .review: "학습 예정"
         case .weak: "취약"
         case .mastered: "마스터"
         }

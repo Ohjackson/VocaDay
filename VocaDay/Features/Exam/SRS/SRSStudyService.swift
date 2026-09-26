@@ -67,13 +67,17 @@ struct SRSStudyService {
         for entry in entries where targets.contains(entry.wordID) {
             ledger.record(wordID: entry.wordID, isCorrect: entry.isCorrect, mode: entry.mode, detail: entry.detail)
         }
+        ledger.updatedAt = now()
         ledgerStore.save(ledger)
         return ledger
     }
 
     /// 복습 카드 결과. 오늘 대상이면 장부로, 아니면 미리 복습 규칙으로 처리한다.
     func recordFlashcards(_ decisions: [(wordID: UUID, known: Bool)]) -> (graded: Int, lapsed: Int) {
-        let targets = Set(snapshot().targetIDs)
+        let snapshot = snapshot()
+        // 다른 기기의 결과가 아직 다 오지 않았으면 오늘 대상을 알 수 없어 기록하지 않는다.
+        guard !snapshot.isAwaitingSync else { return (0, 0) }
+        let targets = Set(snapshot.targetIDs)
         let today = decisions.filter { targets.contains($0.wordID) }
         let early = decisions.filter { !targets.contains($0.wordID) }
 
@@ -153,7 +157,10 @@ struct SRSStudyService {
         guard repository.apply(outcome, to: progress, words: allWords, now: completedAt) else {
             throw FinalizationError.saveFailed
         }
-        ledgerStore.clear()
+        // 장부는 반영 표시만 해서 남긴다. 진행 상태가 늦게 도착한 다른 기기가 같은 날을 또 반영하지 않게 한다.
+        var finalizedLedger = ledger
+        finalizedLedger.finalizedAt = completedAt
+        ledgerStore.save(finalizedLedger)
         examStore.clear()
         recordLogs(ledger: ledger, results: results, cardsBefore: cardsBefore, outcome: outcome, at: completedAt)
 

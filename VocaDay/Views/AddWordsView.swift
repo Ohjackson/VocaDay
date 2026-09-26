@@ -744,7 +744,7 @@ struct AddWordsView: View {
         if !missingMeaning.isEmpty {
             alert = VocaAlert(
                 title: "한국어 뜻을 입력하세요",
-                message: "\(missingMeaning.map { "\($0.0)번 \($0.1.english)" }.joined(separator: ", "))에 뜻이 없습니다. 뜻이 있어야 복습 카드와 시험 문제를 만들 수 있어요."
+                message: "\(missingMeaning.map { "\($0.0)번 \($0.1.english)" }.joined(separator: ", "))에 뜻이 없습니다. 뜻이 있어야 카드와 시험 문제를 만들 수 있어요."
             )
             return false
         }
@@ -974,11 +974,11 @@ struct AddWordsHelpView: View {
                 importantNotice
 
                 helpSection(
-                    title: "복습·시험에 필요한 단어 데이터",
+                    title: "카드·시험에 필요한 단어 데이터",
                     systemImage: "checkmark.seal"
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
-                        helpStep(number: 1, text: "한국어 뜻: 짝 맞추기·뜻 고르기·복습 카드에 쓰여요. 없으면 저장할 수 없어요.")
+                        helpStep(number: 1, text: "한국어 뜻: 짝 맞추기·뜻 고르기·카드에 쓰여요. 없으면 저장할 수 없어요.")
                         helpStep(number: 2, text: "단어가 들어간 영어 예문: 예문 속 단어 자리가 빈칸 문제의 정답이 돼요. postponed처럼 활용형도 괜찮아요.")
                         helpStep(number: 3, text: "예문 번역: 빈칸 문제에서 뜻을 짐작하는 힌트로 보여 줘요.")
                         Text("저장 전 목록의 각 단어 아래에 준비 상태가 표시돼요. Apple Intelligence 생성과 JSON 프롬프트는 이 조건에 맞춰 예문을 만들어요.")

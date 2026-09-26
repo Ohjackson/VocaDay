@@ -131,7 +131,7 @@ struct DayWordsDetailView: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("복습 기록도 함께 사라지고 되돌릴 수 없어요.")
+            Text("학습 기록도 함께 사라지고 되돌릴 수 없어요.")
         }
         .onChange(of: currentDayID) { _, _ in
             expandedWordID = nil
@@ -168,7 +168,7 @@ struct DayWordsDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(currentDay.wordList.isEmpty)
-                .help("이 데이의 모든 단어를 카드로 넘기며 복습해요")
+                .help("이 데이의 모든 단어를 카드로 넘기며 떠올려 봐요")
 
                 Button {
                     togglePlayback()

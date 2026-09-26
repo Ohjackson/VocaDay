@@ -65,7 +65,7 @@ nonisolated struct ExamPlan: Codable, Equatable, Sendable {
     static let empty = ExamPlan(items: [], lessonBreaksAfter: [])
 }
 
-/// 중간 종료 후 이어하기용 스냅샷 (SPEC §3.5). 기기 로컬에 저장한다.
+/// 중간 종료 후 이어하기용 스냅샷 (SPEC §3.5). iCloud로 다른 기기와 나눈다 (`StudySync`).
 nonisolated struct ActiveExamSession: Codable, Equatable, Sendable {
     var sessionID: UUID
     var kind: SRSSessionKind
@@ -118,23 +118,37 @@ nonisolated struct ActiveExamSession: Codable, Equatable, Sendable {
     var answeredGradedCount: Int { results.count }
 }
 
-/// `activeSessionJSON` 저장소. iCloud로 동기화하지 않고 기기에만 둔다 (두 기기 동시 진행 충돌 방지).
+/// `activeSessionJSON` 저장소. 다른 기기에서 이어 풀 수 있게 iCloud 키-값 저장소로 동기화한다.
+/// 두 기기에서 같은 세션을 풀면 결과를 합친다 (`ActiveExamSession.merged(with:)`).
 nonisolated struct ExamSessionStore: Sendable {
-    static let standard = ExamSessionStore(storageKey: "examActiveSessionV1")
+    static let storageKey = "examActiveSessionV1"
+    static let standard = ExamSessionStore(storageKey: storageKey, syncsWithICloud: true)
 
-    let storageKey: String
+    private let storage: SyncedStudyStorage<ActiveExamSession>
+    var storageKey: String { storage.storageKey }
 
-    func load() -> ActiveExamSession? {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return nil }
-        return try? JSONDecoder().decode(ActiveExamSession.self, from: data)
+    init(storageKey: String, syncsWithICloud: Bool = false) {
+        storage = SyncedStudyStorage(storageKey: storageKey, syncsWithICloud: syncsWithICloud)
     }
 
+    func load() -> ActiveExamSession? {
+        storage.load()
+    }
+
+    /// 같은 세션이 이미 저장돼 있으면(다른 기기에서 더 풀었을 수 있다) 합쳐서 저장한다.
     func save(_ session: ActiveExamSession) {
-        guard let data = try? JSONEncoder().encode(session) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        if let saved = load(), saved.sessionID == session.sessionID {
+            storage.save(session.merged(with: saved))
+        } else {
+            storage.save(session)
+        }
     }
 
     func clear() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        storage.clear()
+    }
+
+    func mergeFromCloud(changedExternally: Bool) {
+        storage.mergeFromCloud(changedExternally: changedExternally)
     }
 }

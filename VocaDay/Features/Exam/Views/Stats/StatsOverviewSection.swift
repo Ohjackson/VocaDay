@@ -37,7 +37,7 @@ struct StatsOverviewSection: View {
         }()
         return LazyVGrid(columns: columns, spacing: 10) {
             StatTile(title: "전체 단어", value: "\(stats.words.count)", caption: "보강 \(stats.enrichedCount)개")
-            StatTile(title: "오늘 복습", value: "\(stats.dueTodayIDs.count)", caption: "하루 최대 \(SRSEngine.dailyReviewLimit)개", tint: .accentColor)
+            StatTile(title: "오늘 학습", value: "\(stats.dueTodayIDs.count)", caption: "하루 최대 \(SRSEngine.dailyReviewLimit)개", tint: .accentColor)
             StatTile(
                 title: "밀린 단어",
                 value: "\(stats.backlogCount)",

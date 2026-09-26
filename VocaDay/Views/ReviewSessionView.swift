@@ -49,7 +49,7 @@ struct ReviewSessionView: View {
 
             Group {
                 if deck.isEmpty {
-                    ContentUnavailableView("복습할 단어가 없습니다", systemImage: "checkmark.seal")
+                    ContentUnavailableView("카드로 볼 단어가 없습니다", systemImage: "checkmark.seal")
                 } else if deck.isComplete {
                     completionCard
                 } else if let currentWord {
@@ -65,7 +65,7 @@ struct ReviewSessionView: View {
             }
         }
         .background(AppTheme.background)
-        .navigationTitle(dueOnly ? "\(day.title) · 오늘 복습" : day.title)
+        .navigationTitle(dueOnly ? "\(day.title) · 오늘 학습" : day.title)
         .toolbar { toolbarContent }
         .focusable()
         .focusEffectDisabled()
@@ -333,7 +333,7 @@ struct ReviewSessionView: View {
             VStack(spacing: 2) {
                 Label(isKnown ? "알아요" : "다시", systemImage: isKnown ? "checkmark" : "arrow.counterclockwise")
                     .font(.subheadline.weight(.semibold))
-                Text(isKnown ? "복습 간격 늘리기\(Self.keyHint("→"))" : "곧 다시 보기\(Self.keyHint("←"))")
+                Text(isKnown ? "간격 늘리기\(Self.keyHint("→"))" : "곧 다시 보기\(Self.keyHint("←"))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -365,7 +365,7 @@ struct ReviewSessionView: View {
             }
 
             Button(action: finishReview) {
-                Label("복습 완료", systemImage: "checkmark.circle")
+                Label("카드 완료", systemImage: "checkmark.circle")
                     .frame(minWidth: 180, minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
@@ -404,7 +404,7 @@ struct ReviewSessionView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
-            .accessibilityLabel("복습 보기 설정")
+            .accessibilityLabel("카드 보기 설정")
             .disabled(deck.isEmpty)
         }
         #else
@@ -509,13 +509,13 @@ struct ReviewSessionView: View {
         let remaining = service.snapshot().remainingCount
         if recorded.graded > 0, remaining > 0 {
             completionAlert = VocaAlert(
-                title: "복습을 기록했어요",
-                message: "오늘 복습할 단어가 \(remaining)개 남았어요. 다른 데이의 복습이나 시험으로 마저 풀면 오늘 학습이 반영돼요."
+                title: "카드 결과를 기록했어요",
+                message: "오늘 학습할 단어가 \(remaining)개 남았어요. 다른 데이의 카드나 시험으로 마저 풀면 오늘 학습이 반영돼요."
             )
         } else if recorded.lapsed > 0 {
             completionAlert = VocaAlert(
-                title: "복습을 기록했어요",
-                message: "'다시'로 고른 단어 \(recorded.lapsed)개는 오늘 복습 목록에 추가했어요."
+                title: "카드 결과를 기록했어요",
+                message: "'다시'로 고른 단어 \(recorded.lapsed)개는 오늘 학습 목록에 추가했어요."
             )
         } else {
             dismiss()
@@ -526,13 +526,13 @@ struct ReviewSessionView: View {
         let wrong = finalization.outcome.retryWordIDs.count
         if finalization.kind == .first, wrong > 0 {
             return VocaAlert(
-                title: "오늘 복습을 마쳤어요",
+                title: "오늘 학습을 마쳤어요",
                 message: "틀린 단어 \(wrong)개는 \(SRSEngine.retryDelayHours)시간 뒤 재도전에서 다시 나와요. 알람으로 알려 드릴게요."
             )
         }
         return VocaAlert(
             title: "오늘 학습 완료",
-            message: "맞힌 단어는 다음 복습까지 간격이 늘어났어요. 다음 복습 예정일에 다시 불러올게요."
+            message: "맞힌 단어는 다음에 나올 때까지 간격이 늘어났어요. 그날 다시 불러올게요."
         )
     }
 

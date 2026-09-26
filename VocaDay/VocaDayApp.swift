@@ -84,6 +84,9 @@ struct VocaDayApp: App {
     }()
 
     init() {
+        if !Self.isRunningTests {
+            StudySessionSync.start()
+        }
         #if os(macOS)
         if !Self.isRunningTests {
             GlobalQuickAddShortcut.shared.start()

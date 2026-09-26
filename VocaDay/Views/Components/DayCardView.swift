@@ -1,36 +1,42 @@
 import SwiftUI
 
 struct DayCardPresentation: Equatable, Sendable {
+    /// 이 단계 이상이면 '익힘'으로 센다. `SRSEngine.baseGaps` 기준 다음 출제까지 4학습일 이상 남은 단어.
+    static let learnedStage = 5
+
     let title: String
     let createdAt: Date
-    let lastReviewedAt: Date?
+    /// 카드·시험 중 이 데이 단어를 마지막으로 푼 때.
+    let lastStudiedAt: Date?
     let wordCount: Int
-    let reviewSessionCount: Int
+    let learnedCount: Int
     let dueReviewCount: Int?
 
     init(
         title: String,
         createdAt: Date,
-        lastReviewedAt: Date?,
+        lastStudiedAt: Date?,
         wordCount: Int,
-        reviewSessionCount: Int,
+        learnedCount: Int,
         dueReviewCount: Int? = nil
     ) {
         self.title = title
         self.createdAt = createdAt
-        self.lastReviewedAt = lastReviewedAt
+        self.lastStudiedAt = lastStudiedAt
         self.wordCount = wordCount
-        self.reviewSessionCount = reviewSessionCount
+        self.learnedCount = learnedCount
         self.dueReviewCount = dueReviewCount
     }
 
     init(day: VocabularyDay, dueReviewCount: Int? = nil) {
+        let words = day.wordList
         self.init(
             title: day.title,
             createdAt: day.createdAt,
-            lastReviewedAt: day.lastReviewedAt,
-            wordCount: day.wordList.count,
-            reviewSessionCount: day.reviewSessionCount,
+            // 단어별 기록은 `SRSStudyService`가 카드·시험 모두에서 남긴다. 예전 데이 기록도 함께 본다.
+            lastStudiedAt: (words.compactMap(\.lastReviewedAt) + [day.lastReviewedAt].compactMap { $0 }).max(),
+            wordCount: words.count,
+            learnedCount: words.filter { $0.srsStage >= Self.learnedStage }.count,
             dueReviewCount: dueReviewCount
         )
     }
@@ -125,9 +131,9 @@ struct DayCardView: View {
             .lineLimit(1)
 
             HStack(spacing: 4) {
-                Text("마지막 복습")
-                if let lastReviewedAt = presentation.lastReviewedAt {
-                    Text(lastReviewedAt, format: .dateTime.month().day().year())
+                Text("마지막 학습")
+                if let lastStudiedAt = presentation.lastStudiedAt {
+                    Text(lastStudiedAt, format: .dateTime.month().day().year())
                 } else {
                     Text("-")
                 }
@@ -144,7 +150,7 @@ struct DayCardView: View {
                 metric(title: "오늘", value: dueReviewCount, emphasizesValue: dueReviewCount > 0)
             }
             metric(title: "단어", value: presentation.wordCount)
-            metric(title: "복습", value: presentation.reviewSessionCount)
+            metric(title: "익힘", value: presentation.learnedCount)
         }
     }
 

@@ -59,7 +59,7 @@ struct WordStudyDetailView: View {
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
                 StatTile(
-                    title: "다음 복습",
+                    title: "다음 학습",
                     value: learningDayText(until),
                     caption: until == 0 ? "오늘 세션 대상" : "약 \(history.estimatedDate(afterLearningDays: until).formatted(.dateTime.month().day()))"
                 )

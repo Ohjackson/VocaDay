@@ -246,13 +246,22 @@ nonisolated enum SessionPlanner {
         private let terms: [UUID: String]
         private let meaningKeys: [UUID: Set<String>]
         private let nearMisses: [UUID: Set<String>]
+        private let vectors: [UUID: [Double]]
 
-        init(_ words: [QuizWord]) {
+        /// vector: 표제어 → 단위 벡터. 기본은 기기 내장 영어 임베딩, 테스트에서는 고정값을 넣는다.
+        init(_ words: [QuizWord], vector: (String) -> [Double]? = WordEmbedding.unitVector) {
             self.words = words
             byID = Dictionary(words.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             terms = Dictionary(words.map { ($0.id, ExamText.normalize($0.term)) }, uniquingKeysWith: { first, _ in first })
             meaningKeys = Dictionary(words.map { ($0.id, $0.meaningKeys) }, uniquingKeysWith: { first, _ in first })
             nearMisses = Dictionary(words.map { ($0.id, Set($0.nearMiss.map(ExamText.normalize))) }, uniquingKeysWith: { first, _ in first })
+            vectors = Dictionary(words.compactMap { word in vector(word.term).map { (word.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        }
+
+        /// 두 표제어의 임베딩 거리. 어느 쪽이든 벡터가 없으면 nil.
+        func embeddingDistance(_ lhs: QuizWord, _ rhs: QuizWord) -> Double? {
+            guard let left = vectors[lhs.id], let right = vectors[rhs.id] else { return nil }
+            return WordEmbedding.cosineDistance(left, right)
         }
 
         func normalizedTerm(_ word: QuizWord) -> String {
@@ -423,7 +432,14 @@ nonisolated enum SessionPlanner {
         return [.ed, .ing].contains(lhs.clozeFormClass)
     }
 
-    /// CEFR 차이가 작을수록 +, 글자 수 차이 ≤ 3 이면 +, 최근 5문제에서 보기로 쓰였으면 −. 상위 8개 중 무작위 4개.
+    /// 정답과 이보다 가까운(임베딩 거리) 단어는 오답으로 피한다. 예문 품질을 보장할 수 없어 빈칸에 같이 들어맞을 수 있다.
+    /// 동의어·반의어·같은 주제 단어가 이 아래에 모인다 (reluctant–eager 0.82, reduce–decrease 0.99, position–career 1.08).
+    /// 무관한 단어 쌍은 대부분 1.15 이상 (중앙값 ≈ 1.23).
+    static let minimumDistractorDistance = 1.15
+
+    /// 정답과 먼 후보(임베딩 거리 ≥ 1.15 또는 벡터 없음)에서 기존 점수로 4개를 뽑는다.
+    /// 기존 점수: CEFR 차이가 작을수록 +, 글자 수 차이 ≤ 3 이면 +, 최근 5문제에서 보기로 쓰였으면 −. 상위 8개 중 무작위.
+    /// 먼 후보가 모자라면 가까운 후보 중 먼 것부터 채운다. 가까운 후보가 없으면 예전과 똑같이 뽑힌다.
     static func clozeDistractors(
         for target: QuizWord,
         index: WordIndex,
@@ -435,7 +451,7 @@ nonisolated enum SessionPlanner {
         guard pool.count >= config.choiceDistractorCount else { return [] }
 
         let targetLevel = cefrOrder.firstIndex(of: target.cefr)
-        return pickTop(pool, count: config.choiceDistractorCount, poolSize: config.choiceCandidatePoolSize, seed: seed, target: target) { candidate in
+        func score(_ candidate: Distractor) -> Int {
             var score = 0
             if let targetLevel, let level = cefrOrder.firstIndex(of: candidate.word.cefr) {
                 score += 5 - min(abs(targetLevel - level), 5)
@@ -444,6 +460,28 @@ nonisolated enum SessionPlanner {
             if recentlyUsed.contains(index.normalizedTerm(candidate.word)) { score -= 6 }
             return score
         }
+
+        var close: [(candidate: Distractor, distance: Double)] = []
+        var far: [Distractor] = []
+        for candidate in pool {
+            if let distance = index.embeddingDistance(target, candidate.word), distance < minimumDistractorDistance {
+                close.append((candidate, distance))
+            } else {
+                far.append(candidate)
+            }
+        }
+        let picked = pickTop(
+            far,
+            count: min(config.choiceDistractorCount, far.count),
+            poolSize: config.choiceCandidatePoolSize,
+            seed: seed,
+            target: target,
+            score: score
+        )
+        let fill = close.sorted { $0.distance > $1.distance }
+            .prefix(config.choiceDistractorCount - picked.count)
+            .map(\.candidate)
+        return picked + fill
     }
 
     static func clozeDistractors(

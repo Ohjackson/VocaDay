@@ -333,7 +333,8 @@ final class ExamSessionViewModelTests: XCTestCase {
         XCTAssertEqual(finalization.kind, .first)
         XCTAssertEqual(progress.currentLearningDay, 1)
         XCTAssertTrue(words.allSatisfy { $0.srsStage == 8 })
-        XCTAssertNil(ledgerStore.load(), "반영 후 장부를 비운다")
+        XCTAssertNotNil(ledgerStore.load()?.finalizedAt, "반영 후 장부에 반영 표시를 남긴다")
+        XCTAssertFalse(service.snapshot().isAwaitingSync, "진행 상태가 앞서 있으면 반영된 장부는 막지 않는다")
     }
 
     func testPartialFlashcardsDoNotFinalize() throws {

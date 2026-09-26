@@ -31,8 +31,9 @@ struct ExamFeedbackPanel: View {
                     .examFont(.headline)
                     .foregroundStyle(tint)
                 Spacer()
-                if let word {
-                    SpeakButton(text: word.example.isEmpty ? word.term : word.example, isSentence: !word.example.isEmpty, speech: speech)
+                // 예문이 있으면 예문 줄의 스피커만 둔다 (같은 동작의 버튼이 둘이 되지 않게).
+                if let word, word.example.isEmpty {
+                    SpeakButton(text: word.term, speech: speech)
                 }
             }
             if !feedback.answer.isEmpty {
@@ -379,7 +380,7 @@ struct ChoiceQuestionView: View {
     @ObservedObject var speech: DaySpeechPlayer
     /// 사용자가 문제 중에 예문 해석을 열었을 때.
     var onRevealTranslation: () -> Void = {}
-    /// 오답 보기의 원래 단어. 결과에서 그 보기의 뜻(뜻 고르기는 영단어)을 옆에 보여 준다.
+    /// 보기의 원래 단어. 결과에서 모든 보기 옆에 뜻(뜻 고르기는 영단어)을 보여 준다.
     var optionWord: (String) -> QuizWord? = { _ in nil }
     let onComplete: ([UUID: Bool]) -> Void
 
@@ -502,9 +503,9 @@ struct ChoiceQuestionView: View {
         )
     }
 
-    /// 답을 고른 뒤 정답 보기와 내가 고른 보기 옆에 붙이는 풀이: 빈칸 보기는 한국어 뜻, 뜻 보기는 영단어.
+    /// 답을 고른 뒤 모든 보기 옆에 붙이는 풀이: 빈칸 보기는 한국어 뜻, 뜻 보기는 영단어.
     private func revealedGloss(for option: String) -> String? {
-        guard isCorrect != nil, isAnswer(option) || option == selected else { return nil }
+        guard isCorrect != nil else { return nil }
         let source = isAnswer(option) ? word : optionWord(option)
         guard let source else { return nil }
         let gloss = isCloze ? source.meaningKo : source.term

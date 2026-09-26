@@ -129,6 +129,62 @@ final class SessionPlannerTests: XCTestCase {
         XCTAssertFalse(pool.contains("abandon"), "품사가 다르면 제외")
     }
 
+    // MARK: 빈칸 고르기 — 같은 주제 오답 (임베딩)
+
+    /// 표제어별 코사인 거리를 지정한 2차원 단위 벡터. 기준 단어는 (1, 0), 나머지는 cos = 1 − 거리.
+    private func vectors(anchor: String, distances: [String: Double]) -> (String) -> [Double]? {
+        { term in
+            if term == anchor { return [1, 0] }
+            guard let distance = distances[term] else { return nil }
+            let cosine = 1 - distance
+            return [cosine, (1 - cosine * cosine).squareRoot()]
+        }
+    }
+
+    private func distractorTerms(_ words: [QuizWord], vector: @escaping (String) -> [Double]?, seed: String) -> [String] {
+        let index = SessionPlanner.WordIndex(words, vector: vector)
+        return SessionPlanner.clozeDistractors(for: words[0], index: index, recentlyUsed: [], seed: seed).map(\.word.term)
+    }
+
+    func testCloseWordsAreNeverDistractors() {
+        let words = ExamFixtures.localPastVerbs()
+        XCTAssertEqual(words[0].term, "postpone")
+        let close: Set<String> = ["approve", "confirm", "cancel", "submit", "review", "launch"]
+        let vector = vectors(anchor: "postpone", distances: Dictionary(uniqueKeysWithValues: words.dropFirst().map {
+            ($0.term, close.contains($0.term) ? 0.9 : 1.3)
+        }))
+        for day in 0..<20 {
+            let picked = distractorTerms(words, vector: vector, seed: "first|\(day)")
+            XCTAssertEqual(picked.count, 4)
+            XCTAssertTrue(picked.allSatisfy { !close.contains($0) }, "\(picked)")
+        }
+    }
+
+    func testCloseWordsFillOnlyWhenFarWordsRunOut_farthestFirst() {
+        let words = ExamFixtures.localPastVerbs()
+        // 먼 후보 2개뿐 → 가까운 후보 중 먼 순서(0.95 → 0.9)로 2개를 채운다.
+        var distances = Dictionary(uniqueKeysWithValues: words.dropFirst().map { ($0.term, 0.5) })
+        distances["hire"] = 1.3
+        distances["expand"] = 1.3
+        distances["reduce"] = 0.95
+        distances["attend"] = 0.9
+        let picked = distractorTerms(words, vector: vectors(anchor: "postpone", distances: distances), seed: "first|0")
+        XCTAssertEqual(Set(picked), ["hire", "expand", "reduce", "attend"])
+    }
+
+    func testWithoutCloseWordsSelectionIsUnchanged() {
+        let words = ExamFixtures.localPastVerbs()
+        let vector = vectors(anchor: "postpone", distances: Dictionary(uniqueKeysWithValues: words.dropFirst().map { ($0.term, 1.3) }))
+        for day in 0..<10 {
+            let seed = "first|\(day)"
+            XCTAssertEqual(distractorTerms(words, vector: vector, seed: seed), distractorTerms(words, vector: { _ in nil }, seed: seed))
+        }
+    }
+
+    func testEmbeddingSkipsPhrases() {
+        XCTAssertNil(WordEmbedding.unitVector(for: "give up"))
+    }
+
     // MARK: 뜻 고르기 (5지선다)
 
     func testMeaningChoiceHasFiveDistinctMeanings() throws {

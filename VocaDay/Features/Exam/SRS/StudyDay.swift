@@ -17,6 +17,10 @@ nonisolated struct StudyDayLedger: Codable, Equatable, Sendable {
     var modes: [String: String] = [:]
     /// 단어 UUID → "typo" / "nearMiss".
     var details: [String: String] = [:]
+    /// 마지막으로 결과를 기록한 시각.
+    var updatedAt: Date?
+    /// SRS에 반영한 시각. 반영 뒤에도 남겨 두어, 진행 상태가 아직 동기화되지 않은 기기가 같은 날을 또 풀지 않게 한다.
+    var finalizedAt: Date?
 
     init(sessionID: UUID = UUID(), learningDay: Int, kind: SRSSessionKind) {
         self.sessionID = sessionID
@@ -51,26 +55,33 @@ nonisolated struct StudyDayLedger: Codable, Equatable, Sendable {
     }
 }
 
-/// 장부 저장소. 기기 로컬(UserDefaults)에 둔다. 화면은 같은 키를 `@AppStorage`로 지켜보며 갱신된다.
+/// 장부 저장소. 로컬(UserDefaults)에 두고 iCloud 키-값 저장소로 다른 기기와 합친다 (`StudySync`).
+/// 화면은 같은 키를 `@AppStorage`로 지켜보며 갱신된다.
 nonisolated struct StudyDayLedgerStore: Sendable {
     static let storageKey = "studyDayLedgerV1"
-    static let standard = StudyDayLedgerStore(storageKey: storageKey)
+    static let standard = StudyDayLedgerStore(storageKey: storageKey, syncsWithICloud: true)
 
-    let storageKey: String
-    var defaults: UserDefaults { .standard }
+    private let storage: SyncedStudyStorage<StudyDayLedger>
+    var storageKey: String { storage.storageKey }
+
+    init(storageKey: String, syncsWithICloud: Bool = false) {
+        storage = SyncedStudyStorage(storageKey: storageKey, syncsWithICloud: syncsWithICloud)
+    }
 
     func load() -> StudyDayLedger? {
-        guard let data = defaults.data(forKey: storageKey) else { return nil }
-        return try? JSONDecoder().decode(StudyDayLedger.self, from: data)
+        storage.load()
     }
 
     func save(_ ledger: StudyDayLedger) {
-        guard let data = try? JSONEncoder().encode(ledger) else { return }
-        defaults.set(data, forKey: storageKey)
+        storage.save(ledger)
     }
 
     func clear() {
-        defaults.removeObject(forKey: storageKey)
+        storage.clear()
+    }
+
+    func mergeFromCloud(changedExternally: Bool) {
+        storage.mergeFromCloud(changedExternally: changedExternally)
     }
 }
 
@@ -88,6 +99,9 @@ nonisolated struct StudyQueueSnapshot: Equatable, Sendable {
     var nextSessionAvailableAt: Date? = nil
     /// 오늘을 끝낸 경우, 다음 학습에서 복습할 단어 수 (알림용).
     var upcomingCount: Int = 0
+    /// 다른 기기의 장부가 이 기기의 진행 상태보다 앞서 있다 (진행 상태가 아직 iCloud로 오지 않음).
+    /// 그동안은 같은 날을 두 번 반영하지 않도록 풀 단어를 내지 않는다.
+    var isAwaitingSync: Bool = false
 
     var isDoneForToday: Bool { nextSessionAvailableAt != nil }
 
@@ -140,6 +154,18 @@ nonisolated enum StudyQueue {
             targets = []
         }
 
+        if let kind, let ledger,
+           ledger.isAhead(of: StudyDayKey(learningDay: session.currentLearningDay, kind: kind), now: now) {
+            return StudyQueueSnapshot(
+                status: status,
+                kind: nil,
+                learningDay: session.currentLearningDay,
+                targetIDs: [],
+                gradedIDs: [],
+                isAwaitingSync: true
+            )
+        }
+
         let validLedger = ledger.flatMap { ledger -> StudyDayLedger? in
             ledger.learningDay == session.currentLearningDay && ledger.kind == kind ? ledger : nil
         }
@@ -167,6 +193,18 @@ nonisolated enum StudyQueue {
             now: now,
             lastDayCompletedAt: progress?.srsLastDayCompletedAt
         )
+    }
+}
+
+extension StudyDayLedger {
+    /// 진행 상태가 이만큼 지나도 따라오지 않으면 장부를 믿지 않는다 (동기화가 끊겨 영영 못 푸는 일을 막는다).
+    static let syncWaitLimit: TimeInterval = 60 * 60
+
+    /// 이 기기가 풀려는 날(`current`)보다 장부가 앞서 있는지: 다른 기기가 더 뒤의 날을 풀고 있거나, 같은 날을 이미 반영했다.
+    func isAhead(of current: StudyDayKey, now: Date) -> Bool {
+        let ahead = dayKey > current || (dayKey == current && finalizedAt != nil)
+        guard ahead, let changedAt = finalizedAt ?? updatedAt else { return false }
+        return now.timeIntervalSince(changedAt) < Self.syncWaitLimit
     }
 }
 

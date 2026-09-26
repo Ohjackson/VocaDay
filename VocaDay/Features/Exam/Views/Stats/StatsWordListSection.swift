@@ -3,7 +3,7 @@ import SwiftUI
 /// 단어: 검색·정렬·필터로 단어별 학습 상태 보기.
 struct StatsWordListSection: View {
     enum Sort: String, CaseIterable, Identifiable {
-        case nextReview = "다음 복습 순"
+        case nextReview = "다음 학습 순"
         case hardest = "많이 틀린 순"
         case stageLow = "단계 낮은 순"
         case stageHigh = "단계 높은 순"

@@ -124,7 +124,7 @@ struct DaysView: View {
                 dayPendingDeletion = nil
             }
         } message: {
-            Text("포함된 단어 \(dayPendingDeletion?.wordList.count ?? 0)개와 복습 기록이 함께 삭제되며 되돌릴 수 없습니다.")
+            Text("포함된 단어 \(dayPendingDeletion?.wordList.count ?? 0)개와 학습 기록이 함께 삭제되며 되돌릴 수 없습니다.")
         }
         .alert(item: $errorAlert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message))

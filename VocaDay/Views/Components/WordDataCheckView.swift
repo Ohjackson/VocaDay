@@ -7,7 +7,7 @@ struct WordDataCheckView: View {
 
     var body: some View {
         if WordDataCheck.isQuizReady(issues) && (compact || issues.isEmpty) {
-            Label("복습·시험 4가지 유형 준비됨", systemImage: "checkmark.seal.fill")
+            Label("카드·시험 4가지 유형 준비됨", systemImage: "checkmark.seal.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.green)
         } else if compact, let first = issues.first(where: { $0 != .missingExampleTranslation }) {

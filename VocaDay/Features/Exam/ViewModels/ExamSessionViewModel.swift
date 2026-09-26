@@ -144,7 +144,9 @@ final class ExamSessionViewModel: ObservableObject {
         )
         ledgerGradedIDs = snapshot.gradedIDs
         guard let kind = snapshot.kind else {
-            if case .waitingForRetry(let remaining, _) = snapshot.status {
+            if snapshot.isAwaitingSync {
+                phase = .unavailable("다른 기기에서 푼 학습을 불러오는 중이에요. 잠시 뒤 다시 열어 주세요.")
+            } else if case .waitingForRetry(let remaining, _) = snapshot.status {
                 phase = .unavailable("재도전까지 \(remaining) 남았어요.")
             } else {
                 phase = .unavailable("오늘 학습을 마쳤어요. 다음 학습은 내일 열려요.")
@@ -180,7 +182,7 @@ final class ExamSessionViewModel: ObservableObject {
 
         let targets = snapshot.remainingIDs.compactMap { words[$0] }
         guard !targets.isEmpty else {
-            phase = .unavailable("오늘 복습할 단어가 없어요.")
+            phase = .unavailable("오늘 학습할 단어가 없어요.")
             return
         }
 
