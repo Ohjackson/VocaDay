@@ -47,23 +47,69 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
 struct RootView: View {
     @AppStorage(SpotlightOnboardingCompletion.versionedKey) private var hasCompletedOnboarding = false
     @StateObject private var onboardingController = SpotlightFlowController()
-    @State private var initialProductionSection: AppSection = .days
+    @Query private var days: [VocabularyDay]
+    @State private var landing = OnboardingLanding.appDefault
+    /// 설정 디버그 메뉴가 일부러 다시 띄운 안내. 데이가 있어도 건너뛰지 않는다.
+    @State private var isSupervisedReplay = false
+
+    private let completionStore = UbiquitousOnboardingCompletionStore()
 
     var body: some View {
         Group {
             if hasCompletedOnboarding {
-                ProductionRootView(initialSection: initialProductionSection)
+                ProductionRootView(landing: landing)
             } else {
-                VocaDayOnboardingScene(controller: onboardingController) {
-                    initialProductionSection = .add
+                VocaDayOnboardingScene(controller: onboardingController) { exit in
+                    landing = OnboardingLanding.after(
+                        exit,
+                        hasAddedToday: BundledWordPack.hasAddedToday(existingDays: days)
+                    )
+                    isSupervisedReplay = false
                     hasCompletedOnboarding = true
                 }
             }
         }
+        .onAppear { evaluateOnboarding(isNewPresentation: true) }
         .onChange(of: hasCompletedOnboarding) { _, completed in
             if !completed {
+                evaluateOnboarding(isNewPresentation: true)
+            }
+        }
+        // 안내 도중 iCloud로 기존 데이터나 완료 기록이 들어오면 기존 사용자로 보고 건너뛴다.
+        .onChange(of: days.isEmpty) { _, _ in
+            evaluateOnboarding(isNewPresentation: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSUbiquitousKeyValueStore.didChangeExternallyNotification)) { _ in
+            evaluateOnboarding(isNewPresentation: false)
+        }
+    }
+
+    private func evaluateOnboarding(isNewPresentation: Bool) {
+        let key = SpotlightOnboardingCompletion.versionedKey
+        guard !hasCompletedOnboarding else {
+            // 예전 버전은 이 기기에만 기록했으므로 iCloud에도 남겨 다른 기기가 알 수 있게 한다.
+            completionStore.setCompleted(true, forKey: key)
+            return
+        }
+
+        if isNewPresentation, SpotlightTourRequest.hasPending() {
+            isSupervisedReplay = true
+        }
+
+        let decision = OnboardingGate.decide(
+            cloudCompleted: NSUbiquitousKeyValueStore.default.bool(forKey: key),
+            hasExistingData: !days.isEmpty,
+            isSupervisedReplay: isSupervisedReplay
+        )
+        switch decision {
+        case .present:
+            if isNewPresentation {
                 onboardingController.prepareForPresentation()
             }
+        case .skip(let reason):
+            completionStore.setCompleted(true, forKey: key)
+            landing = OnboardingLanding(section: .days, route: nil, note: reason)
+            hasCompletedOnboarding = true
         }
     }
 }
@@ -83,9 +129,19 @@ private struct ProductionRootView: View {
     @State private var quickAddWord: String?
     @State private var addEntryMode: AddEntryMode = .manual
 
-    init(initialSection: AppSection = .days) {
-        _navigation = State(initialValue: AppNavigationState(selectedSection: initialSection))
+    private let landing: OnboardingLanding
+    @State private var isShowingLandingNote = false
+
+    init(landing: OnboardingLanding = .appDefault) {
+        var navigation = AppNavigationState(selectedSection: landing.section)
+        if let route = landing.route {
+            navigation.push(route)
+        }
+        _navigation = State(initialValue: navigation)
+        self.landing = landing
     }
+
+    private var landingNote: String { landing.note }
 
     /// 사이드바/탭 선택은 반드시 `AppNavigationState.select` 를 거쳐 스택과 함께 바뀝니다.
     private var sectionBinding: Binding<AppSection> {
@@ -137,6 +193,28 @@ private struct ProductionRootView: View {
         .overlay {
             if isShowingQuickAdd {
                 quickAddOverlay
+            }
+        }
+        #if DEBUG
+        .overlay(alignment: .top) {
+            if isShowingLandingNote {
+                landingNoteBadge
+            }
+        }
+        .task(id: landing.id) {
+            // 감독용: 온보딩이 끝난 뒤 어디로, 왜 왔는지 잠깐 보여 준다. 디버그 빌드에만 있다.
+            guard !landingNote.isEmpty else { return }
+            withAnimation { isShowingLandingNote = true }
+            try? await Task.sleep(for: .seconds(6))
+            withAnimation { isShowingLandingNote = false }
+        }
+        #endif
+        // 앱이 떠 있는 동안 안내를 건너뛰면 이 화면이 다시 만들어지지 않으므로 도착지를 여기서 적용한다.
+        .onChange(of: landing.id) { _, _ in
+            navigation.select(landing.section)
+            navigation.setPath([], for: landing.section)
+            if let route = landing.route {
+                navigation.push(route)
             }
         }
         .background {
@@ -254,6 +332,22 @@ private struct ProductionRootView: View {
         quickAddWord = english
         closeQuickAdd()
     }
+
+    #if DEBUG
+    private var landingNoteBadge: some View {
+        Label(landingNote, systemImage: "scope")
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule())
+            .overlay { Capsule().stroke(Color.orange.opacity(0.6)) }
+            .padding(.top, 8)
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onTapGesture { withAnimation { isShowingLandingNote = false } }
+            .accessibilityLabel("디버그: \(landingNote)")
+    }
+    #endif
 
     private func mostRecentDay() -> VocabularyDay? {
         days.sorted { $0.createdAt < $1.createdAt }.last

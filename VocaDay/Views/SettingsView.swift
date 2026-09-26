@@ -143,19 +143,6 @@ struct SettingsView: View {
                 Text("복습할 단어가 없는 날에는 알림을 보내지 않습니다. 기기의 알림 권한이 꺼져 있으면 이 화면에서 다시 켜도 알림이 오지 않으니 설정 앱에서 허용해주세요.")
             }
 
-            Section("사용 안내") {
-                Button {
-                    restartOnboarding()
-                } label: {
-                    SettingsNavigationLabel(
-                        title: "스포트라이트 안내 다시 보기",
-                        subtitle: "단어 추가와 복습의 핵심 4단계를 다시 확인",
-                        systemImage: "sparkles.rectangle.stack"
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-
             Section("정보") {
                 NavigationLink(value: AppRoute.settingsPrivacy) {
                     SettingsNavigationLabel(
@@ -168,10 +155,30 @@ struct SettingsView: View {
 
             #if DEBUG
             Section {
+                NavigationLink(value: AppRoute.onboardingReview) {
+                    Label("온보딩 개선 점검 (감독용)", systemImage: "checklist")
+                }
+
                 Button {
-                    restartOnboarding()
+                    startSpotlightTour(.full)
                 } label: {
                     Label("전체 스포트라이트 절차 체험", systemImage: "scope")
+                }
+
+                Menu {
+                    ForEach(Array(SpotlightTour.full.steps.enumerated()), id: \.element) { index, step in
+                        Button("\(index + 1). \(step.title)") {
+                            startSpotlightTour(.full, at: step)
+                        }
+                    }
+                } label: {
+                    Label("스포트라이트 단계로 바로 가기", systemImage: "list.number")
+                }
+
+                Button {
+                    startSpotlightTour(.core)
+                } label: {
+                    Label("첫 실행 안내(핵심 3단계) 보기", systemImage: "sparkles.rectangle.stack")
                 }
 
                 Button(role: .destructive) {
@@ -204,7 +211,7 @@ struct SettingsView: View {
             } header: {
                 Text("디버그")
             } footer: {
-                Text("스포트라이트 체험은 실제 데이터를 변경하지 않습니다. 초기화는 학습 메모와 분류만 삭제하며, 데모 생성은 사용자 메모를 유지하고 기본 데모 3개를 다시 만듭니다. 균등배분 데이터 넣기는 번들에 포함된 실제 단어 데이터를 데이별로 고르게 나눠 현재 데이터에 병합합니다.")
+                Text("스포트라이트 체험은 실제 데이터를 변경하지 않습니다. 전체 절차는 앱의 모든 안내 단계를, 첫 실행 안내는 새 사용자가 보는 3단계만 보여 줍니다. 초기화는 학습 메모와 분류만 삭제하며, 데모 생성은 사용자 메모를 유지하고 기본 데모 3개를 다시 만듭니다. 균등배분 데이터 넣기는 번들에 포함된 실제 단어 데이터를 데이별로 고르게 나눠 현재 데이터에 병합합니다.")
             }
             #endif
 
@@ -250,10 +257,13 @@ struct SettingsView: View {
         !vocabularyDays.isEmpty || !studyMemos.isEmpty || !studyPageCategories.isEmpty
     }
 
-    private func restartOnboarding() {
+    #if DEBUG
+    private func startSpotlightTour(_ tour: SpotlightTour, at step: SpotlightStep? = nil) {
+        SpotlightTourRequest.request(tour, startingAt: step)
         hasCompletedSpotlightOnboarding = false
         dismiss()
     }
+    #endif
 
     private var reviewReminderTime: Binding<Date> {
         Binding(

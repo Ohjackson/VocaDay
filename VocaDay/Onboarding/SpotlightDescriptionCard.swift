@@ -2,7 +2,10 @@ import SwiftUI
 
 struct SpotlightDescriptionCard: View {
     let step: SpotlightStep
+    let stepNumber: Int
+    let stepCount: Int
     let canGoBack: Bool
+    var finishTitle = "시작하기"
     let onBack: () -> Void
     let onNext: () -> Void
     let onSkip: () -> Void
@@ -16,24 +19,18 @@ struct SpotlightDescriptionCard: View {
 
                 Spacer(minLength: 8)
 
-                Text("\(step.rawValue + 1)/\(SpotlightStep.allCases.count)")
+                Text("\(stepNumber)/\(stepCount)")
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("\(SpotlightStep.allCases.count)단계 중 \(step.rawValue + 1)단계")
+                    .accessibilityLabel("\(stepCount)단계 중 \(stepNumber)단계")
             }
 
             Text(step.title)
                 .font(.title3.weight(.bold))
                 .fixedSize(horizontal: false, vertical: true)
 
-            ScrollView {
-                Text(step.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .scrollIndicators(.hidden)
-            .frame(maxHeight: 132)
+            // ScrollView 로 감싸면 iOS 26 재질 카드 안에서 본문이 그려지지 않는 경우가 있어 글자 높이만큼 그대로 둔다.
+            messageText
 
             #if os(macOS)
             horizontalControls
@@ -54,6 +51,14 @@ struct SpotlightDescriptionCard: View {
         .shadow(color: .black.opacity(0.2), radius: 18, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
+    }
+
+    private var messageText: some View {
+        Text(step.message)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var horizontalControls: some View {
@@ -94,7 +99,7 @@ struct SpotlightDescriptionCard: View {
     }
 
     private var nextButton: some View {
-        Button(step == SpotlightStep.allCases.last ? "시작하기" : "다음", action: onNext)
+        Button(stepNumber == stepCount ? finishTitle : "다음", action: onNext)
             .buttonStyle(.borderedProminent)
             .frame(minHeight: 44)
     }

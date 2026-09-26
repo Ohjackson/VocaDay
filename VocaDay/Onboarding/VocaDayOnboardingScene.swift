@@ -2,7 +2,7 @@ import SwiftUI
 
 struct VocaDayOnboardingScene: View {
     @ObservedObject var controller: SpotlightFlowController
-    var onCompletion: () -> Void = {}
+    var onCompletion: (OnboardingExit) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewBuilder
@@ -89,12 +89,20 @@ struct VocaDayOnboardingScene: View {
                 }
                 .tag(AppSection.add)
 
-            NavigationStack { MockReviewOnboardingView() }
+            NavigationStack { MockStudyOnboardingView() }
                 .tabItem {
                     Label(AppSection.exam.title, systemImage: AppSection.exam.systemImage)
                         .spotlightSupportingContent()
                 }
                 .tag(AppSection.exam)
+
+            // 실제 탭 바와 같은 다섯 칸을 유지해 안내가 끝날 때 탭 바가 바뀌지 않게 한다.
+            NavigationStack { mockDestination(for: .stats) }
+                .tabItem {
+                    Label(AppSection.stats.title, systemImage: AppSection.stats.systemImage)
+                        .spotlightSupportingContent()
+                }
+                .tag(AppSection.stats)
 
             NavigationStack { MockStudyMemosOnboardingView() }
                 .tabItem {
@@ -117,8 +125,10 @@ struct VocaDayOnboardingScene: View {
         switch section {
         case .days: MockDaysOnboardingView()
         case .add: MockAddWordsOnboardingView()
-        case .exam: MockReviewOnboardingView()
-        case .stats: EmptyStateView(title: "시험을 보면 학습 통계가 쌓여요.", systemImage: AppSection.stats.systemImage)
+        case .exam: MockStudyOnboardingView()
+        case .stats:
+            EmptyStateView(title: "시험을 보면 학습 통계가 쌓여요.", systemImage: AppSection.stats.systemImage)
+                .spotlightSupportingContent()
         case .studyMemos: MockStudyMemosOnboardingView()
         }
     }
@@ -143,7 +153,10 @@ struct VocaDayOnboardingScene: View {
     private var onboardingDescriptionCard: some View {
         SpotlightDescriptionCard(
             step: controller.currentStep,
+            stepNumber: controller.stepNumber,
+            stepCount: controller.steps.count,
             canGoBack: controller.canGoBack,
+            finishTitle: controller.tour.finishTitle,
             onBack: controller.moveBack,
             onNext: moveNext,
             onSkip: skip
@@ -169,9 +182,10 @@ struct VocaDayOnboardingScene: View {
     }
 
     private func moveNext() {
-        if controller.currentStep == SpotlightStep.allCases.last {
+        if controller.isLastStep {
+            let tour = controller.tour
             controller.finish()
-            onCompletion()
+            onCompletion(.finished(tour))
         } else {
             controller.moveNext()
         }
@@ -179,7 +193,7 @@ struct VocaDayOnboardingScene: View {
 
     private func skip() {
         controller.skip()
-        onCompletion()
+        onCompletion(.skipped)
     }
 }
 
@@ -190,10 +204,14 @@ private struct MockDaysOnboardingView: View {
             horizontalPadding: 20,
             verticalPadding: 24
         ) {
-            LazyVStack(spacing: 12) {
-                ForEach(Array(VocaDayOnboardingMockData.dayCards.enumerated()), id: \.offset) { index, day in
-                    DayCardView(presentation: day)
-                        .componentSpotlight(index == 0 ? .dayCollection : .supportingContent)
+            VStack(alignment: .leading, spacing: 20) {
+                TodayWordsBanner(addedToday: false, onStart: {}, onOpenSetAside: {})
+
+                LazyVStack(spacing: 12) {
+                    ForEach(Array(VocaDayOnboardingMockData.dayCards.enumerated()), id: \.offset) { index, day in
+                        DayCardView(presentation: day)
+                            .componentSpotlight(index == 0 ? .dayCollection : .supportingContent)
+                    }
                 }
             }
         }
@@ -329,18 +347,31 @@ private struct MockAddWordsOnboardingView: View {
     }
 }
 
-private struct MockReviewOnboardingView: View {
+/// 실제 학습 탭(`ExamView`)과 같은 '오늘 학습' 카드를 새 사용자가 첫날 보게 될 값으로 보여 준다.
+private struct MockStudyOnboardingView: View {
     var body: some View {
         AppCollectionPage(
-            maxContentWidth: 840,
+            maxContentWidth: 720,
             horizontalPadding: 20,
             verticalPadding: 24
         ) {
-            LazyVStack(spacing: 12) {
-                ForEach(Array(VocaDayOnboardingMockData.dayCards.enumerated()), id: \.offset) { index, day in
-                    DayCardView(presentation: day)
-                        .componentSpotlight(index == 0 ? .reviewDay : .dayCollection)
+            VStack(alignment: .leading, spacing: 18) {
+                StudyStatusCard(
+                    headline: VocaDayOnboardingMockData.study.headline,
+                    subheadline: VocaDayOnboardingMockData.study.subheadline,
+                    learningDayNumber: 1,
+                    progress: (0, VocaDayOnboardingMockData.study.targetCount),
+                    buttonTitle: "오늘의 학습 시작",
+                    isButtonEnabled: true,
+                    onStart: {}
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("카드로 훑기")
+                        .font(.headline)
+                    DayCardView(presentation: VocaDayOnboardingMockData.dayCards[0])
                 }
+                .componentSpotlight(.supportingContent)
             }
         }
         .background(AppTheme.background)

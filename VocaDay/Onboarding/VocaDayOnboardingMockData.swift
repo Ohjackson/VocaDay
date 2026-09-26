@@ -18,6 +18,12 @@ enum VocaDayOnboardingMockData {
         )
     ]
 
+    static let study = (
+        headline: "오늘 학습할 단어 20개",
+        subheadline: "짝 맞추기·뜻 고르기·빈칸 고르기로 시작해, 익숙해질수록 글자 조각·쓰기·듣고 쓰기가 섞여 나와요.",
+        targetCount: 20
+    )
+
     static let temporaryWords = [
         VocaWordJSON(
             english: "confirm",

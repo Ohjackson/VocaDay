@@ -65,6 +65,10 @@ struct AppRouteDestination: View {
             ExamSessionView()
                 .navigationBarBackButtonHidden(true)
                 .toolbar(removing: .title)
+        #if DEBUG
+        case .onboardingReview:
+            OnboardingReviewView()
+        #endif
         }
     }
 }

@@ -14,7 +14,8 @@ enum SpotlightTarget: String, CaseIterable, Hashable, Sendable {
     case addHelpButton
     case pendingWords
     case saveWordsButton
-    case reviewDay
+    case todayWordsBanner
+    case studyStatus
     case createStudyMemoButton
     case studyMemoCollection
 }

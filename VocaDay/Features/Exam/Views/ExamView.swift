@@ -107,51 +107,22 @@ struct ExamView: View {
         let canStart = snapshot.kind != nil && (snapshot.remainingCount > 0 || snapshot.isReadyToFinalize)
         let resumable = resumableSession
 
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(headline(for: snapshot))
-                        .font(.title3.weight(.semibold))
-                    Text(subheadline(for: snapshot))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text("학습일 \(sessionState.currentLearningDay + 1)")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
-            }
-
-            if !snapshot.targetIDs.isEmpty {
-                ProgressView(value: Double(snapshot.gradedIDs.count), total: Double(snapshot.targetIDs.count)) {
-                    Text("오늘 \(snapshot.gradedIDs.count)/\(snapshot.targetIDs.count)개 완료 · 카드와 시험 합산")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .tint(.green)
-            }
-
-            Button {
-                openSession()
-            } label: {
-                Text(buttonTitle(for: snapshot, resumable: resumable != nil))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canStart)
-
-            if let resumable, status.isButtonEnabled, canStart {
-                Text("진행 중인 시험이 있어요 · \(resumable.answeredGradedCount)/\(resumable.plan.gradedCount) 문제 완료")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        let footnote = resumable.flatMap { resumable in
+            status.isButtonEnabled && canStart
+                ? "진행 중인 시험이 있어요 · \(resumable.answeredGradedCount)/\(resumable.plan.gradedCount) 문제 완료"
+                : nil
         }
-        .padding(AppTheme.cardPadding)
-        .calmCard()
+
+        return StudyStatusCard(
+            headline: headline(for: snapshot),
+            subheadline: subheadline(for: snapshot),
+            learningDayNumber: sessionState.currentLearningDay + 1,
+            progress: snapshot.targetIDs.isEmpty ? nil : (snapshot.gradedIDs.count, snapshot.targetIDs.count),
+            buttonTitle: buttonTitle(for: snapshot, resumable: resumable != nil),
+            isButtonEnabled: canStart,
+            footnote: footnote,
+            onStart: openSession
+        )
     }
 
     // MARK: 카드로 훑기

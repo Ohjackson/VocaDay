@@ -21,6 +21,9 @@ enum AppRoute: Hashable {
     case studyMemo(memoID: UUID)
     case wordStudyDetail(wordID: UUID)
     case examSession
+    #if DEBUG
+    case onboardingReview
+    #endif
 }
 
 /// 선택된 섹션과 섹션별 내비게이션 경로를 한곳에서 관리합니다.
