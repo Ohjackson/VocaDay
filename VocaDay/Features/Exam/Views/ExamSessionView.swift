@@ -135,12 +135,21 @@ private struct ExamSessionContent: View {
                     showsTranslation: showsTranslation,
                     speech: speech,
                     onRevealTranslation: { viewModel.markTranslationViewed() },
+                    optionWord: { viewModel.word(forChoiceOption: $0, isMeaning: false) },
                     onComplete: complete
                 )
             }
         case .meaningChoice:
             if let word = words.first {
-                ChoiceQuestionView(word: word, options: item.options, style: .meaning, showsTranslation: showsTranslation, speech: speech, onComplete: complete)
+                ChoiceQuestionView(
+                    word: word,
+                    options: item.options,
+                    style: .meaning,
+                    showsTranslation: showsTranslation,
+                    speech: speech,
+                    optionWord: { viewModel.word(forChoiceOption: $0, isMeaning: true) },
+                    onComplete: complete
+                )
             }
         case .flashcard:
             EmptyView()

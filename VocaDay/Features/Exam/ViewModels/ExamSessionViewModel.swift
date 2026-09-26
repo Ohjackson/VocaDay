@@ -116,6 +116,18 @@ final class ExamSessionViewModel: ObservableObject {
 
     func word(_ id: UUID) -> QuizWord? { words[id] }
 
+    /// 보기(오답 후보)가 어느 단어에서 왔는지 찾는다. 빈칸 보기는 활용형일 수 있어 표기·활용형·빈칸 정답을 모두 본다.
+    func word(forChoiceOption option: String, isMeaning: Bool) -> QuizWord? {
+        if isMeaning {
+            return words.values.first { $0.meaningKo == option }
+        }
+        let key = option.lowercased()
+        return words.values.first { word in
+            ([word.term, word.clozeAnswer] + word.termVariants + Array(word.forms.values))
+                .contains { $0.lowercased() == key }
+        }
+    }
+
     // MARK: 시작 / 이어하기
 
     func start() {

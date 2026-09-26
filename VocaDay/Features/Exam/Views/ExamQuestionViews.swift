@@ -16,7 +16,11 @@ struct ExamFeedbackPanel: View {
     @ObservedObject var speech: DaySpeechPlayer
     /// 오답을 스스로 맞은 것으로 바꾸는 동작 (입력형에서만).
     var onMarkCorrect: (() -> Void)? = nil
+    /// Mac에서 아무 키나 누르면 다음으로 넘어간다. 입력형 문제에서는 켜지 않는다(치던 키가 넘겨 버리지 않게).
+    var advancesOnAnyKey = false
     let onContinue: () -> Void
+
+    @FocusState private var isFocused: Bool
 
     private var tint: Color { feedback.isCorrect ? .green : .red }
 
@@ -28,7 +32,7 @@ struct ExamFeedbackPanel: View {
                     .foregroundStyle(tint)
                 Spacer()
                 if let word {
-                    SpeakButton(text: word.example.isEmpty ? word.term : word.example, speech: speech)
+                    SpeakButton(text: word.example.isEmpty ? word.term : word.example, isSentence: !word.example.isEmpty, speech: speech)
                 }
             }
             if !feedback.answer.isEmpty {
@@ -41,8 +45,22 @@ struct ExamFeedbackPanel: View {
                     .foregroundStyle(.secondary)
             }
             if let word, !word.example.isEmpty {
-                Text(word.example)
-                    .examFont(.subheadline)
+                Button {
+                    speech.speakEnglishSentence(word.example)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(word.example)
+                            .examFont(.subheadline)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: speech.isPlaying ? "speaker.wave.3.fill" : "speaker.wave.2")
+                            .examFont(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("예문을 다시 들어요")
                 if showsTranslation, !word.exampleKo.isEmpty {
                     Text(word.exampleKo)
                         .examFont(.caption)
@@ -58,7 +76,7 @@ struct ExamFeedbackPanel: View {
                     .help("철자만 틀렸거나 같은 뜻의 답을 썼다면 정답으로 기록해요")
                 }
                 Button(action: onContinue) {
-                    Text("계속").examFont(.headline).frame(maxWidth: .infinity, minHeight: 48)
+                    Text("다음").examFont(.headline).frame(maxWidth: .infinity, minHeight: 48)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(tint)
@@ -69,16 +87,45 @@ struct ExamFeedbackPanel: View {
         .background(tint.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .transition(.move(edge: .bottom).combined(with: .opacity))
+        .modifier(AnyKeyAdvance(isEnabled: advancesOnAnyKey, isFocused: $isFocused, action: onContinue))
+    }
+}
+
+/// 켜져 있으면 패널이 키보드 포커스를 받아 아무 키 입력에 `action`을 실행한다.
+private struct AnyKeyAdvance: ViewModifier {
+    let isEnabled: Bool
+    var isFocused: FocusState<Bool>.Binding
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .focusable()
+                .focused(isFocused)
+                .focusEffectDisabled()
+                .onKeyPress(phases: .down) { _ in
+                    action()
+                    return .handled
+                }
+                .onAppear { isFocused.wrappedValue = true }
+        } else {
+            content
+        }
     }
 }
 
 struct SpeakButton: View {
     let text: String
+    var isSentence = false
     @ObservedObject var speech: DaySpeechPlayer
 
     var body: some View {
         Button {
-            speech.speakEnglishWord(text)
+            if isSentence {
+                speech.speakEnglishSentence(text)
+            } else {
+                speech.speakEnglishWord(text)
+            }
         } label: {
             Image(systemName: speech.isPlaying ? "speaker.wave.3.fill" : "speaker.wave.2")
                 .frame(width: 32, height: 32)
@@ -325,10 +372,6 @@ struct ChoiceQuestionView: View {
         case meaning
     }
 
-    /// 정답/오답을 보여 주는 시간. 틀렸을 때는 정답을 읽을 시간을 조금 더 준다.
-    static let correctRevealDuration: Duration = .milliseconds(700)
-    static let wrongRevealDuration: Duration = .milliseconds(1800)
-
     let word: QuizWord
     let options: [String]
     var style: Style = .cloze
@@ -336,6 +379,8 @@ struct ChoiceQuestionView: View {
     @ObservedObject var speech: DaySpeechPlayer
     /// 사용자가 문제 중에 예문 해석을 열었을 때.
     var onRevealTranslation: () -> Void = {}
+    /// 오답 보기의 원래 단어. 결과에서 그 보기의 뜻(뜻 고르기는 영단어)을 옆에 보여 준다.
+    var optionWord: (String) -> QuizWord? = { _ in nil }
     let onComplete: ([UUID: Bool]) -> Void
 
     @State private var selected: String?
@@ -363,6 +408,12 @@ struct ChoiceQuestionView: View {
                                 .examFont(.body, weight: .medium)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            if let gloss = revealedGloss(for: option) {
+                                Text(gloss)
+                                    .examFont(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.trailing)
+                            }
                             if isCorrect != nil, isAnswer(option) {
                                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                             } else if isCorrect == false, option == selected {
@@ -387,8 +438,16 @@ struct ChoiceQuestionView: View {
             }
         } footer: {
             if let isCorrect {
-                resultBanner(isCorrect: isCorrect)
-                    .transition(.opacity)
+                ExamFeedbackPanel(
+                    feedback: feedback(isCorrect: isCorrect),
+                    word: word,
+                    // 결과에서는 문장 뜻을 항상 보여 준다.
+                    showsTranslation: true,
+                    speech: speech,
+                    advancesOnAnyKey: Self.advancesOnAnyKey
+                ) {
+                    onComplete([word.id: isCorrect])
+                }
             }
         }
         .onAppear {
@@ -428,22 +487,28 @@ struct ChoiceQuestionView: View {
         }
     }
 
-    /// 짧은 결과 표시. 오답이면 정답과 문장 뜻을 함께 보여 준다.
-    private func resultBanner(isCorrect: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(isCorrect ? "정답이에요!" : "정답: \(isCloze ? answer : "\(word.term) = \(answer)")",
-                  systemImage: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .examFont(.headline)
-                .foregroundStyle(isCorrect ? .green : .red)
-            if !isCorrect, isCloze, !word.exampleKo.isEmpty {
-                Text(word.exampleKo)
-                    .examFont(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background((isCorrect ? Color.green : Color.red).opacity(0.1), in: RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius))
+    #if os(macOS)
+    private static let advancesOnAnyKey = true
+    #else
+    private static let advancesOnAnyKey = false
+    #endif
+
+    private func feedback(isCorrect: Bool) -> ExamFeedback {
+        ExamFeedback(
+            isCorrect: isCorrect,
+            title: isCorrect ? "정답이에요!" : "오답이에요",
+            answer: isCloze ? answer : "\(word.term) = \(answer)",
+            note: isCorrect ? nil : selected.map { "내 답: \($0)" }
+        )
+    }
+
+    /// 답을 고른 뒤 정답 보기와 내가 고른 보기 옆에 붙이는 풀이: 빈칸 보기는 한국어 뜻, 뜻 보기는 영단어.
+    private func revealedGloss(for option: String) -> String? {
+        guard isCorrect != nil, isAnswer(option) || option == selected else { return nil }
+        let source = isAnswer(option) ? word : optionWord(option)
+        guard let source else { return nil }
+        let gloss = isCloze ? source.meaningKo : source.term
+        return gloss.isEmpty ? nil : gloss
     }
 
     private func isAnswer(_ option: String) -> Bool {
@@ -469,10 +534,11 @@ struct ChoiceQuestionView: View {
         let correct = isAnswer(option)
         selected = option
         withAnimation(.easeOut(duration: 0.15)) { isCorrect = correct }
-        let id = word.id
-        Task { @MainActor in
-            try? await Task.sleep(for: correct ? Self.correctRevealDuration : Self.wrongRevealDuration)
-            onComplete([id: correct])
+        // 결과와 함께 예문을 한 번 들려준다. 예문을 누르면 다시 들을 수 있다.
+        if word.example.isEmpty {
+            speech.speakEnglishWord(word.term)
+        } else {
+            speech.speakEnglishSentence(word.example)
         }
     }
 }

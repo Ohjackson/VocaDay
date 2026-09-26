@@ -63,6 +63,15 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
     }
 
     func speakEnglishWord(_ english: String, wordID: UUID? = nil) {
+        speakEnglish(english, wordID: wordID, rate: singleWordSpeechRate)
+    }
+
+    /// 예문처럼 긴 영어 문장. 단어보다 조금 빠른 문장 속도로 읽는다.
+    func speakEnglishSentence(_ sentence: String) {
+        speakEnglish(sentence, wordID: nil, rate: speechRate)
+    }
+
+    private func speakEnglish(_ english: String, wordID: UUID?, rate: Float) {
         stop()
 
         let trimmed = english.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -71,7 +80,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         isPlaying = true
         currentWordID = wordID
         playbackTask = Task { @MainActor in
-            await speak(trimmed, language: "en-US", rate: singleWordSpeechRate)
+            await speak(trimmed, language: "en-US", rate: rate)
             stop()
         }
     }
