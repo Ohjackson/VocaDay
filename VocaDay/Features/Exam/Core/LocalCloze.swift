@@ -79,9 +79,20 @@ nonisolated enum LocalCloze {
     }
 
     private static func firstMatch(of term: String, in line: String, allowsComparative: Bool) -> Match? {
-        let parts = term.lowercased().split(separator: " ").map(String.init)
-        guard let first = parts.first else { return nil }
-        let tail = parts.dropFirst().map(tailPattern(for:))
+        // "be (not) supposed to" 처럼 괄호 안 단어는 있어도 없어도 된다. 맨 앞 괄호 단어는 버린다.
+        var tokens = term.lowercased().split(separator: " ").map { token -> (word: String, optional: Bool) in
+            let isOptional = token.hasPrefix("(") && token.hasSuffix(")") && token.count > 2
+            return (isOptional ? String(token.dropFirst().dropLast()) : String(token), isOptional)
+        }
+        while tokens.first?.optional == true {
+            tokens.removeFirst()
+        }
+        guard let first = tokens.first?.word else { return nil }
+        let tailTokens = Array(tokens.dropFirst())
+        let tail = tailTokens.enumerated().map { index, token in
+            let word = index == tailTokens.count - 1 ? lastWordPattern(for: token.word) : tailPattern(for: token.word)
+            return token.optional ? #"(?:\s+"# + word + ")?" : #"\s+"# + word
+        }.joined()
 
         // 긴 활용형을 먼저 시도해야 "set"이 "settings" 일부에 걸리지 않는다 (단어 경계도 함께 검사).
         let variants = inflections(of: first)
@@ -89,8 +100,9 @@ nonisolated enum LocalCloze {
             .sorted { $0.form.count > $1.form.count }
         var best: Match?
         for variant in variants {
-            let words = [NSRegularExpression.escapedPattern(for: variant.form)] + tail
-            let pattern = #"(?i)(?<![A-Za-z'’-])"# + words.joined(separator: #"\s+"#) + #"(?![A-Za-z'’-])"#
+            // 끝 경계: 뒤에 글자가 없거나, 소유격 's 만 붙은 경우 (candidate's → candidate 가 빈칸).
+            let pattern = #"(?i)(?<![A-Za-z'’-])"# + NSRegularExpression.escapedPattern(for: variant.form) + tail
+                + #"(?:(?![A-Za-z'’-])|(?=['’]s(?![A-Za-z])))"#
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             let range = NSRange(line.startIndex..., in: line)
             guard let found = regex.firstMatch(in: line, range: range),
@@ -107,6 +119,20 @@ nonisolated enum LocalCloze {
         guard word == "one's" || word == "one’s" else { return NSRegularExpression.escapedPattern(for: word) }
         return #"(?:my|your|his|her|its|our|their|one['’]s|[A-Za-z]+['’]s?)"#
     }
+
+    /// 구문 마지막 단어는 복수형도 맞춘다 (sales figure → sales figures). 전치사·기능어는 그대로.
+    private static func lastWordPattern(for word: String) -> String {
+        guard word.count >= 3, word.allSatisfy(\.isLetter), !functionWords.contains(word) else {
+            return tailPattern(for: word)
+        }
+        let forms = inflections(of: word).filter { $0.formClass == .base || $0.formClass == .s }.map(\.form)
+        return "(?:" + forms.sorted { $0.count > $1.count }.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|") + ")"
+    }
+
+    private static let functionWords: Set<String> = [
+        "the", "and", "for", "with", "from", "into", "onto", "about", "over", "under", "off", "out",
+        "down", "away", "back", "upon", "than", "that", "this", "one", "all", "not", "yet",
+    ]
 
     struct Inflection: Hashable {
         var form: String

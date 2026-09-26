@@ -23,6 +23,19 @@ final class LocalClozeTests: XCTestCase {
         XCTAssertEqual(LocalCloze.build(term: "to one's advantage", example: "It worked to her advantage.")?.answer, "to her advantage")
     }
 
+    /// 기기 데이터에서 빈칸을 못 만들던 단어들 (candidate's · are not supposed to · sales figures).
+    func testMatchesPossessiveOptionalWordsAndPluralPhraseEnd() {
+        let possessive = LocalCloze.build(term: "candidate", example: "The manager reviewed each candidate's resume.")
+        XCTAssertEqual(possessive?.sentence, "The manager reviewed each <>'s resume.")
+
+        let optional = "Employees are not supposed to use phones during the meeting."
+        XCTAssertEqual(LocalCloze.build(term: "be (not) supposed to", example: optional)?.answer, "are not supposed to")
+        XCTAssertEqual(LocalCloze.build(term: "be (not) supposed to", example: "You are supposed to sign in.")?.answer, "are supposed to")
+
+        XCTAssertEqual(LocalCloze.build(term: "sales figure", example: "The latest sales figures show strong growth.")?.answer, "sales figures")
+        XCTAssertNil(LocalCloze.build(term: "carry out", example: "They carry outs."), "기능어로 끝나는 구문은 복수형을 붙이지 않는다")
+    }
+
     func testRespectsWordBoundariesAndCase() {
         XCTAssertNil(LocalCloze.build(term: "set", example: "Check the settings."))
         XCTAssertNil(LocalCloze.build(term: "work", example: "The worker left."), "비교급 활용은 형용사일 때만")

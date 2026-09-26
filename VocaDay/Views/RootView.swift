@@ -7,8 +7,8 @@ import AppKit
 enum AppSection: CaseIterable, Identifiable, Hashable {
     case days
     case add
-    case review
     case exam
+    case review
     case stats
     case studyMemos
 
