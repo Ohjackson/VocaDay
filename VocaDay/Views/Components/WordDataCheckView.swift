@@ -26,6 +26,11 @@ struct WordDataCheckView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                if issues.contains(.someExampleLinesMissingWord) || issues.contains(.exampleTranslationLineMismatch) {
+                    Text("품사가 여럿이면 “1. The record is clear.↵2. She recorded it.” 처럼 줄마다 단어를 넣고, 번역도 같은 번호로 적어 주세요.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

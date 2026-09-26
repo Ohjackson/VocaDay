@@ -39,17 +39,28 @@ nonisolated enum LocalCloze {
         guard !head.isEmpty else { return nil }
 
         for line in exampleLines(example) {
-            if let match = firstMatch(of: head, in: line, allowsComparative: allowsComparative) {
-                let sentence = line.replacingCharacters(in: match.range, with: "<>")
-                return Result(
-                    sentence: sentence,
-                    answer: String(line[match.range]),
-                    formClass: match.formClass,
-                    example: line
-                )
+            if let result = result(head: head, line: line, allowsComparative: allowsComparative) {
+                return result
             }
         }
         return nil
+    }
+
+    /// 표제어가 들어 있는 모든 예문 줄의 빈칸. 품사별 예문을 학습일마다 번갈아 쓸 때 쓴다.
+    static func buildAll(term: String, example: String, allowsComparative: Bool = false) -> [Result] {
+        let head = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !head.isEmpty else { return [] }
+        return exampleLines(example).compactMap { result(head: head, line: $0, allowsComparative: allowsComparative) }
+    }
+
+    private static func result(head: String, line: String, allowsComparative: Bool) -> Result? {
+        guard let match = firstMatch(of: head, in: line, allowsComparative: allowsComparative) else { return nil }
+        return Result(
+            sentence: line.replacingCharacters(in: match.range, with: "<>"),
+            answer: String(line[match.range]),
+            formClass: match.formClass,
+            example: line
+        )
     }
 
     static func exampleLines(_ example: String) -> [String] {
@@ -70,7 +81,7 @@ nonisolated enum LocalCloze {
     private static func firstMatch(of term: String, in line: String, allowsComparative: Bool) -> Match? {
         let parts = term.lowercased().split(separator: " ").map(String.init)
         guard let first = parts.first else { return nil }
-        let tail = parts.dropFirst().map(NSRegularExpression.escapedPattern(for:))
+        let tail = parts.dropFirst().map(tailPattern(for:))
 
         // 긴 활용형을 먼저 시도해야 "set"이 "settings" 일부에 걸리지 않는다 (단어 경계도 함께 검사).
         let variants = inflections(of: first)
@@ -89,6 +100,12 @@ nonisolated enum LocalCloze {
             }
         }
         return best
+    }
+
+    /// 구문 뒤쪽 단어의 패턴. "one's"는 소유격 자리 표시라 my·her·the company's 등과도 맞춘다.
+    private static func tailPattern(for word: String) -> String {
+        guard word == "one's" || word == "one’s" else { return NSRegularExpression.escapedPattern(for: word) }
+        return #"(?:my|your|his|her|its|our|their|one['’]s|[A-Za-z]+['’]s?)"#
     }
 
     struct Inflection: Hashable {
@@ -161,7 +178,7 @@ nonisolated enum LocalCloze {
 
     /// 자주 쓰는 불규칙 동사의 과거형·과거분사.
     private static let irregularVerbs: [String: [String]] = [
-        "be": ["was", "were", "been"], "become": ["became"], "begin": ["began", "begun"],
+        "be": ["am", "is", "are", "was", "were", "been"], "become": ["became"], "begin": ["began", "begun"],
         "break": ["broke", "broken"], "bring": ["brought"], "build": ["built"], "buy": ["bought"],
         "catch": ["caught"], "choose": ["chose", "chosen"], "come": ["came"], "cost": ["cost"],
         "cut": ["cut"], "deal": ["dealt"], "do": ["did", "done"], "draw": ["drew", "drawn"],
@@ -183,7 +200,7 @@ nonisolated enum LocalCloze {
         "understand": ["understood"], "undertake": ["undertook", "undertaken"], "wake": ["woke", "woken"],
         "wear": ["wore", "worn"], "win": ["won"], "withdraw": ["withdrew", "withdrawn"], "write": ["wrote", "written"],
         "arise": ["arose", "arisen"], "bear": ["bore", "borne"], "bind": ["bound"], "bid": ["bid"],
-        "forecast": ["forecast"], "foresee": ["foresaw", "foreseen"], "oversee": ["oversaw", "overseen"],
+        "forecast": ["forecast"], "foresee": ["foresaw", "foreseen"], "oversee": ["oversaw", "overseen"], "overhear": ["overheard"],
         "spread": ["spread"], "upset": ["upset"], "wind": ["wound"], "withhold": ["withheld"],
     ]
 }

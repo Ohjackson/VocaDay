@@ -35,12 +35,19 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
                 try? await Task.sleep(for: .seconds(2))
                 await speak(word.meaningKo, language: "ko-KR")
 
-                guard !Task.isCancelled else { break }
-                await speak(word.exampleEn, language: "en-US")
+                // 예문이 여러 줄이면 번호 없이 줄마다 영어 → 번역 순서로 읽는다.
+                for example in ExamText.examplePairs(en: word.exampleEn, ko: word.exampleKo) {
+                    guard !Task.isCancelled else { break }
+                    if !example.en.isEmpty {
+                        await speak(example.en, language: "en-US")
+                    }
 
-                guard !Task.isCancelled else { break }
-                try? await Task.sleep(for: .seconds(2))
-                await speak(word.exampleKo, language: "ko-KR")
+                    guard !Task.isCancelled else { break }
+                    if !example.ko.isEmpty {
+                        try? await Task.sleep(for: .seconds(2))
+                        await speak(example.ko, language: "ko-KR")
+                    }
+                }
             }
 
             let wasCancelled = Task.isCancelled

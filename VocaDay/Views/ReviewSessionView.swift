@@ -201,14 +201,19 @@ struct ReviewSessionView: View {
                 .font(.title3.weight(.medium))
                 .multilineTextAlignment(.center)
 
-            if let exampleEn = trimmed(word.exampleEn) {
-                VStack(spacing: 4) {
-                    Text(exampleEn)
-                        .font(.callout)
-                    if let exampleKo = trimmed(word.exampleKo) {
-                        Text(exampleKo)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            let examples = ExamText.examplePairs(en: word.exampleEn, ko: word.exampleKo).filter { !$0.en.isEmpty }
+            if !examples.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
+                        VStack(spacing: 4) {
+                            Text(example.en)
+                                .font(.callout)
+                            if !example.ko.isEmpty {
+                                Text(example.ko)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 .multilineTextAlignment(.center)

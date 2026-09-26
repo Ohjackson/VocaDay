@@ -90,11 +90,12 @@ extension QuizWord {
         exampleEn: String,
         exampleKo: String,
         card: SRSCardState = .initial,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        exampleSeed: Int = 0
     ) -> QuizWord {
         let term = term.trimmingCharacters(in: .whitespacesAndNewlines)
         let posHints = ExamText.partOfSpeechHints(meaningKo)
-        let cloze = WordDataCheck.cloze(term: term, meaningKo: meaningKo, exampleEn: exampleEn)
+        let cloze = WordDataCheck.cloze(term: term, meaningKo: meaningKo, exampleEn: exampleEn, lineSeed: exampleSeed)
         let englishLines = LocalCloze.exampleLines(exampleEn)
         let koreanLines = LocalCloze.exampleLines(exampleKo)
         let lineIndex = cloze.flatMap { englishLines.firstIndex(of: $0.example) } ?? 0
@@ -171,10 +172,13 @@ extension VocaWord {
         }
     }
 
-    var quizWord: QuizWord {
+    var quizWord: QuizWord { quizWord(exampleSeed: 0) }
+
+    /// - Parameter exampleSeed: 예문이 여러 줄이면 빈칸에 쓸 줄을 고른다 (보통 학습일 번호).
+    func quizWord(exampleSeed: Int) -> QuizWord {
         let userMeaning = ExamText.strippingPartOfSpeechMarkers(meaningKo)
         guard isQuizEnrichmentCurrent else {
-            return localQuizWord(userMeaning: userMeaning)
+            return localQuizWord(exampleSeed: exampleSeed)
         }
         return QuizWord(
             id: id,
@@ -200,7 +204,7 @@ extension VocaWord {
         )
     }
 
-    private func localQuizWord(userMeaning: String) -> QuizWord {
+    private func localQuizWord(exampleSeed: Int) -> QuizWord {
         QuizWord.local(
             id: id,
             term: english,
@@ -208,7 +212,8 @@ extension VocaWord {
             exampleEn: exampleEn,
             exampleKo: exampleKo,
             card: srsCard,
-            createdAt: createdAt
+            createdAt: createdAt,
+            exampleSeed: exampleSeed
         )
     }
 

@@ -122,10 +122,14 @@ final class ExamSessionViewModel: ObservableObject {
         let repository = repository
         let allWords = repository.allWords()
         repository.restoreMonotonicProgress(in: allWords)
-        words = Dictionary(allWords.map { ($0.id, $0.quizWord) }, uniquingKeysWith: { first, _ in first })
 
         let service = service
         let snapshot = service.snapshot()
+        // 예문이 여러 줄인 단어는 학습일마다 다른 줄로 빈칸을 낸다 (같은 날 이어 하면 같은 줄).
+        words = Dictionary(
+            allWords.map { ($0.id, $0.quizWord(exampleSeed: snapshot.learningDay)) },
+            uniquingKeysWith: { first, _ in first }
+        )
         ledgerGradedIDs = snapshot.gradedIDs
         guard let kind = snapshot.kind else {
             if case .waitingForRetry(let remaining, _) = snapshot.status {

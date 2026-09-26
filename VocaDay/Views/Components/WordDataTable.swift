@@ -126,8 +126,7 @@ struct WordDataTable: View {
 
             if isShowingDetails(for: word) {
                 Divider()
-                mobileDetailLine(label: "영어 예문", value: word.exampleEn)
-                mobileDetailLine(label: "예문 번역", value: word.exampleKo)
+                mobileExampleLines(for: word)
                 mobileDetailLine(label: "메모", value: word.note)
                 mobileDetailLine(label: "태그", value: word.toeicTag)
             }
@@ -198,6 +197,22 @@ struct WordDataTable: View {
             meaning.simultaneousGesture(koreanPressGesture(for: word))
         } else {
             meaning
+        }
+    }
+
+    private func mobileExampleLines(for word: VocaWord) -> some View {
+        let examples = ExamText.examplePairs(en: word.exampleEn, ko: word.exampleKo)
+        return VStack(alignment: .leading, spacing: 3) {
+            Text("예문")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            if examples.isEmpty {
+                Text(display(""))
+                    .font(.subheadline)
+            }
+            ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
+                exampleLine(example)
+            }
         }
     }
 
@@ -530,6 +545,24 @@ struct WordDataTable: View {
         .background(rowBackground(isHeader: isHeader, isSelected: isSelected))
     }
 
+    /// 예문 한 쌍 (영어 + 같은 번호의 번역).
+    private func exampleLine(_ example: (en: String, ko: String)) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if !example.en.isEmpty {
+                Text(example.en)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !example.ko.isEmpty {
+                Text(example.ko)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private func wordDetailLines(for word: VocaWord) -> some View {
         let hasExample = !isBlank(word.exampleEn) || !isBlank(word.exampleKo)
         let hasNote = !isBlank(word.note)
@@ -537,18 +570,9 @@ struct WordDataTable: View {
 
         return VStack(alignment: .leading, spacing: 8) {
             if hasExample {
-                VStack(alignment: .leading, spacing: 3) {
-                    if !isBlank(word.exampleEn) {
-                        Text(word.exampleEn)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !isBlank(word.exampleKo) {
-                        Text(word.exampleKo)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(ExamText.examplePairs(en: word.exampleEn, ko: word.exampleKo).enumerated()), id: \.offset) { _, example in
+                        exampleLine(example)
                     }
                 }
             }

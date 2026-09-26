@@ -68,6 +68,16 @@ nonisolated enum ExamText {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// 영어 예문과 번역을 줄 번호끼리 짝짓는다 ("1. …\n2. …" 형식, 번호는 뗀다). 줄 수가 다르면 빈 칸으로 채운다.
+    static func examplePairs(en: String, ko: String) -> [(en: String, ko: String)] {
+        let english = LocalCloze.exampleLines(en)
+        let korean = LocalCloze.exampleLines(ko)
+        return (0..<max(english.count, korean.count)).map { index in
+            (en: english.indices.contains(index) ? english[index] : "",
+             ko: korean.indices.contains(index) ? korean[index] : "")
+        }
+    }
+
     /// "1. 첫 문장\n2. 둘째 문장" 형식이면 첫 문장만.
     static func firstExampleLine(_ example: String) -> String {
         let line = example

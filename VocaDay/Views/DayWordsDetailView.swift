@@ -268,9 +268,9 @@ private struct EditWordSheet: View {
                 }
 
                 Section {
-                    TextField("영어 예문 (단어가 들어간 한 문장)", text: $word.exampleEn, axis: .vertical)
+                    TextField("영어 예문 (품사가 여럿이면 1. / 2. 줄로)", text: $word.exampleEn, axis: .vertical)
                         .lineLimit(2...4)
-                    TextField("한국어 예문", text: $word.exampleKo, axis: .vertical)
+                    TextField("한국어 예문 (영어 예문과 같은 번호로)", text: $word.exampleKo, axis: .vertical)
                         .lineLimit(2...4)
                 } header: {
                     Text("예문")
