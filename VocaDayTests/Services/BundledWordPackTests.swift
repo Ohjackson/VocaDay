@@ -5,7 +5,13 @@ import XCTest
 @MainActor
 final class BundledWordPackTests: XCTestCase {
     func testBundledWordsAreAllQuizReady() throws {
-        let words = try BundledWordPack.loadWords(bundle: Bundle(for: VocabularyDay.self))
+        // 내장 단어 파일은 저장소에 올리지 않는다(.gitignore). 파일이 없는 체크아웃에서는 건너뛴다.
+        let words: [VocaWordJSON]
+        do {
+            words = try BundledWordPack.loadWords(bundle: Bundle(for: VocabularyDay.self))
+        } catch BundledWordPackError.resourceNotFound {
+            throw XCTSkip("BundledWords.json 이 없어요 (저장소에 포함하지 않음).")
+        }
         XCTAssertGreaterThan(words.count, 2000)
         XCTAssertEqual(Set(words.map { $0.english.normalizedEnglish }).count, words.count, "중복 단어")
         let notReady = words.filter { !WordDataCheck.isQuizReady(WordDataCheck.issues(for: $0)) }.map(\.english)

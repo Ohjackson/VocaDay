@@ -37,3 +37,7 @@ secrets.plist
 .idea/
 *.swp
 *.tmp
+
+# Bundled word data (kept local, not pushed)
+VocaDay/Resources/BundledWords.json
+docs/vocab/toeic_vocab_source.json
