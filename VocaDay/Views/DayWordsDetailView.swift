@@ -1,18 +1,45 @@
 import SwiftData
 import SwiftUI
 
+/// 데이 단어장. 읽기 모드에서는 줄을 누르면 예문이 펼쳐지고, 듣기 모드에서는 영단어 발음을 들려준다.
 struct DayWordsDetailView: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case read = "읽기"
+        case listen = "듣기"
+
+        var id: Self { self }
+
+        var hint: String {
+            switch self {
+            #if os(macOS)
+            case .read: "줄을 누르면 예문이 펼쳐져요. 우클릭하면 편집·삭제."
+            #else
+            case .read: "줄을 누르면 예문이 펼쳐져요. 길게 누르면 편집·삭제."
+            #endif
+            case .listen: "줄을 누르면 영단어 발음을 들려줘요."
+            }
+        }
+    }
+
+    enum Sort: String, CaseIterable, Identifiable {
+        case added = "추가한 순서"
+        case mostWrong = "많이 틀린 순"
+
+        var id: Self { self }
+    }
+
     let initialDay: VocabularyDay
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.appNavigate) private var navigate
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
     @StateObject private var speechPlayer = DaySpeechPlayer()
     @State private var currentDayID: UUID
-    @State private var sortsWordsByCount = false
-    @State private var isEditingWords = false
-    @State private var showsWordDetails = false
-    @State private var selectedWordIDs: Set<UUID> = []
-    @State private var editingWord: VocaWord?
+    @State private var mode: Mode = .read
+    @State private var sort: Sort = .added
+    @State private var showsOnlyIssues = false
+    @State private var expandedWordID: UUID?
+    @State private var wordPendingDeletion: VocaWord?
     @State private var searchText = ""
     @State private var errorAlert: VocaAlert?
 
@@ -25,90 +52,93 @@ struct DayWordsDetailView: View {
         days.first { $0.id == currentDayID } ?? initialDay
     }
 
-    private var orderedWords: [VocaWord] {
-        if sortsWordsByCount {
-            return currentDay.wordList.sorted {
-                if $0.wrongCount == $1.wrongCount {
-                    return $0.createdAt < $1.createdAt
-                }
-
-                return $0.wrongCount > $1.wrongCount
-            }
-        }
-
-        return currentDay.wordList.sorted { $0.createdAt < $1.createdAt }
+    /// 추가한 순서 기준 번호. 정렬·검색해도 번호는 그대로 둔다.
+    private var addedOrder: [VocaWord] {
+        currentDay.wordList.sorted { $0.createdAt < $1.createdAt }
     }
 
-    private var selectedWords: [VocaWord] {
-        visibleWords.filter { selectedWordIDs.contains($0.id) }
+    private var issueWordIDs: Set<UUID> {
+        Set(addedOrder.filter { !WordDataCheck.isQuizReady(WordDataCheck.issues(
+            english: $0.english, meaningKo: $0.meaningKo, exampleEn: $0.exampleEn, exampleKo: $0.exampleKo
+        )) }.map(\.id))
     }
 
     private var visibleWords: [VocaWord] {
-        let query = normalizedSearchText
-        guard !query.isEmpty else { return orderedWords }
-
-        return orderedWords.filter { word in
-            word.english.localizedCaseInsensitiveContains(query) ||
-            word.meaningKo.localizedCaseInsensitiveContains(query) ||
-            word.exampleEn.localizedCaseInsensitiveContains(query) ||
-            word.exampleKo.localizedCaseInsensitiveContains(query) ||
-            word.note.localizedCaseInsensitiveContains(query) ||
-            word.toeicTag.localizedCaseInsensitiveContains(query)
+        var words = addedOrder
+        if sort == .mostWrong {
+            words = words.enumerated()
+                .sorted { $0.element.wrongCount == $1.element.wrongCount ? $0.offset < $1.offset : $0.element.wrongCount > $1.element.wrongCount }
+                .map(\.element)
+        }
+        if showsOnlyIssues {
+            let issues = issueWordIDs
+            words = words.filter { issues.contains($0.id) }
+        }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return words }
+        return words.filter { word in
+            [word.english, word.meaningKo, word.exampleEn, word.exampleKo, word.note, word.toeicTag]
+                .contains { $0.localizedCaseInsensitiveContains(query) }
         }
     }
 
-    private var normalizedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                WordDataTable(
-                    title: "\(currentDay.title) 단어",
-                    words: visibleWords,
-                    allowsSelection: false,
-                    showsTitle: false,
-                    showsWordDetails: showsWordDetails,
-                    emptyTitle: normalizedSearchText.isEmpty ? "이 데이에 저장된 단어가 없습니다." : "일치하는 단어가 없습니다.",
-                    isEditingRows: isEditingWords,
-                    onEnglishTap: { word in
-                        speechPlayer.speakEnglishWord(word.english)
-                    },
-                    onEditWord: { word in
-                        editingWord = word
-                    },
-                    onDeleteWord: { word in
-                        delete(word)
-                    },
-                    selectedWordIDs: $selectedWordIDs
-                )
+        let numbers = Dictionary(uniqueKeysWithValues: addedOrder.enumerated().map { ($0.element.id, $0.offset + 1) })
+        let words = visibleWords
+
+        AppCollectionPage(maxContentWidth: 900, horizontalPadding: 16, verticalPadding: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                controls
+
+                if words.isEmpty {
+                    EmptyStateView(title: emptyTitle, systemImage: "text.page")
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(words.enumerated()), id: \.element.id) { index, word in
+                            if index > 0 {
+                                Divider().padding(.leading, 54)
+                            }
+                            DayWordRow(
+                                number: numbers[word.id] ?? index + 1,
+                                word: word,
+                                isExpanded: mode == .read && expandedWordID == word.id,
+                                isSpeaking: speechPlayer.currentWordID == word.id,
+                                tapSpeaks: mode == .listen,
+                                onTap: { tap(word) },
+                                onEdit: { edit(word) },
+                                onSpeak: { speechPlayer.speakEnglishWord(word.english, wordID: word.id) },
+                                onDelete: { wordPendingDeletion = word }
+                            )
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+                    .calmCard()
+                }
             }
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(AppTheme.background)
         .navigationTitle(currentDay.title)
         .searchable(text: $searchText, prompt: "단어 검색")
-        .toolbar {
-            toolbarContent
-        }
-        .sheet(item: $editingWord) { word in
-            EditWordSheet(word: word) {
-                if let error = modelContext.saveReportingError() {
-                    errorAlert = .saveFailure(error)
-                    return
-                }
-                selectedWordIDs = [word.id]
+        .confirmationDialog(
+            "‘\(wordPendingDeletion?.english ?? "")’을 삭제할까요?",
+            isPresented: Binding(get: { wordPendingDeletion != nil }, set: { if !$0 { wordPendingDeletion = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("삭제", role: .destructive) {
+                if let word = wordPendingDeletion { delete(word) }
             }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("복습 기록도 함께 사라지고 되돌릴 수 없어요.")
         }
         .onChange(of: currentDayID) { _, _ in
-            selectedWordIDs.removeAll()
-            isEditingWords = false
+            expandedWordID = nil
+            showsOnlyIssues = false
         }
-        .onChange(of: searchText) { _, _ in
-            selectedWordIDs = selectedWordIDs.intersection(Set(visibleWords.map(\.id)))
+        .onChange(of: mode) { _, _ in
+            speechPlayer.stop()
         }
         .onDisappear {
             speechPlayer.stop()
@@ -118,8 +148,91 @@ struct DayWordsDetailView: View {
         }
     }
 
-    private var countText: String {
-        "\(visibleWords.count)"
+    // MARK: 상단 조작
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Picker("보기 방식", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 200)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    togglePlayback()
+                } label: {
+                    Label(speechPlayer.isPlaying ? "중지" : "전체 듣기", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .disabled(visibleWords.isEmpty && !speechPlayer.isPlaying)
+                .help("번호 · 단어 · 뜻 · 예문 순서로 이 데이를 끝까지 읽어요")
+            }
+
+            Text(mode.hint)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                summary
+                Spacer(minLength: 0)
+                Picker("정렬", selection: $sort) {
+                    ForEach(Sort.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+            }
+        }
+    }
+
+    private var summary: some View {
+        let total = addedOrder.count
+        let issueCount = issueWordIDs.count
+        return HStack(spacing: 8) {
+            Text("단어 \(total)개 · 문제 준비 \(total - issueCount)/\(total)")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+            if issueCount > 0 || showsOnlyIssues {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { showsOnlyIssues.toggle() }
+                } label: {
+                    Label(showsOnlyIssues ? "전체 보기" : "확인 필요 \(issueCount)", systemImage: showsOnlyIssues ? "list.bullet" : "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(showsOnlyIssues ? .accentColor : .orange)
+            }
+        }
+    }
+
+    private var emptyTitle: String {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "일치하는 단어가 없습니다." }
+        if showsOnlyIssues { return "확인이 필요한 단어가 없어요." }
+        return "이 데이에 저장된 단어가 없습니다."
+    }
+
+    // MARK: 동작
+
+    private func tap(_ word: VocaWord) {
+        switch mode {
+        case .read:
+            withAnimation(.easeInOut(duration: 0.18)) {
+                expandedWordID = expandedWordID == word.id ? nil : word.id
+            }
+        case .listen:
+            speechPlayer.speakEnglishWord(word.english, wordID: word.id)
+        }
+    }
+
+    private func edit(_ word: VocaWord) {
+        speechPlayer.stop()
+        navigate(.wordEdit(wordID: word.id))
     }
 
     private func togglePlayback() {
@@ -134,6 +247,7 @@ struct DayWordsDetailView: View {
         }
     }
 
+    /// 전체 듣기가 끝나면 다음 데이로 넘어간다.
     private func moveToNextDay(after day: VocabularyDay) {
         guard let currentIndex = days.firstIndex(where: { $0.id == day.id }) else { return }
         let nextIndex = days.index(after: currentIndex)
@@ -141,170 +255,16 @@ struct DayWordsDetailView: View {
         currentDayID = days[nextIndex].id
     }
 
-    private func deleteSelectedWords() {
+    private func delete(_ word: VocaWord) {
         speechPlayer.stop()
-
-        let wordsToDelete = selectedWords
-        for word in wordsToDelete {
-            delete(word, savesImmediately: false)
+        if expandedWordID == word.id {
+            expandedWordID = nil
         }
-
-        selectedWordIDs.removeAll()
+        currentDay.removeWord(word)
+        modelContext.delete(word)
+        wordPendingDeletion = nil
         if let error = modelContext.saveReportingError() {
             errorAlert = .saveFailure(error)
         }
-    }
-
-    private func delete(_ word: VocaWord, savesImmediately: Bool = true) {
-        speechPlayer.stop()
-        currentDay.removeWord(word)
-        modelContext.delete(word)
-        selectedWordIDs.remove(word.id)
-
-        if savesImmediately {
-            if let error = modelContext.saveReportingError() {
-                errorAlert = .saveFailure(error)
-            }
-            if visibleWords.count <= 1 {
-                isEditingWords = false
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        #if os(iOS)
-        ToolbarItem(placement: .topBarTrailing) {
-            Text(countText)
-                .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                detailToggle
-                playButton
-                editModeButton
-                sortButton
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .accessibilityLabel("추가 작업")
-            .disabled(visibleWords.isEmpty)
-        }
-        #else
-        ToolbarItemGroup(placement: .primaryAction) {
-            toolbarCountLabel
-            detailToggle
-            playButton
-            editModeButton
-            sortButton
-        }
-        #endif
-    }
-
-    private var toolbarCountLabel: some View {
-        Text(countText)
-            .font(.caption.monospacedDigit().weight(.semibold))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 38, alignment: .trailing)
-            .padding(.leading, 8)
-            .accessibilityLabel("단어 \(countText)개")
-    }
-
-    private var detailToggle: some View {
-        Toggle(isOn: $showsWordDetails) {
-            Label(showsWordDetails ? "단어 상세 숨기기" : "단어 상세 보기", systemImage: "text.justify")
-        }
-        .toggleStyle(.button)
-        .disabled(visibleWords.isEmpty)
-    }
-
-    private var playButton: some View {
-        Button {
-            togglePlayback()
-        } label: {
-            Label(speechPlayer.isPlaying ? "중지" : "재생", systemImage: speechPlayer.isPlaying ? "stop.fill" : "play.fill")
-        }
-        .disabled(visibleWords.isEmpty)
-    }
-
-    private var editModeButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isEditingWords.toggle()
-                selectedWordIDs.removeAll()
-            }
-        } label: {
-            Label(isEditingWords ? "편집 완료" : "단어 편집", systemImage: isEditingWords ? "checkmark" : "square.and.pencil")
-        }
-        .disabled(visibleWords.isEmpty)
-    }
-
-    private var sortButton: some View {
-        Button {
-            sortsWordsByCount.toggle()
-        } label: {
-            Label("오답 많은 순", systemImage: sortsWordsByCount ? "arrow.down.123" : "number")
-        }
-    }
-}
-
-private struct EditWordSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var word: VocaWord
-    let onSave: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("단어") {
-                    TextField("영단어", text: $word.english)
-                    TextField("한국어 뜻", text: $word.meaningKo)
-                    TextField("메모", text: $word.note)
-                    TextField("TOEIC 태그", text: $word.toeicTag)
-                }
-
-                Section {
-                    TextField("영어 예문 (품사가 여럿이면 1. / 2. 줄로)", text: $word.exampleEn, axis: .vertical)
-                        .lineLimit(2...4)
-                    TextField("한국어 예문 (영어 예문과 같은 번호로)", text: $word.exampleKo, axis: .vertical)
-                        .lineLimit(2...4)
-                } header: {
-                    Text("예문")
-                } footer: {
-                    WordDataCheckView(issues: WordDataCheck.issues(
-                        english: word.english,
-                        meaningKo: word.meaningKo,
-                        exampleEn: word.exampleEn,
-                        exampleKo: word.exampleKo
-                    ))
-                }
-            }
-            .navigationTitle("단어 편집")
-            #if os(macOS)
-            .formStyle(.grouped)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("취소") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("저장") {
-                        onSave()
-                        dismiss()
-                    }
-                    .disabled(word.english.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        #if os(macOS)
-        .frame(minWidth: 460, minHeight: 420)
-        #endif
     }
 }

@@ -16,6 +16,7 @@ enum AppRoute: Hashable {
     case bundledDayReview
     case setAsideWords
     case dayWords(dayID: UUID)
+    case wordEdit(wordID: UUID)
     case reviewSession(dayID: UUID, dueOnly: Bool)
     case studyMemo(memoID: UUID)
     case wordStudyDetail(wordID: UUID)

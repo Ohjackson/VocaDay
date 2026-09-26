@@ -50,6 +50,8 @@ struct AppRouteDestination: View {
             DayRouteResolver(dayID: dayID) { day in
                 DayWordsDetailView(initialDay: day)
             }
+        case .wordEdit(let wordID):
+            WordEditView(wordID: wordID)
         case .reviewSession(let dayID, let dueOnly):
             DayRouteResolver(dayID: dayID) { day in
                 ReviewSessionView(day: day, dueOnly: dueOnly)

@@ -5,6 +5,8 @@ import Foundation
 @MainActor
 final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published private(set) var isPlaying = false
+    /// 지금 읽고 있는 단어. 목록에서 강조할 때 쓴다.
+    @Published private(set) var currentWordID: UUID?
 
     private let speechRate = AVSpeechUtteranceDefaultSpeechRate * 0.8
     private let singleWordSpeechRate = AVSpeechUtteranceDefaultSpeechRate * 0.72
@@ -25,6 +27,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         playbackTask = Task { @MainActor in
             for (index, word) in words.enumerated() {
                 guard !Task.isCancelled else { break }
+                currentWordID = word.id
                 await speak(englishNumber(index + 1), language: "en-US")
 
                 guard !Task.isCancelled else { break }
@@ -59,13 +62,14 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         }
     }
 
-    func speakEnglishWord(_ english: String) {
+    func speakEnglishWord(_ english: String, wordID: UUID? = nil) {
         stop()
 
         let trimmed = english.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         isPlaying = true
+        currentWordID = wordID
         playbackTask = Task { @MainActor in
             await speak(trimmed, language: "en-US", rate: singleWordSpeechRate)
             stop()
@@ -79,6 +83,7 @@ final class DaySpeechPlayer: NSObject, ObservableObject, AVSpeechSynthesizerDele
         continuation = nil
         synthesizer.stopSpeaking(at: .immediate)
         isPlaying = false
+        currentWordID = nil
     }
 
     private func speak(_ text: String, language: String, rate: Float? = nil) async {
