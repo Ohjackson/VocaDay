@@ -132,7 +132,13 @@ private struct ProductionRootView: View {
             }
             #endif
         }
-        .environment(\.appNavigate, AppNavigateAction { navigation.push($0) })
+        .environment(\.appNavigate, AppNavigateAction { route, replacingTop in
+            if replacingTop {
+                navigation.replaceTop(with: route)
+            } else {
+                navigation.push(route)
+            }
+        })
         .overlay {
             if isShowingQuickAdd {
                 quickAddOverlay
@@ -321,5 +327,5 @@ private struct QuickAddWordPanel: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self], inMemory: true)
+        .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self, SetAsideWord.self], inMemory: true)
 }

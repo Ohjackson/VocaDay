@@ -706,5 +706,5 @@ private struct SettingsNavigationLabel: View {
     NavigationStack {
         SettingsView()
     }
-    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self], inMemory: true)
+    .modelContainer(for: [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self, SetAsideWord.self], inMemory: true)
 }

@@ -23,6 +23,8 @@ struct AppDataArchive: Codable {
     var studyProgress: StudyProgressArchive?
     /// 시험 풀이 로그 (schema 6+, 전체 백업에만).
     var reviewLogs: [ReviewLogArchive]?
+    /// 기본 단어장 검수에서 보관한 단어 (schema 7+, 전체 백업에만).
+    var setAsideWords: [SetAsideWordArchive]?
 
     init(
         schemaVersion: Int = AppDataBackupService.currentSchemaVersion,
@@ -33,7 +35,8 @@ struct AppDataArchive: Codable {
         studyMemos: [StudyMemoArchive] = [],
         studyPageCategories: [StudyPageCategoryArchive] = [],
         studyProgress: StudyProgressArchive? = nil,
-        reviewLogs: [ReviewLogArchive]? = nil
+        reviewLogs: [ReviewLogArchive]? = nil,
+        setAsideWords: [SetAsideWordArchive]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.createdAt = createdAt
@@ -44,6 +47,7 @@ struct AppDataArchive: Codable {
         self.studyPageCategories = studyPageCategories
         self.studyProgress = studyProgress
         self.reviewLogs = reviewLogs
+        self.setAsideWords = setAsideWords
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +61,7 @@ struct AppDataArchive: Codable {
         studyPageCategories = try container.decodeIfPresent([StudyPageCategoryArchive].self, forKey: .studyPageCategories) ?? []
         studyProgress = try container.decodeIfPresent(StudyProgressArchive.self, forKey: .studyProgress)
         reviewLogs = try container.decodeIfPresent([ReviewLogArchive].self, forKey: .reviewLogs)
+        setAsideWords = try container.decodeIfPresent([SetAsideWordArchive].self, forKey: .setAsideWords)
     }
 }
 
@@ -72,6 +77,13 @@ struct ReviewLogArchive: Codable {
     var stageBefore: Int
     var stageAfter: Int
     var answeredAt: Date
+}
+
+struct SetAsideWordArchive: Codable {
+    var id: UUID
+    var english: String
+    var meaningKo: String
+    var createdAt: Date
 }
 
 struct StudyProgressArchive: Codable {
@@ -228,6 +240,7 @@ struct VocabularyDayArchive: Codable, Identifiable {
     var reviewSessionCount: Int
     var reviewedWordCount: Int
     var lastReviewedAt: Date?
+    var source: String
     var words: [VocaWordArchive]
 
     init(
@@ -237,6 +250,7 @@ struct VocabularyDayArchive: Codable, Identifiable {
         reviewSessionCount: Int = 0,
         reviewedWordCount: Int = 0,
         lastReviewedAt: Date? = nil,
+        source: String = "",
         words: [VocaWordArchive] = []
     ) {
         self.id = id
@@ -245,6 +259,7 @@ struct VocabularyDayArchive: Codable, Identifiable {
         self.reviewSessionCount = reviewSessionCount
         self.reviewedWordCount = reviewedWordCount
         self.lastReviewedAt = lastReviewedAt
+        self.source = source
         self.words = words
     }
 
@@ -256,6 +271,7 @@ struct VocabularyDayArchive: Codable, Identifiable {
         reviewSessionCount = try container.decodeIfPresent(Int.self, forKey: .reviewSessionCount) ?? 0
         reviewedWordCount = try container.decodeIfPresent(Int.self, forKey: .reviewedWordCount) ?? 0
         lastReviewedAt = try container.decodeIfPresent(Date.self, forKey: .lastReviewedAt)
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
         words = try container.decodeIfPresent([VocaWordArchive].self, forKey: .words) ?? []
     }
 }
@@ -367,7 +383,7 @@ enum AppDataBackupError: LocalizedError {
 
 @MainActor
 enum AppDataBackupService {
-    nonisolated static let currentSchemaVersion = 6
+    nonisolated static let currentSchemaVersion = 7
 
     static func archiveAll(
         vocabularyDays: [VocabularyDay],
@@ -380,6 +396,8 @@ enum AppDataBackupService {
             .flatMap(StudyProgressStore.preferred)
         let logs = context
             .flatMap { try? $0.fetch(FetchDescriptor<ReviewLog>(sortBy: [SortDescriptor(\.answeredAt)])) } ?? []
+        let setAside = context
+            .flatMap { try? $0.fetch(FetchDescriptor<SetAsideWord>(sortBy: [SortDescriptor(\.createdAt)])) } ?? []
         return AppDataArchive(
             type: .allAppData,
             vocabularyDays: vocabularyDays.sortedByCreatedAt().map(Self.makeVocabularyDayArchive),
@@ -392,6 +410,9 @@ enum AppDataBackupService {
                     sessionKind: $0.sessionKind, mode: $0.mode, isCorrect: $0.isCorrect, outcomeDetail: $0.outcomeDetail,
                     stageBefore: $0.stageBefore, stageAfter: $0.stageAfter, answeredAt: $0.answeredAt
                 )
+            },
+            setAsideWords: setAside.map {
+                SetAsideWordArchive(id: $0.id, english: $0.english, meaningKo: $0.meaningKo, createdAt: $0.createdAt)
             }
         )
     }
@@ -469,6 +490,7 @@ enum AppDataBackupService {
             day.reviewSessionCount = dayArchive.reviewSessionCount
             day.reviewedWordCount = dayArchive.reviewedWordCount
             day.lastReviewedAt = dayArchive.lastReviewedAt
+            day.source = dayArchive.source
 
             for wordArchive in dayArchive.words {
                 let word = wordsByID[wordArchive.id] ?? {
@@ -520,6 +542,13 @@ enum AppDataBackupService {
             }
         }
 
+        if let setAsideArchives = archive.setAsideWords, !setAsideArchives.isEmpty {
+            let existing = Set(((try? context.fetch(FetchDescriptor<SetAsideWord>())) ?? []).map { $0.english.normalizedEnglish })
+            for item in setAsideArchives where !existing.contains(item.english.normalizedEnglish) {
+                context.insert(SetAsideWord(id: item.id, english: item.english, meaningKo: item.meaningKo, createdAt: item.createdAt))
+            }
+        }
+
         if let progressArchive = archive.studyProgress {
             let progress = StudyProgressStore.fetchOrCreate(in: context)
             progress.currentLearningDay = max(progress.currentLearningDay, progressArchive.currentLearningDay)
@@ -552,6 +581,9 @@ enum AppDataBackupService {
         for log in (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? [] {
             context.delete(log)
         }
+        for word in (try? context.fetch(FetchDescriptor<SetAsideWord>())) ?? [] {
+            context.delete(word)
+        }
         try context.save()
         SRSProgressHighWaterStore.standard.reset()
         ExamSessionStore.standard.clear()
@@ -566,6 +598,7 @@ enum AppDataBackupService {
             reviewSessionCount: day.reviewSessionCount,
             reviewedWordCount: day.reviewedWordCount,
             lastReviewedAt: day.lastReviewedAt,
+            source: day.source,
             words: day.wordList.sortedByCreatedAt().map { word in
                 VocaWordArchive(
                     id: word.id,

@@ -3,19 +3,20 @@ import SwiftUI
 
 /// 코드에서 화면을 push 할 때 쓰는 동작입니다. (`NavigationLink(value:)` 를 쓸 수 없는 경우에만)
 struct AppNavigateAction {
-    fileprivate let handler: (AppRoute) -> Void
+    fileprivate let handler: (AppRoute, _ replacingTop: Bool) -> Void
 
-    init(_ handler: @escaping (AppRoute) -> Void) {
+    init(_ handler: @escaping (AppRoute, _ replacingTop: Bool) -> Void) {
         self.handler = handler
     }
 
-    func callAsFunction(_ route: AppRoute) {
-        handler(route)
+    /// `replacingTop`: 현재 맨 위 화면을 닫고 그 자리에 연다 (예: 검수 완료 → 만든 데이).
+    func callAsFunction(_ route: AppRoute, replacingTop: Bool = false) {
+        handler(route, replacingTop)
     }
 }
 
 extension EnvironmentValues {
-    @Entry var appNavigate = AppNavigateAction { _ in }
+    @Entry var appNavigate = AppNavigateAction { _, _ in }
 }
 
 extension View {
@@ -41,6 +42,10 @@ struct AppRouteDestination: View {
             PrivacyAndServiceView()
         case .addWordsHelp:
             AddWordsHelpView()
+        case .bundledDayReview:
+            BundledDayReviewView()
+        case .setAsideWords:
+            SetAsideWordsView()
         case .dayWords(let dayID):
             DayRouteResolver(dayID: dayID) { day in
                 DayWordsDetailView(initialDay: day)

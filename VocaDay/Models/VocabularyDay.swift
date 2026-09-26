@@ -9,6 +9,8 @@ final class VocabularyDay {
     var reviewSessionCount: Int = 0
     var reviewedWordCount: Int = 0
     var lastReviewedAt: Date?
+    /// 데이를 만든 경로. 기본 단어장으로 만든 데이는 `BundledWordPack.daySource`. 하루 1데이 제한에 쓴다.
+    var source: String = ""
 
     @Relationship(deleteRule: .cascade, inverse: \VocaWord.day)
     var words: [VocaWord]? = []

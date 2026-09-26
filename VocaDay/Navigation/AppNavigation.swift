@@ -13,6 +13,8 @@ enum AppRoute: Hashable {
     case settingsBackup
     case settingsPrivacy
     case addWordsHelp
+    case bundledDayReview
+    case setAsideWords
     case dayWords(dayID: UUID)
     case reviewSession(dayID: UUID, dueOnly: Bool)
     case studyMemo(memoID: UUID)
@@ -64,6 +66,15 @@ struct AppNavigationState: Equatable {
 
     mutating func push(_ route: AppRoute) {
         paths[selectedSection, default: []].append(route)
+    }
+
+    mutating func replaceTop(with route: AppRoute) {
+        var path = paths[selectedSection] ?? []
+        if !path.isEmpty {
+            path.removeLast()
+        }
+        path.append(route)
+        setPath(path, for: selectedSection)
     }
 
     mutating func pop() {

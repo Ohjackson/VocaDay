@@ -14,8 +14,6 @@ struct DaysView: View {
     @State private var dayPendingDeletion: VocabularyDay?
     @State private var searchText = ""
     @State private var errorAlert: VocaAlert?
-    @State private var bundledPack: [VocaWordJSON] = []
-    @State private var isConfirmingBundledDay = false
 
     private var filteredDays: [VocabularyDay] {
         let query = normalizedSearchText
@@ -82,13 +80,23 @@ struct DaysView: View {
                 .accessibilityLabel(isEditingDays ? "데이 편집 완료" : "데이 편집")
                 .disabled(days.isEmpty)
 
-                Button {
-                    prepareBundledDay()
+                Menu {
+                    let addedToday = BundledWordPack.hasAddedToday(existingDays: days)
+                    Button(
+                        addedToday ? "오늘의 단어장 완료 · 내일 다시" : "오늘의 새 단어 \(BundledWordPack.dailyCount)개 고르기",
+                        systemImage: addedToday ? "checkmark.circle" : "sparkles"
+                    ) {
+                        startBundledDay()
+                    }
+                    .disabled(addedToday)
+                    Button("보관한 단어", systemImage: "archivebox") {
+                        navigate(.setAsideWords)
+                    }
                 } label: {
                     Image(systemName: "sparkles")
                 }
-                .accessibilityLabel("오늘의 새 단어 \(BundledWordPack.dailyCount)개 추가")
-                .help("오늘의 새 단어 \(BundledWordPack.dailyCount)개 추가")
+                .accessibilityLabel("오늘의 새 단어")
+                .help("오늘의 새 단어 \(BundledWordPack.dailyCount)개 고르기")
 
                 Button {
                     editingDay = nil
@@ -131,17 +139,6 @@ struct DaysView: View {
             }
         } message: {
             Text("포함된 단어 \(dayPendingDeletion?.wordList.count ?? 0)개와 복습 기록이 함께 삭제되며 되돌릴 수 없습니다.")
-        }
-        .confirmationDialog(
-            "오늘의 새 단어를 추가할까요?",
-            isPresented: $isConfirmingBundledDay,
-            titleVisibility: .visible
-        ) {
-            Button("\(DayFactory.nextDayTitle(existingDays: days)) 만들기", action: addBundledDay)
-            Button("취소", role: .cancel) {}
-        } message: {
-            let remaining = BundledWordPack.remainingCount(in: bundledPack, existingDays: days)
-            Text("기본 TOEIC 단어장에서 아직 추가하지 않은 단어 \(min(remaining, BundledWordPack.dailyCount))개로 새 데이를 만들어요. 남은 단어 \(remaining)개.")
         }
         .alert(item: $errorAlert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message))
@@ -216,28 +213,12 @@ struct DaysView: View {
         resetDayTitleEditor()
     }
 
-    private func prepareBundledDay() {
-        do {
-            if bundledPack.isEmpty {
-                bundledPack = try BundledWordPack.loadWords()
-            }
-            guard BundledWordPack.remainingCount(in: bundledPack, existingDays: days) > 0 else {
-                throw BundledWordPackError.exhausted
-            }
-            isConfirmingBundledDay = true
-        } catch {
-            errorAlert = VocaAlert(title: "단어를 추가할 수 없어요", message: error.localizedDescription)
+    private func startBundledDay() {
+        guard !BundledWordPack.hasAddedToday(existingDays: days) else {
+            errorAlert = VocaAlert(title: "오늘의 새 단어", message: BundledWordPackError.alreadyAddedToday.localizedDescription)
+            return
         }
-    }
-
-    private func addBundledDay() {
-        do {
-            let day = try BundledWordPack.addNextDay(existingDays: days, in: modelContext, pack: bundledPack)
-            selectedDayID = day.id
-            navigate(.dayWords(dayID: day.id))
-        } catch {
-            errorAlert = VocaAlert(title: "단어를 추가할 수 없어요", message: error.localizedDescription)
-        }
+        navigate(.bundledDayReview)
     }
 
     private func resetDayTitleEditor() {

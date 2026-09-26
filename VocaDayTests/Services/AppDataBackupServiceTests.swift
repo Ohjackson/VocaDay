@@ -112,12 +112,14 @@ final class AppDataBackupServiceTests: XCTestCase {
     }
 
     func testReviewLogsRoundTripInFullBackup() throws {
-        let schema: [any PersistentModel.Type] = [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self]
+        let schema: [any PersistentModel.Type] = [VocabularyDay.self, VocaWord.self, StudyMemo.self, StudyPageCategory.self, StudyProgress.self, ReviewLog.self, SetAsideWord.self]
         let source = ModelContext(try ModelContainer(for: Schema(schema), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
         let day = VocabularyDay(title: "Day 1")
+        day.source = BundledWordPack.daySource
         source.insert(day)
         let word = VocaWord(english: "abandon", day: day)
         source.insert(word)
+        source.insert(SetAsideWord(english: "cancel", meaningKo: "v. 취소하다"))
         let log = ReviewLog(
             wordID: word.id, sessionID: UUID(), learningDay: 3, sessionKind: "first", mode: "M2",
             isCorrect: true, stageBefore: 2, stageAfter: 3, answeredAt: Date(timeIntervalSince1970: 1_800_000_000)
@@ -138,9 +140,12 @@ final class AppDataBackupServiceTests: XCTestCase {
         XCTAssertEqual(restored.count, 1, "같은 백업을 두 번 가져와도 중복되지 않는다")
         XCTAssertEqual(restored.first?.id, log.id)
         XCTAssertEqual(restored.first?.mode, "M2")
+        XCTAssertEqual(try target.fetch(FetchDescriptor<SetAsideWord>()).map(\.english), ["cancel"], "보관 단어도 중복 없이 복원")
+        XCTAssertEqual(try target.fetch(FetchDescriptor<VocabularyDay>()).first?.source, BundledWordPack.daySource)
 
         try AppDataBackupService.deleteAll(in: target, vocabularyDays: try target.fetch(FetchDescriptor<VocabularyDay>()), studyMemos: [], studyPageCategories: [])
         XCTAssertTrue(try target.fetch(FetchDescriptor<ReviewLog>()).isEmpty)
+        XCTAssertTrue(try target.fetch(FetchDescriptor<SetAsideWord>()).isEmpty)
     }
 
     func testDecodeThrowsForUnsupportedSchemaVersion() throws {
