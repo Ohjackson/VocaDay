@@ -18,7 +18,7 @@ final class ComponentSpotlightOnboardingTests: XCTestCase {
             "1|dayCollection|bottom|데이|단어를 데이별로 모아요",
             "2|wordInput|bottom|추가|원하는 방식으로 단어를 추가해요",
             "3|saveWordsButton|top|추가|확인한 내용만 저장해요",
-            "4|reviewDay|bottom|복습|기억하면서 복습해요"
+            "4|reviewDay|bottom|학습|기억하면서 복습해요"
         ])
     }
 

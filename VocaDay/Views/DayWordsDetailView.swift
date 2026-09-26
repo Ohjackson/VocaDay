@@ -162,6 +162,14 @@ struct DayWordsDetailView: View {
 
                 Spacer(minLength: 0)
 
+                NavigationLink(value: AppRoute.reviewSession(dayID: currentDay.id, dueOnly: false)) {
+                    Label("카드", systemImage: "rectangle.stack")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .disabled(currentDay.wordList.isEmpty)
+                .help("이 데이의 모든 단어를 카드로 넘기며 복습해요")
+
                 Button {
                     togglePlayback()
                 } label: {

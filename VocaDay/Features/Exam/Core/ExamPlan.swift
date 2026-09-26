@@ -20,7 +20,7 @@ nonisolated enum ExamItemKind: String, Codable, Sendable {
     case letterTiles = "M7"
     /// M8 듣고 쓰기 — 발음만 듣고 철자를 입력 (떠올리기)
     case dictation = "M8"
-    /// 복습 탭의 카드 자기 평가 (알아요/다시). 계획에는 들어가지 않고 풀이 로그에만 쓴다.
+    /// 학습 탭 카드의 자기 평가 (알아요/다시). 계획에는 들어가지 않고 풀이 로그에만 쓴다.
     case flashcard = "CARD"
 }
 

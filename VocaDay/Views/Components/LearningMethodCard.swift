@@ -16,9 +16,9 @@ struct LearningMethodCard: View {
                         .frame(width: 32, height: 32)
                         .background(Color.accentColor.opacity(0.12), in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("매일 ‘오늘 복습’만 끝내면 돼요")
+                        Text("매일 ‘오늘 학습’만 끝내면 돼요")
                             .font(.subheadline.weight(.semibold))
-                        Text("복습 카드와 시험 중 무엇으로 풀어도 같은 일정에 반영돼요.")
+                        Text("카드와 시험 중 무엇으로 풀어도 같은 일정에 반영돼요.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

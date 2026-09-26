@@ -1,11 +1,13 @@
 import SwiftData
 import SwiftUI
 
-/// "시험" 탭. 단고초 홈의 학습 버튼 3상태(SPEC §2.4)와 보강 상태를 보여 준다.
+/// "학습" 탭. 단고초 홈의 학습 버튼 3상태(SPEC §2.4), 카드로 훑기, 보강 상태를 보여 준다.
+/// 카드와 시험은 같은 SRS 대기열(`StudyQueue`)과 장부를 쓰므로 한 화면에서 고르게 한다.
 struct ExamView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \VocaWord.createdAt) private var words: [VocaWord]
+    @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
     @Query private var progressRecords: [StudyProgress]
     @ObservedObject private var enrichment = ExamEnrichmentCoordinator.shared
 
@@ -47,13 +49,14 @@ struct ExamView: View {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
                     statusCard(now: context.date)
                 }
+                cardSection
                 LearningMethodCard()
                 enrichmentCard
                 stageDistribution
             }
         }
         .background(AppTheme.background)
-        .navigationTitle("시험")
+        .navigationTitle("오늘 학습")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -124,7 +127,7 @@ struct ExamView: View {
 
             if !snapshot.targetIDs.isEmpty {
                 ProgressView(value: Double(snapshot.gradedIDs.count), total: Double(snapshot.targetIDs.count)) {
-                    Text("오늘 \(snapshot.gradedIDs.count)/\(snapshot.targetIDs.count)개 완료 · 복습 카드와 시험 합산")
+                    Text("오늘 \(snapshot.gradedIDs.count)/\(snapshot.targetIDs.count)개 완료 · 카드와 시험 합산")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -149,6 +152,38 @@ struct ExamView: View {
         }
         .padding(AppTheme.cardPadding)
         .calmCard()
+    }
+
+    // MARK: 카드로 훑기
+
+    /// 오늘 남은 단어가 있는 데이. 카드로 기록해도 시험과 같은 진행도에 합산된다.
+    @ViewBuilder
+    private var cardSection: some View {
+        let remaining = Set(snapshot(now: Date()).remainingIDs)
+        let dueDays = days.compactMap { day -> (VocabularyDay, Int)? in
+            let count = day.wordList.filter { remaining.contains($0.id) }.count
+            return count > 0 ? (day, count) : nil
+        }
+        if !dueDays.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("카드로 훑기")
+                        .font(.headline)
+                    Text("뜻을 떠올리며 넘겨 보세요. 카드와 시험 중 어느 것으로 풀어도 같은 진행도에 합산돼요.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                LazyVStack(spacing: 12) {
+                    ForEach(dueDays, id: \.0.id) { day, count in
+                        NavigationLink(value: AppRoute.reviewSession(dayID: day.id, dueOnly: true)) {
+                            DayCardView(day: day, isSelected: false, dueReviewCount: count)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
     }
 
     private func buttonTitle(for snapshot: StudyQueueSnapshot, resumable: Bool) -> String {

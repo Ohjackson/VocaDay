@@ -10,7 +10,7 @@ import XCTest
 @MainActor
 final class NavigationArchitectureTests: XCTestCase {
     func testMacSectionChangeClearsEveryStack() {
-        var state = AppNavigationState(selectedSection: .review)
+        var state = AppNavigationState(selectedSection: .exam)
         state.push(.reviewSession(dayID: UUID(), dueOnly: true))
         state.select(.studyMemos, policy: .resetAllStacks)
 
@@ -22,12 +22,12 @@ final class NavigationArchitectureTests: XCTestCase {
 
     func testTabChangeKeepsEachTabStack() {
         let dayID = UUID()
-        var state = AppNavigationState(selectedSection: .review)
+        var state = AppNavigationState(selectedSection: .exam)
         state.push(.reviewSession(dayID: dayID, dueOnly: false))
         state.select(.days, policy: .keepStacks)
         state.push(.settings)
 
-        XCTAssertEqual(state.path(for: .review), [.reviewSession(dayID: dayID, dueOnly: false)])
+        XCTAssertEqual(state.path(for: .exam), [.reviewSession(dayID: dayID, dueOnly: false)])
         XCTAssertEqual(state.path(for: .days), [.settings])
 
         state.pop()

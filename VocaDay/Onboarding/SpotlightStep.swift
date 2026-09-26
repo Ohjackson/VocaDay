@@ -58,7 +58,7 @@ enum SpotlightStep: Int, CaseIterable, Identifiable, Sendable {
         switch self {
         case .browseDays: .days
         case .enterWord, .saveWords: .add
-        case .review: .review
+        case .review: .exam
         }
     }
 
