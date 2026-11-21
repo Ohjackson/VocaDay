@@ -8,6 +8,7 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
     case days
     case add
     case exam
+    case listening
     case stats
     case studyMemos
 
@@ -21,6 +22,8 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "추가"
         case .exam:
             return "학습"
+        case .listening:
+            return "리스닝"
         case .stats:
             return "통계"
         case .studyMemos:
@@ -36,6 +39,8 @@ enum AppSection: CaseIterable, Identifiable, Hashable {
             return "plus.circle"
         case .exam:
             return "checkmark.seal"
+        case .listening:
+            return "headphones"
         case .stats:
             return "chart.bar.xaxis"
         case .studyMemos:
@@ -255,6 +260,8 @@ private struct ProductionRootView: View {
             AddWordsView(selectedDayID: $selectedDayID, quickAddWord: $quickAddWord, entryMode: $addEntryMode)
         case .exam:
             ExamView()
+        case .listening:
+            ListeningView()
         case .stats:
             StudyStatsView()
         case .studyMemos:

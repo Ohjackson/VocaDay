@@ -96,7 +96,14 @@ struct VocaDayOnboardingScene: View {
                 }
                 .tag(AppSection.exam)
 
-            // 실제 탭 바와 같은 다섯 칸을 유지해 안내가 끝날 때 탭 바가 바뀌지 않게 한다.
+            NavigationStack { mockDestination(for: .listening) }
+                .tabItem {
+                    Label(AppSection.listening.title, systemImage: AppSection.listening.systemImage)
+                        .spotlightSupportingContent()
+                }
+                .tag(AppSection.listening)
+
+            // 실제 탭 바와 같은 칸을 유지해 안내가 끝날 때 탭 바가 바뀌지 않게 한다.
             NavigationStack { mockDestination(for: .stats) }
                 .tabItem {
                     Label(AppSection.stats.title, systemImage: AppSection.stats.systemImage)
@@ -126,6 +133,9 @@ struct VocaDayOnboardingScene: View {
         case .days: MockDaysOnboardingView()
         case .add: MockAddWordsOnboardingView()
         case .exam: MockStudyOnboardingView()
+        case .listening:
+            EmptyStateView(title: "영어 글을 넣으면 한 문장씩 읽어 줘요.", systemImage: AppSection.listening.systemImage)
+                .spotlightSupportingContent()
         case .stats:
             EmptyStateView(title: "시험을 보면 학습 통계가 쌓여요.", systemImage: AppSection.stats.systemImage)
                 .spotlightSupportingContent()
