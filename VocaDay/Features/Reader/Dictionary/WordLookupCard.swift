@@ -99,6 +99,8 @@ struct WordLookupCard: View {
         .sheet(isPresented: $showsSystemDictionary) {
             SystemDictionarySheet(term: dictionaryTerm)
                 .ignoresSafeArea()
+                .environment(\.colorScheme, SystemDictionarySheet.deviceColorScheme)
+                .preferredColorScheme(SystemDictionarySheet.deviceColorScheme)
         }
         #endif
     }
