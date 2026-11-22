@@ -1,0 +1,46 @@
+{
+  "formatVersion": 1,
+  "id": "sample-first-week",
+  "language": "en",
+  "title": "The First Week",
+  "subtitle": "신입 사원의 첫 주 (형식 확인용 샘플)",
+  "author": "VocaDay",
+  "level": "TOEIC 600~750",
+  "summary": "형식을 맞춰 보기 위한 짧은 샘플 책입니다.",
+  "chapters": [
+    {
+      "title": "Monday",
+      "paragraphs": [
+        {
+          "sentences": [
+            { "text": "Mina arrived at the office twenty minutes early on Monday.", "translation": "미나는 월요일에 20분 일찍 사무실에 도착했다." },
+            { "text": "Her manager had already allocated a desk near the window for her.", "translation": "그녀의 매니저는 이미 창가 근처 책상을 그녀에게 배정해 두었다." }
+          ]
+        },
+        {
+          "sentences": [
+            { "text": "The first task was to review the supplier contracts.", "translation": "첫 번째 업무는 공급업체 계약서를 검토하는 것이었다." },
+            { "text": "She took careful notes and marked every deadline.", "translation": "그녀는 꼼꼼히 메모하고 모든 마감일에 표시를 했다." }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Friday",
+      "paragraphs": [
+        {
+          "sentences": [
+            { "text": "By Friday, Mina had finished reviewing all twelve contracts.", "translation": "금요일까지 미나는 계약서 12건의 검토를 모두 마쳤다." },
+            { "text": "Her manager asked her to present a summary at the next meeting.", "translation": "매니저는 다음 회의에서 요약을 발표해 달라고 그녀에게 부탁했다." }
+          ]
+        }
+      ]
+    }
+  ],
+  "glossary": [
+    { "lemma": "allocate", "forms": ["allocate", "allocated"], "partOfSpeech": "v.", "meaning": "할당하다, 배정하다", "firstPosition": { "chapter": 0, "paragraph": 0, "sentence": 1 } },
+    { "lemma": "supplier", "forms": ["supplier", "suppliers"], "partOfSpeech": "n.", "meaning": "공급업체, 공급자", "firstPosition": { "chapter": 0, "paragraph": 1, "sentence": 0 } },
+    { "lemma": "deadline", "forms": ["deadline", "deadlines"], "partOfSpeech": "n.", "meaning": "마감일, 기한", "firstPosition": { "chapter": 0, "paragraph": 1, "sentence": 1 } },
+    { "lemma": "review", "forms": ["review", "reviewing", "reviewed"], "partOfSpeech": "v.", "meaning": "검토하다", "firstPosition": { "chapter": 0, "paragraph": 1, "sentence": 0 } }
+  ]
+}

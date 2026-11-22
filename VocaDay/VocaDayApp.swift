@@ -103,6 +103,7 @@ struct VocaDayApp: App {
             StudyProgress.self,
             ReviewLog.self,
             SetAsideWord.self,
+            ReaderBookmarkRecord.self, ReaderPositionRecord.self,
         ])
         let modelConfiguration: ModelConfiguration
         if isRunningTests {
@@ -130,6 +131,7 @@ struct VocaDayApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(\.readingStore, SwiftDataReadingStore.shared(in: sharedModelContainer))
         }
         .modelContainer(sharedModelContainer)
     }
