@@ -52,7 +52,7 @@ final class DictionaryTests: XCTestCase {
 
     private func pipeline() -> WordLookupPipeline {
         let index = bundled
-        return EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings)
+        return EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesSystemDictionary: false)
     }
 
     private func generation(generator: FakeGenerator = FakeGenerator(), enabled: Bool = true) -> GeneratedWordLookupStep {
@@ -170,6 +170,72 @@ final class DictionaryTests: XCTestCase {
             XCTAssertTrue(failure.miss.message.contains("설정"), failure.miss.message)
         }
         XCTAssertFalse(WordLookupCard.shortReason(.deviceNotEligible).isEmpty)
+    }
+
+    // MARK: - 시스템 사전 (macOS)
+
+    func testSystemDictionaryEntryKeepsFirstSenseOnly() throws {
+        let raw = "arrive ar·rive | əˈrīv | verb [no object] reach a place at the end of a journey or a stage in a journey: we arrived at his house | they had recently arrived from Turkey. • (of a thing) be brought or delivered: the invitation arrived"
+        let entry = try XCTUnwrap(SystemDictionaryEntry(raw))
+        XCTAssertEqual(entry.headword, "arrive")
+        XCTAssertEqual(entry.partOfSpeech, "v.")
+        XCTAssertEqual(entry.meaning, "reach a place at the end of a journey or a stage in a journey")
+
+        let numbered = try XCTUnwrap(SystemDictionaryEntry("deadline dead·line | ˈdedˌlīn | noun 1 the latest time or date by which something should be completed: the deadline is … 2 historical a line"))
+        XCTAssertEqual(numbered.partOfSpeech, "n.")
+        XCTAssertEqual(numbered.meaning, "the latest time or date by which something should be completed")
+
+        // 다른 모양의 사전은 앞부분만 자른다.
+        let other = try XCTUnwrap(SystemDictionaryEntry(String(repeating: "도착하다 ", count: 60)))
+        XCTAssertNil(other.partOfSpeech)
+        XCTAssertLessThanOrEqual(other.meaning.count, SystemDictionaryEntry.maxLength + 1)
+        XCTAssertNil(SystemDictionaryEntry("   "))
+    }
+
+    func testSystemDictionaryIsLastAndTriesLemmaFirst() async throws {
+        let book = try sampleBook()
+        let context = tap("arrived", in: book)
+        let asked = AskedTerms()
+        var step = SystemDictionaryLookupStep()
+        step.definition = { term in
+            asked.append(term)
+            return term == "arrive" ? "arrive ar·rive | əˈrīv | verb reach a place: we arrived" : nil
+        }
+        let index = bundled
+        let lookup = WordLookupPipeline(
+            lemmatizer: EnglishLemmatizer(),
+            steps: EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesSystemDictionary: false).steps + [step]
+        )
+        let found = try result(await lookup.lookup(context, book: book))
+        XCTAssertEqual(found.source, .systemDictionary)
+        XCTAssertEqual(found.headword, "arrive")
+        XCTAssertEqual(found.meaningForSaving, "v. reach a place")
+        // 원형 후보를 본문 모양보다 먼저 묻는다.
+        XCTAssertNotNil(asked.terms.firstIndex(of: "arrive"))
+        XCTAssertFalse(asked.terms.contains("arrived"))
+
+        // 책 사전에 있는 단어는 시스템 사전까지 가지 않는다.
+        asked.terms.removeAll()
+        _ = try result(await lookup.lookup(tap("allocated", in: book), book: book))
+        XCTAssertTrue(asked.terms.isEmpty)
+    }
+
+    #if os(macOS)
+    func testRealMacDictionaryFindsBasicWord() async throws {
+        guard let raw = SystemDictionaryLookupStep.systemDefinition("arrive") else {
+            throw XCTSkip("이 Mac에 기본 사전이 없음")
+        }
+        XCTAssertNotNil(SystemDictionaryEntry(raw))
+        let book = try sampleBook()
+        let found = try result(await EnglishWordLookup.pipeline(generatedMeanings: meanings).lookup(tap("arrived", in: book), book: book))
+        XCTAssertEqual(found.source, .systemDictionary)
+        XCTAssertFalse(found.meaning.isEmpty)
+    }
+    #endif
+
+    private final class AskedTerms: @unchecked Sendable {
+        var terms: [String] = []
+        func append(_ term: String) { terms.append(term) }
     }
 
     func testAskPromptCarriesWordAndSentence() throws {
@@ -367,7 +433,7 @@ final class DictionaryTests: XCTestCase {
         let words = index
         var book2 = book
         book2.glossary.removeAll { $0.lemma == "review" }
-        let lookup = EnglishWordLookup.pipeline(bundledWords: { words }, generatedMeanings: emptyMeaningStore())
+        let lookup = EnglishWordLookup.pipeline(bundledWords: { words }, generatedMeanings: emptyMeaningStore(), usesSystemDictionary: false)
         for item in cases {
             let context = tap(item.surface, in: book2)
             let phase: WordLookupCard.Phase

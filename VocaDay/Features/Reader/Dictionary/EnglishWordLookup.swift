@@ -7,19 +7,22 @@ import NaturalLanguage
 
 enum EnglishWordLookup {
     /// 단어를 누르면 바로 도는 찾기. 생성은 넣지 않는다 (사용자가 「⋯ → 기기에서 뜻 만들기」를 누를 때만).
+    /// `usesSystemDictionary`: macOS에서 마지막으로 사전 앱의 글을 꺼내 보인다 (iOS는 꺼낼 API가 없어 항상 꺼짐).
     static func pipeline(
         bundledWords: @escaping () -> [String: VocaWordJSON] = { BundledWordIndex.shared },
-        generatedMeanings: GeneratedMeaningStore = .shared
+        generatedMeanings: GeneratedMeaningStore = .shared,
+        usesSystemDictionary: Bool = SystemDictionaryLookupStep.isSupported
     ) -> WordLookupPipeline {
-        WordLookupPipeline(
-            lemmatizer: EnglishLemmatizer(),
-            steps: [
-                GlossaryLookupStep(usesLemma: false),
-                GlossaryLookupStep(usesLemma: true),
-                BundledPackLookupStep(index: bundledWords),
-                GeneratedMeaningLookupStep(store: generatedMeanings),
-            ]
-        )
+        var steps: [any WordLookupStep] = [
+            GlossaryLookupStep(usesLemma: false),
+            GlossaryLookupStep(usesLemma: true),
+            BundledPackLookupStep(index: bundledWords),
+            GeneratedMeaningLookupStep(store: generatedMeanings),
+        ]
+        if usesSystemDictionary {
+            steps.append(SystemDictionaryLookupStep())
+        }
+        return WordLookupPipeline(lemmatizer: EnglishLemmatizer(), steps: steps)
     }
 
     /// 「⋯ → 기기에서 뜻 만들기」. 만든 뜻은 `generatedMeanings`에 남겨 다음부터 바로 보인다.

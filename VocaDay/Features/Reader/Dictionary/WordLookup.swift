@@ -8,12 +8,15 @@ nonisolated enum WordLookupSource: String, Hashable, Sendable {
     case bookGlossary
     case bundledPack
     case generated
+    /// macOS 사전 앱의 글 (기본은 영영사전).
+    case systemDictionary
 
     var label: String {
         switch self {
         case .bookGlossary: "책 사전"
         case .bundledPack: "기본 단어장"
         case .generated: "기기 안 생성"
+        case .systemDictionary: "시스템 사전"
         }
     }
 
@@ -22,6 +25,7 @@ nonisolated enum WordLookupSource: String, Hashable, Sendable {
         case .bookGlossary: "book.closed"
         case .bundledPack: "text.book.closed"
         case .generated: "sparkles"
+        case .systemDictionary: "character.book.closed"
         }
     }
 }
