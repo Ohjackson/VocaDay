@@ -21,6 +21,14 @@ enum AppRoute: Hashable {
     case studyMemo(memoID: UUID)
     case wordStudyDetail(wordID: UUID)
     case examSession
+    /// 리스닝 탭: 직접 넣은 글 듣기.
+    case listeningFreeText
+    /// 리스닝 탭: 책 읽기. 책은 `BookDocument.id` 로 넘긴다.
+    case book(id: String)
+    /// 리스닝 탭: PDF 가져오기.
+    case pdfImport
+    /// 책 적합도 상세. 책은 `BookDocument.id` 로 넘긴다.
+    case bookFit(bookID: String)
     #if DEBUG
     case onboardingReview
     #endif

@@ -65,6 +65,14 @@ struct AppRouteDestination: View {
             ExamSessionView()
                 .navigationBarBackButtonHidden(true)
                 .toolbar(removing: .title)
+        case .listeningFreeText:
+            ListeningFreeTextView()
+        case .book(let id):
+            ReaderView(bookID: id)
+        case .pdfImport:
+            PDFImportRouteScreen()
+        case .bookFit(let bookID):
+            BookFitRouteScreen(bookID: bookID)
         #if DEBUG
         case .onboardingReview:
             OnboardingReviewView()
