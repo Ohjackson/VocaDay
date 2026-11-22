@@ -1,15 +1,15 @@
 import Foundation
 import NaturalLanguage
 
-// 영어 찾기 단계: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 기기 안 생성.
+// 영어 찾기 단계.
+// 자동: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 전에 기기에서 만든 뜻.
+// 버튼(카드 「⋯」): 기기 안 생성. 자세한 뜻은 시스템 사전(단어 글자를 누름)에서 본다.
 
 enum EnglishWordLookup {
-    /// `hasGenerationConsent`, `isGenerationEnabled`는 단어 추가 화면과 같은 설정 값을 읽는다.
+    /// 단어를 누르면 바로 도는 찾기. 생성은 넣지 않는다 (사용자가 「⋯ → 기기에서 뜻 만들기」를 누를 때만).
     static func pipeline(
         bundledWords: @escaping () -> [String: VocaWordJSON] = { BundledWordIndex.shared },
-        generator: any EnglishWordGenerating = AppleFoundationWordGenerationService(),
-        isGenerationEnabled: @escaping () -> Bool = { GenerationSettings.isEnabled },
-        hasGenerationConsent: @escaping () -> Bool = { GenerationSettings.hasConsent }
+        generatedMeanings: GeneratedMeaningStore = .shared
     ) -> WordLookupPipeline {
         WordLookupPipeline(
             lemmatizer: EnglishLemmatizer(),
@@ -17,13 +17,18 @@ enum EnglishWordLookup {
                 GlossaryLookupStep(usesLemma: false),
                 GlossaryLookupStep(usesLemma: true),
                 BundledPackLookupStep(index: bundledWords),
-                GeneratedWordLookupStep(
-                    generator: generator,
-                    isEnabled: isGenerationEnabled,
-                    hasConsent: hasGenerationConsent
-                ),
+                GeneratedMeaningLookupStep(store: generatedMeanings),
             ]
         )
+    }
+
+    /// 「⋯ → 기기에서 뜻 만들기」. 만든 뜻은 `generatedMeanings`에 남겨 다음부터 바로 보인다.
+    static func generation(
+        generator: any EnglishWordGenerating = AppleFoundationWordGenerationService(),
+        isGenerationEnabled: @escaping () -> Bool = { GenerationSettings.isEnabled },
+        generatedMeanings: GeneratedMeaningStore = .shared
+    ) -> GeneratedWordLookupStep {
+        GeneratedWordLookupStep(generator: generator, isEnabled: isGenerationEnabled, store: generatedMeanings)
     }
 
     /// 단어 추가 화면(`AddWordsView`)과 같은 키.
@@ -32,7 +37,7 @@ enum EnglishWordLookup {
         static let consentKey = "hasAcknowledgedAppleIntelligenceWordGeneration"
 
         static var isEnabled: Bool { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
-        static var hasConsent: Bool { UserDefaults.standard.bool(forKey: consentKey) }
+        /// 「기기에서 뜻 만들기」를 누른 것을 단어 추가 화면의 생성 안내 확인과 같게 본다.
         static func giveConsent() { UserDefaults.standard.set(true, forKey: consentKey) }
     }
 }
@@ -155,34 +160,35 @@ enum BundledWordIndex {
     }
 }
 
-/// Apple Intelligence(기기 안 모델)로 뜻을 만든다. 쓸 수 없으면 이유를 남긴다.
+/// Apple Intelligence(기기 안 모델)로 뜻을 만든다. 카드의 「⋯ → 기기에서 뜻 만들기」가 부른다.
+/// 쓸 수 없으면 이유를 담아 `WordLookupStepFailure`를 던진다. 만든 뜻은 `store`에 남긴다.
 struct GeneratedWordLookupStep: WordLookupStep {
     var generator: any EnglishWordGenerating
     var isEnabled: () -> Bool
-    var hasConsent: () -> Bool
+    var store: GeneratedMeaningStore
 
     var progressMessage: String? { "기기 안에서 뜻을 만드는 중…" }
+
+    /// 지금 쓸 수 없는 이유. nil이면 쓸 수 있다. 카드 메뉴가 항목을 끄고 짧은 이유를 보인다.
+    var unavailableReason: EnglishWordGenerationUnavailableReason? {
+        guard isEnabled() else { return .disabledInSettings }
+        if case .unavailable(let reason) = generator.availability { return reason }
+        return nil
+    }
 
     func lookup(_ request: WordLookupRequest) async throws -> WordLookupResult? {
         // 생성기는 활용형을 받아도 원형으로 돌려준다 (규칙 후보는 틀릴 수 있어 넘기지 않는다).
         let term = request.surface
-        guard (try? EnglishWordInputValidator.validate(term)) != nil else { return nil }
-        guard isEnabled() else {
-            throw miss(EnglishWordGenerationUnavailableReason.disabledInSettings.userMessage)
+        guard (try? EnglishWordInputValidator.validate(term)) != nil else {
+            throw miss("영어 단어 하나만 만들 수 있어요.")
         }
-        if case .unavailable(let reason) = generator.availability {
+        if let reason = unavailableReason {
             throw miss(reason.userMessage)
-        }
-        guard hasConsent() else {
-            throw WordLookupStepFailure(miss: WordLookupMiss(
-                message: "Apple Intelligence로 기기 안에서 뜻을 만들 수 있어요. 단어는 외부 AI 서비스로 보내지 않아요.",
-                needsGenerationConsent: true
-            ))
         }
         do {
             let generated = try await generator.generateWord(for: term)
             let draft = GeneratedWordDraftMapper.makeDraft(from: generated)
-            return WordLookupResult(
+            let result = WordLookupResult(
                 headword: generated.word,
                 surface: request.surface,
                 partOfSpeech: nil,
@@ -191,12 +197,83 @@ struct GeneratedWordLookupStep: WordLookupStep {
                 toeicTag: draft.toeicTag.isEmpty ? nil : draft.toeicTag,
                 source: .generated
             )
+            store.save(result)
+            return result
         } catch {
             throw miss((error as? LocalizedError)?.errorDescription ?? "기기 안에서 뜻을 만들지 못했어요.")
         }
     }
 
     private func miss(_ reason: String) -> WordLookupStepFailure {
-        WordLookupStepFailure(miss: WordLookupMiss(message: "책 사전과 기본 단어장에 없는 단어예요. \(reason)"))
+        WordLookupStepFailure(miss: WordLookupMiss(message: reason))
+    }
+}
+
+/// 전에 기기에서 만든 뜻을 본문 모양 → 원형 순서로 찾는다.
+struct GeneratedMeaningLookupStep: WordLookupStep {
+    var store: GeneratedMeaningStore
+
+    func lookup(_ request: WordLookupRequest) async throws -> WordLookupResult? {
+        guard let stored = request.candidates.lazy.compactMap({ store.meaning(for: $0) }).first else { return nil }
+        return WordLookupResult(
+            headword: stored.headword,
+            surface: request.surface,
+            partOfSpeech: stored.partOfSpeech,
+            meaning: stored.meaning,
+            note: stored.note,
+            toeicTag: stored.toeicTag,
+            source: .generated
+        )
+    }
+}
+
+/// 기기에서 만든 뜻을 남겨 두는 곳 (UserDefaults, 기기마다 따로). 본문 모양과 원형 둘 다로 찾을 수 있게 넣는다.
+nonisolated final class GeneratedMeaningStore: @unchecked Sendable {
+    nonisolated struct Stored: Codable, Hashable, Sendable {
+        var headword: String
+        var partOfSpeech: String?
+        var meaning: String
+        var note: String?
+        var toeicTag: String?
+    }
+
+    static let shared = GeneratedMeaningStore(defaults: .standard)
+    static let defaultsKey = "readerGeneratedMeanings"
+
+    private let defaults: UserDefaults
+    private let lock = NSLock()
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    func meaning(for term: String) -> Stored? {
+        lock.withLock { all()[term.lowercased()] }
+    }
+
+    func save(_ result: WordLookupResult) {
+        let stored = Stored(
+            headword: result.headword,
+            partOfSpeech: result.partOfSpeech,
+            meaning: result.meaning,
+            note: result.note,
+            toeicTag: result.toeicTag
+        )
+        lock.withLock {
+            var map = all()
+            for key in Set([result.surface.lowercased(), result.headword.lowercased()]) where !key.isEmpty {
+                map[key] = stored
+            }
+            if let data = try? JSONEncoder().encode(map) {
+                defaults.set(data, forKey: Self.defaultsKey)
+            }
+        }
+    }
+
+    private func all() -> [String: Stored] {
+        guard let data = defaults.data(forKey: Self.defaultsKey),
+              let map = try? JSONDecoder().decode([String: Stored].self, from: data)
+        else { return [:] }
+        return map
     }
 }

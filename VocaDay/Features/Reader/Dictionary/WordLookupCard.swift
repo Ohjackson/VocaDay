@@ -1,5 +1,10 @@
 import SwiftData
 import SwiftUI
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 // 리더 공통 계약 3: 단어 카드. 이니셜라이저 `init(context:book:)`은 계약 모양 그대로 둔다.
 
@@ -14,29 +19,52 @@ struct WordLookupCard: View {
     let context: WordTapContext
     let book: BookDocument
     private let pipeline: WordLookupPipeline
+    private let generation: GeneratedWordLookupStep?
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VocabularyDay.createdAt) private var days: [VocabularyDay]
     @State private var pronunciation = WordPronunciationPlayer()
     @State private var phase: Phase
     @State private var saveError: String?
+    @State private var showsSystemDictionary = false
+    @State private var copiedPrompt = false
+    @Environment(\.openURL) private var openURL
 
     init(context: WordTapContext, book: BookDocument) {
-        self.init(context: context, book: book, pipeline: Self.pipeline(for: context.language))
+        self.init(
+            context: context,
+            book: book,
+            pipeline: Self.pipeline(for: context.language),
+            generation: Self.generation(for: context.language)
+        )
     }
 
     /// 미리보기·테스트용. `initialPhase`를 주면 찾기를 건너뛴다.
-    init(context: WordTapContext, book: BookDocument, pipeline: WordLookupPipeline, initialPhase: Phase? = nil) {
+    init(
+        context: WordTapContext,
+        book: BookDocument,
+        pipeline: WordLookupPipeline,
+        generation: GeneratedWordLookupStep? = nil,
+        initialPhase: Phase? = nil
+    ) {
         self.context = context
         self.book = book
         self.pipeline = pipeline
+        self.generation = generation
         _phase = State(initialValue: initialPhase ?? .loading("뜻을 찾는 중…"))
     }
 
-    /// 언어별 찾기 단계. 일본어 앱은 여기에 "ja" 단계를 넣는다.
+    /// 언어별 자동 찾기(JSON 데이터). 일본어 앱은 여기에 "ja" 단계를 넣는다.
     static func pipeline(for language: String) -> WordLookupPipeline {
         switch language.lowercased().prefix(2) {
         default: EnglishWordLookup.pipeline()
+        }
+    }
+
+    /// 「⋯ → 기기에서 뜻 만들기」. 그 언어에 생성이 없으면 nil (메뉴에서 빠진다).
+    static func generation(for language: String) -> GeneratedWordLookupStep? {
+        switch language.lowercased().prefix(2) {
+        default: EnglishWordLookup.generation()
         }
     }
 
@@ -60,6 +88,12 @@ struct WordLookupCard: View {
             await runLookup()
         }
         .onDisappear { pronunciation.stop() }
+        #if os(iOS)
+        .sheet(isPresented: $showsSystemDictionary) {
+            SystemDictionarySheet(term: dictionaryTerm)
+                .ignoresSafeArea()
+        }
+        #endif
     }
 
     // MARK: - 뜻 상자
@@ -67,14 +101,26 @@ struct WordLookupCard: View {
     private var meaningBox: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(headword)
-                    .font(.title3.bold())
-                    .textSelection(.enabled)
+                Button(action: openSystemDictionary) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(headword)
+                            .font(.title3.bold())
+                            .foregroundStyle(.primary)
+                        Image(systemName: "character.book.closed")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(headword), 사전에서 보기")
+                .help("사전에서 보기")
                 if let partOfSpeech = meaningLines.partOfSpeech {
                     Text(partOfSpeech)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 4)
+                moreMenu
             }
             switch phase {
             case .loading(let message):
@@ -101,20 +147,13 @@ struct WordLookupCard: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityLabel("출처: \(result.source.label)")
             case .notFound(let miss):
-                Text("뜻을 찾지 못했어요")
-                    .font(.body)
-                if miss.needsGenerationConsent {
-                    Button("기기 안에서 뜻 만들기") {
-                        EnglishWordLookup.GenerationSettings.giveConsent()
-                        Task { await runLookup() }
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.footnote)
-                    .help(miss.message)
-                }
-                Text("단어 추가 탭에서 직접 넣을 수 있어요")
+                Text(miss.message)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("단어를 누르면 사전, ⋯에서 기기 생성·AI에 묻기")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
@@ -135,6 +174,96 @@ struct WordLookupCard: View {
     private var meaningLines: MeaningLines {
         guard case .found(let result) = phase else { return MeaningLines(partOfSpeech: nil, lines: []) }
         return MeaningLines(result)
+    }
+
+    // MARK: - ⋯ 메뉴
+
+    private var moreMenu: some View {
+        Menu {
+            Button(action: openSystemDictionary) {
+                Label("사전에서 보기", systemImage: "character.book.closed")
+            }
+            if let generation {
+                let reason = generation.unavailableReason
+                Button {
+                    Task { await runGeneration(generation) }
+                } label: {
+                    Label {
+                        Text("기기에서 뜻 만들기")
+                        if let reason { Text(Self.shortReason(reason)) }
+                    } icon: {
+                        Image(systemName: "apple.intelligence")
+                    }
+                }
+                .disabled(reason != nil || isLoading)
+            }
+            Section {
+                ForEach(WordAskPrompt.Destination.allCases, id: \.self) { destination in
+                    Button {
+                        if let url = askPrompt.url(for: destination) { openURL(url) }
+                    } label: {
+                        Label(destination.title, systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                }
+                Button(action: copyPrompt) {
+                    Label(copiedPrompt ? "복사했어요" : "질문 복사", systemImage: "doc.on.doc")
+                }
+                ShareLink(item: askPrompt.text) {
+                    Label("질문 공유", systemImage: "square.and.arrow.up")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 28, minHeight: 28)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("더 보기")
+    }
+
+    /// 메뉴 항목 아래 한 줄 이유.
+    static func shortReason(_ reason: EnglishWordGenerationUnavailableReason) -> String {
+        switch reason {
+        case .deviceNotEligible: "이 기기는 Apple Intelligence를 지원하지 않아요"
+        case .appleIntelligenceNotEnabled: "Apple Intelligence가 꺼져 있어요"
+        case .modelNotReady: "기기 모델을 준비하는 중이에요"
+        case .disabledInSettings: "설정 > 단어 추가에서 꺼져 있어요"
+        }
+    }
+
+    private var askPrompt: WordAskPrompt { WordAskPrompt(context) }
+
+    /// 사전에 넘길 말. 찾은 원형이 있으면 그것, 없으면 본문 모양.
+    private var dictionaryTerm: String {
+        headword
+    }
+
+    private var isLoading: Bool {
+        if case .loading = phase { return true }
+        return false
+    }
+
+    private func openSystemDictionary() {
+        #if os(iOS)
+        showsSystemDictionary = true
+        #else
+        if let url = SystemDictionary.url(for: dictionaryTerm) { openURL(url) }
+        #endif
+    }
+
+    private func copyPrompt() {
+        #if os(iOS)
+        UIPasteboard.general.string = askPrompt.text
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(askPrompt.text, forType: .string)
+        #endif
+        copiedPrompt = true
     }
 
     // MARK: - 버튼 두 개
@@ -209,6 +338,24 @@ struct WordLookupCard: View {
             saveError = nil
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func runGeneration(_ generation: GeneratedWordLookupStep) async {
+        EnglishWordLookup.GenerationSettings.giveConsent()
+        let previous = phase
+        phase = .loading(generation.progressMessage ?? "뜻을 만드는 중…")
+        let request = pipeline.request(for: context, book: book)
+        do {
+            if let result = try await generation.lookup(request) {
+                phase = .found(result)
+            } else {
+                phase = previous
+            }
+        } catch let failure as WordLookupStepFailure {
+            phase = .notFound(failure.miss)
+        } catch {
+            phase = .notFound(WordLookupMiss(message: "기기 안에서 뜻을 만들지 못했어요."))
         }
     }
 

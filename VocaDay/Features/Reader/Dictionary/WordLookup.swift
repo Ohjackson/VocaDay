@@ -73,8 +73,6 @@ nonisolated struct WordLookupResult: Hashable, Sendable {
 nonisolated struct WordLookupMiss: Hashable, Sendable {
     /// 못 찾은 이유 한두 문장.
     var message: String
-    /// 기기 안 생성을 쓰려면 사용자의 동의가 먼저 필요하다. 카드가 동의 버튼을 보여 준다.
-    var needsGenerationConsent = false
 }
 
 nonisolated enum WordLookupOutcome: Hashable, Sendable {

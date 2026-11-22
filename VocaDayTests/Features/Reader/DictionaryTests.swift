@@ -40,18 +40,23 @@ final class DictionaryTests: XCTestCase {
         return try JSONDecoder().decode(BookDocument.self, from: Data(contentsOf: url))
     }
 
-    private func pipeline(
-        generator: FakeGenerator = FakeGenerator(),
-        enabled: Bool = true,
-        consent: Bool = true
-    ) -> WordLookupPipeline {
+    /// 테스트마다 비어 있는 생성 뜻 저장소.
+    private func emptyMeaningStore() -> GeneratedMeaningStore {
+        let suite = "DictionaryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return GeneratedMeaningStore(defaults: defaults)
+    }
+
+    private lazy var meanings = emptyMeaningStore()
+
+    private func pipeline() -> WordLookupPipeline {
         let index = bundled
-        return EnglishWordLookup.pipeline(
-            bundledWords: { index },
-            generator: generator,
-            isGenerationEnabled: { enabled },
-            hasGenerationConsent: { consent }
-        )
+        return EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings)
+    }
+
+    private func generation(generator: FakeGenerator = FakeGenerator(), enabled: Bool = true) -> GeneratedWordLookupStep {
+        EnglishWordLookup.generation(generator: generator, isGenerationEnabled: { enabled }, generatedMeanings: meanings)
     }
 
     private func tap(_ surface: String, in book: BookDocument) -> WordTapContext {
@@ -115,37 +120,83 @@ final class DictionaryTests: XCTestCase {
         XCTAssertEqual(found.note, "sign a contract")
     }
 
-    func testGenerationIsLastStep() async throws {
-        let book = try sampleBook()
-        let generator = FakeGenerator()
-        let found = try result(await pipeline(generator: generator).lookup(tap("window", in: book), book: book))
-        XCTAssertEqual(found.source, .generated)
-        XCTAssertEqual(found.headword, "window")
-        XCTAssertEqual(found.meaningForSaving, "n. 창문")
-        XCTAssertEqual(generator.calls.terms, ["window"])
-
-        // 앞 단계에서 찾으면 생성하지 않는다.
-        _ = try result(await pipeline(generator: generator).lookup(tap("supplier", in: book), book: book))
-        XCTAssertEqual(generator.calls.terms, ["window"])
-    }
-
-    func testGenerationUnavailableReportsNotFound() async throws {
+    func testAutoLookupNeverGeneratesAndUsesSavedMeaning() async throws {
         let book = try sampleBook()
         let context = tap("window", in: book)
+        // 자동 찾기는 생성하지 않는다: JSON 데이터에 없으면 못 찾음.
+        guard case .notFound = await pipeline().lookup(context, book: book) else { return XCTFail("생성 없이 찾음") }
 
-        let noDevice = await pipeline(generator: FakeGenerator(availability: .unavailable(.deviceNotEligible)))
-            .lookup(context, book: book)
-        guard case .notFound(let miss) = noDevice else { return XCTFail("\(noDevice)") }
-        XCTAssertFalse(miss.needsGenerationConsent)
-        XCTAssertTrue(miss.message.contains("Apple Intelligence를 지원하지 않습니다"), miss.message)
+        // 「⋯ → 기기에서 뜻 만들기」
+        let generator = FakeGenerator()
+        let step = generation(generator: generator)
+        XCTAssertNil(step.unavailableReason)
+        let generated = try await step.lookup(pipeline().request(for: context, book: book))
+        let made = try XCTUnwrap(generated)
+        XCTAssertEqual(made.source, .generated)
+        XCTAssertEqual(made.headword, "window")
+        XCTAssertEqual(made.meaningForSaving, "n. 창문")
+        XCTAssertEqual(generator.calls.terms, ["window"])
 
-        let off = await pipeline(enabled: false).lookup(context, book: book)
-        guard case .notFound(let offMiss) = off else { return XCTFail("\(off)") }
-        XCTAssertTrue(offMiss.message.contains("설정"), offMiss.message)
+        // 만든 뜻은 남아서 다음부터 자동으로 보인다 (다시 만들지 않는다).
+        let again = try result(await pipeline().lookup(context, book: book))
+        XCTAssertEqual(again.source, .generated)
+        XCTAssertEqual(again.meaningForSaving, "n. 창문")
+        XCTAssertEqual(generator.calls.terms, ["window"])
 
-        let noConsent = await pipeline(consent: false).lookup(context, book: book)
-        guard case .notFound(let consentMiss) = noConsent else { return XCTFail("\(noConsent)") }
-        XCTAssertTrue(consentMiss.needsGenerationConsent)
+        // JSON 데이터에 있는 단어는 저장된 생성 뜻보다 먼저다.
+        let supplier = try result(await pipeline().lookup(tap("supplier", in: book), book: book))
+        XCTAssertEqual(supplier.source, .bookGlossary)
+    }
+
+    func testGenerationUnavailableReportsReason() async throws {
+        let book = try sampleBook()
+        let request = pipeline().request(for: tap("window", in: book), book: book)
+
+        let noDevice = generation(generator: FakeGenerator(availability: .unavailable(.deviceNotEligible)))
+        XCTAssertEqual(noDevice.unavailableReason, .deviceNotEligible)
+        do {
+            _ = try await noDevice.lookup(request)
+            XCTFail("기기 미지원인데 만들었음")
+        } catch let failure as WordLookupStepFailure {
+            XCTAssertTrue(failure.miss.message.contains("Apple Intelligence를 지원하지 않습니다"), failure.miss.message)
+        }
+
+        let off = generation(enabled: false)
+        XCTAssertEqual(off.unavailableReason, .disabledInSettings)
+        do {
+            _ = try await off.lookup(request)
+            XCTFail("설정에서 꺼졌는데 만들었음")
+        } catch let failure as WordLookupStepFailure {
+            XCTAssertTrue(failure.miss.message.contains("설정"), failure.miss.message)
+        }
+        XCTAssertFalse(WordLookupCard.shortReason(.deviceNotEligible).isEmpty)
+    }
+
+    func testAskPromptCarriesWordAndSentence() throws {
+        let book = try sampleBook()
+        let context = tap("allocated", in: book)
+        let prompt = WordAskPrompt(context)
+        XCTAssertTrue(prompt.text.contains("단어: allocated"))
+        XCTAssertTrue(prompt.text.contains("문장: \(context.sentence)"))
+        if let translation = context.sentenceTranslation {
+            XCTAssertTrue(prompt.text.contains("문장 번역: \(translation)"))
+        }
+
+        for destination in WordAskPrompt.Destination.allCases {
+            let url = try XCTUnwrap(prompt.url(for: destination))
+            let query = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "q" }?.value)
+            XCTAssertEqual(query, prompt.text)
+        }
+        XCTAssertEqual(prompt.url(for: .chatGPT)?.host(), "chatgpt.com")
+        XCTAssertEqual(prompt.url(for: .claude)?.host(), "claude.ai")
+
+        // `+`·`&`가 있어도 원문 그대로 돌아온다.
+        let tricky = WordAskPrompt(surface: "R&D", sentence: "1 + 1 & more", sentenceTranslation: nil)
+        let url = try XCTUnwrap(tricky.url(for: .claude))
+        XCTAssertFalse(url.absoluteString.contains("+"))
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value
+        XCTAssertEqual(query, tricky.text)
+        XCTAssertEqual(SystemDictionary.url(for: "allocate")?.absoluteString, "dict://allocate")
     }
 
     func testLemmatizerNormalizesTappedSurface() {
@@ -316,12 +367,7 @@ final class DictionaryTests: XCTestCase {
         let words = index
         var book2 = book
         book2.glossary.removeAll { $0.lemma == "review" }
-        let lookup = EnglishWordLookup.pipeline(
-            bundledWords: { words },
-            generator: FakeGenerator(availability: .unavailable(.deviceNotEligible)),
-            isGenerationEnabled: { true },
-            hasGenerationConsent: { true }
-        )
+        let lookup = EnglishWordLookup.pipeline(bundledWords: { words }, generatedMeanings: emptyMeaningStore())
         for item in cases {
             let context = tap(item.surface, in: book2)
             let phase: WordLookupCard.Phase
