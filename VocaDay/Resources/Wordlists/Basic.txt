@@ -1,0 +1,10 @@
+# VocaDay 기본 보충 단어 — 단어 목록(NGSL·TSL)이 다루지 않지만 읽기에서 아는 단어로 볼 표기
+# 출처: VocaDay 자체 목록 (외부 자료 아님). 줄마다 "표제어,변화형,...".
+a.m.,a.m
+p.m.,p.m
+o'clock
+mrs,mrs.
+ms,ms.
+mr.
+dr,dr.
+etc,etc.

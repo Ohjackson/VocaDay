@@ -1,0 +1,58 @@
+# NGSL Supplementary Words — 요일·달·수 단어 52개 (NGSL 의 일부, 빈도 순위 없음)
+# 출처: Browne, C., Culligan, B., & Phillips, J. (2013). The New General Service List.
+#       https://www.newgeneralservicelist.com (SUP_lemmatized.csv)
+# 라이선스: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+#       https://creativecommons.org/licenses/by-sa/4.0/
+# 변경: 소문자로 맞췄다. 이 파일(변형본)도 CC BY-SA 4.0 으로 배포한다. 받은 날짜: 2026-11-22
+monday,mondays
+tuesday,tuesdays
+wednesday,wednesdays
+thursday,thursdays
+friday,fridays
+saturday,saturdays
+sunday,sundays
+january,januarys,januaries
+february,februarys,februaries
+march,marchs,marched,marching,marchings
+april,aprils
+may,mays
+june,junes
+july,julys
+august,augusts
+september,septembers
+october,octobers
+november,novembers
+december,decembers
+two,twos
+three,threes,third,thirds
+four,fours,fourth,fourths
+five,fives,fifth,fifths
+six,sixs,sixth,sixths
+seven,sevens,seventh,sevenths
+eight,eights,eighth,eighths
+nine,nines,ninth,ninths
+ten,tens,tenth,tenths
+eleven,elevens,eleventh,elevenths
+twelve,twelves,twelfth,twelfths
+thirteen,thirteens,thirteenth,thirteenths
+fourteen,fourteens,fourteenth,fourteenths
+fifteen,fifteens,fifteenth,fifteenths
+sixteen,sixteens,sixteenth,sixteenths
+seventeen,seventeens,seventeenth,seventeenths
+eighteen,eighteens,eighteenth,eighteenths
+nineteen,nineteens,nineteenth,nineteenths
+twenty,twentys,twenties,twentieth,twentieths
+thirty,thirtys,thirties,thirtieth,thirtieths
+forty,fortys,forties,fortieth,fortieths
+fifty,fiftys,fifties,fiftieth,fiftieths
+sixty,sixtys,sixties,sixtieth,sixtieths
+seventy,seventys,seventies,seventieth,seventieths
+eighty,eightys,eighties,eightieth,eightieths
+ninety,ninetys,nineties,ninetieth,ninetieths
+hundred,hundreds,hundredth,hundredths
+thousand,thousands,thousandth,thousandths
+million,millions,millionth,millionths
+billion,billions,billionth,billionths
+trillion,trillions,trillionth,trillionths
+quadrillion,quadrillions,quadrillionth,quadrillionths
+quintillion,quintillions,quintillionth,quintillionths
