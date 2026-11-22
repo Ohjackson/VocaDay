@@ -28,6 +28,8 @@ struct WordLookupCard: View {
     @State private var saveError: String?
     @State private var showsSystemDictionary = false
     @State private var copiedPrompt = false
+    /// 기기 사전에 이 단어가 있는지. nil = 아직 확인 전.
+    @State private var systemDictionaryHasEntry: Bool?
     @Environment(\.openURL) private var openURL
 
     init(context: WordTapContext, book: BookDocument) {
@@ -87,6 +89,11 @@ struct WordLookupCard: View {
             guard case .loading = phase else { return }
             await runLookup()
         }
+        .task(id: dictionaryTerm) {
+            systemDictionaryHasEntry = SystemDictionary.hasDefinition(for: dictionaryTerm)
+                || (dictionaryTerm.lowercased() != context.surface.lowercased()
+                    && SystemDictionary.hasDefinition(for: context.surface))
+        }
         .onDisappear { pronunciation.stop() }
         #if os(iOS)
         .sheet(isPresented: $showsSystemDictionary) {
@@ -102,14 +109,9 @@ struct WordLookupCard: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Button(action: openSystemDictionary) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(headword)
-                            .font(.title3.bold())
-                            .foregroundStyle(.primary)
-                        Image(systemName: "character.book.closed")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+                    Text(headword)
+                        .font(.title3.bold())
+                        .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(headword), 사전에서 보기")
@@ -120,6 +122,7 @@ struct WordLookupCard: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
+                dictionaryBadge
                 moreMenu
             }
             switch phase {
@@ -174,6 +177,34 @@ struct WordLookupCard: View {
     private var meaningLines: MeaningLines {
         guard case .found(let result) = phase else { return MeaningLines(partOfSpeech: nil, lines: []) }
         return MeaningLines(result)
+    }
+
+    // MARK: - 사전 표시 (오른쪽 위)
+
+    /// 기기 사전에 단어가 있으면 사전 아이콘, 없으면 ✕가 붙은 아이콘. 누르면 사전을 연다
+    /// (없을 때도 사전 화면에서 사전을 내려받을 수 있다).
+    private var dictionaryBadge: some View {
+        let missing = systemDictionaryHasEntry == false
+        return Button(action: openSystemDictionary) {
+            Image(systemName: "character.book.closed")
+                .font(.body)
+                .foregroundStyle(missing ? .tertiary : .secondary)
+                .overlay(alignment: .bottomTrailing) {
+                    if missing {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.red.opacity(0.85))
+                            .background(Circle().fill(AppTheme.cardBackground).padding(1))
+                            .offset(x: 4, y: 3)
+                    }
+                }
+                .frame(minWidth: 28, minHeight: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(systemDictionaryHasEntry == nil ? 0 : 1)
+        .accessibilityLabel(missing ? "기기 사전에 없는 단어, 사전 열기" : "사전에서 보기")
+        .help(missing ? "기기 사전에 없는 단어예요" : "사전에서 보기")
     }
 
     // MARK: - ⋯ 메뉴

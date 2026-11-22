@@ -8,11 +8,17 @@ import AppKit
 /// 기기에 들어 있는 사전(Apple 사전). 뜻 상자의 단어 글자를 누르면 연다.
 /// iPhone: 사전 화면을 시트로. Mac: 사전 앱을 `dict://`로 연다.
 enum SystemDictionary {
-    #if os(iOS)
+    /// 기기 사전에 이 단어가 있는지. 뜻 상자 오른쪽 위 표시에 쓴다.
+    @MainActor
     static func hasDefinition(for term: String) -> Bool {
-        UIReferenceLibraryViewController.dictionaryHasDefinition(forTerm: term)
+        let term = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return false }
+        #if os(iOS)
+        return UIReferenceLibraryViewController.dictionaryHasDefinition(forTerm: term)
+        #else
+        return SystemDictionaryLookupStep.systemDefinition(term) != nil
+        #endif
     }
-    #endif
 
     static func url(for term: String) -> URL? {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-'"))
