@@ -182,12 +182,19 @@ struct ReaderPageView: View {
                 .accessibilityLabel("\(page.index + 1)쪽")
         }
         .frame(width: metrics.pageWidth, height: metrics.pageHeight)
-        .popover(
-            isPresented: popoverBinding(state.activeWord),
-            attachmentAnchor: .rect(.rect(popoverAnchor(state.activeWord))),
-            arrowEdge: .bottom
-        ) {
-            ReaderWordPopover(session: session, appearance: appearance)
+        .overlay(alignment: .topLeading) {
+            // 단어 자리에 보이지 않는 칸을 두고 거기에 팝오버를 붙인다.
+            // `attachmentAnchor: .rect(...)`는 macOS에서 세로 위치가 어긋나 다른 줄을 가리켰다.
+            let anchor = popoverAnchor(state.activeWord)
+            Color.clear
+                .frame(width: max(anchor.width, 1), height: max(anchor.height, 1))
+                .popover(isPresented: popoverBinding(state.activeWord), arrowEdge: .bottom) {
+                    ReaderWordPopover(session: session, appearance: appearance)
+                }
+                .padding(.leading, anchor.minX)
+                .padding(.top, anchor.minY)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
