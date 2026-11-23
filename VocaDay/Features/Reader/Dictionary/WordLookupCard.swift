@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import Translation
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -30,6 +31,9 @@ struct WordLookupCard: View {
     @State private var copiedPrompt = false
     /// 기기 사전에 이 단어가 있는지. nil = 아직 확인 전.
     @State private var systemDictionaryHasEntry: Bool?
+    /// 영→한 번역 언어 팩을 받을 수 있는데 아직 없다. 한국어 뜻 대신 영영 뜻이나 "없음"이 나올 때 받기 버튼을 보인다.
+    @State private var canDownloadKoreanPack = false
+    @State private var packConfiguration: TranslationSession.Configuration?
     @Environment(\.openURL) private var openURL
 
     init(context: WordTapContext, book: BookDocument) {
@@ -94,6 +98,12 @@ struct WordLookupCard: View {
                 || (dictionaryTerm.lowercased() != context.surface.lowercased()
                     && SystemDictionary.hasDefinition(for: context.surface))
         }
+        .translationTask(packConfiguration) { session in
+            // 언어 팩이 없으면 시스템이 받기 안내를 띄운다. 받고 나면 한국어 뜻으로 다시 찾는다.
+            do { try await session.prepareTranslation() } catch {}
+            await checkKoreanPack()
+            if !canDownloadKoreanPack { await runLookup() }
+        }
         .onDisappear { pronunciation.stop() }
         #if os(iOS)
         .sheet(isPresented: $showsSystemDictionary) {
@@ -151,6 +161,7 @@ struct WordLookupCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .accessibilityLabel("출처: \(result.source.label)")
+                if canDownloadKoreanPack { koreanPackButton }
             case .notFound(let miss):
                 Text(miss.message)
                     .font(.subheadline)
@@ -159,6 +170,7 @@ struct WordLookupCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                if canDownloadKoreanPack { koreanPackButton }
             }
         }
         .padding(14)
@@ -401,6 +413,45 @@ struct WordLookupCard: View {
         case .found(let result): phase = .found(result)
         case .notFound(let miss): phase = .notFound(miss)
         }
+        await checkKoreanPack()
+    }
+
+    // MARK: - 한국어 뜻 (번역 언어 팩)
+
+    /// 한국어 뜻이 아닌 결과(영영사전·없음)일 때만 언어 팩 상태를 본다.
+    private func checkKoreanPack() async {
+        let needsKorean: Bool
+        switch phase {
+        case .found(let result): needsKorean = result.source == .systemDictionary
+        case .notFound: needsKorean = true
+        case .loading: needsKorean = false
+        }
+        guard needsKorean, context.language.lowercased().hasPrefix("en") else {
+            canDownloadKoreanPack = false
+            return
+        }
+        let status = await LanguageAvailability().status(
+            from: TranslationWordLookupStep.source, to: TranslationWordLookupStep.target
+        )
+        canDownloadKoreanPack = status == .supported
+    }
+
+    private var koreanPackButton: some View {
+        Button {
+            let configuration = TranslationSession.Configuration(
+                source: TranslationWordLookupStep.source, target: TranslationWordLookupStep.target
+            )
+            if packConfiguration == configuration {
+                packConfiguration?.invalidate()
+            } else {
+                packConfiguration = configuration
+            }
+        } label: {
+            Label("한국어 뜻 보기 · 번역 언어 팩 받기", systemImage: "arrow.down.circle")
+                .font(.caption)
+        }
+        .buttonStyle(.borderless)
+        .padding(.top, 2)
     }
 }
 
