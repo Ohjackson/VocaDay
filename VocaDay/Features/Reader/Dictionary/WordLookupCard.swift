@@ -174,6 +174,9 @@ struct WordLookupCard: View {
                 if canDownloadKoreanPack { koreanPackButton }
             case .notFound where context.isPhrase:
                 phraseBody(translation: nil, note: nil, source: nil)
+                Text("이 말을 번역하지 못했어요.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 if canDownloadKoreanPack { koreanPackButton }
             case .found(let result):
                 VStack(alignment: .leading, spacing: 5) {
@@ -225,8 +228,7 @@ struct WordLookupCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 끌어 고른 구절: 영어 구절 → 한국어 번역(크게) → 이 구절이 나온 문장과 책 번역.
-    /// 번역 언어 팩이 없으면 번역 자리에 안내를 두고, 문장 번역으로 뜻을 짐작할 수 있게 한다.
+    /// 끌어 고른 구절: 영어 구절 → 한국어 번역 → 이 구절이 나온 문장.
     @ViewBuilder
     private func phraseBody(translation: String?, note: String?, source: String?) -> some View {
         Text(context.surface)
@@ -279,30 +281,20 @@ struct WordLookupCard: View {
         }
     }
 
-    /// 이 단어가 나온 책 문장(단어 강조)과 번역. 사전 뜻 중 어느 쓰임인지 바로 맞춰 볼 수 있다.
+    /// 이 단어가 나온 책 문장(단어 강조). 번역은 문장 카드(길게 누르기)에서 보여 준다.
     @ViewBuilder
     private var contextSentence: some View {
         let sentence = context.sentence.trimmingCharacters(in: .whitespacesAndNewlines)
         if !sentence.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(Self.emphasized(context.surface, in: sentence))
-                    .font(.subheadline)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let translation = context.sentenceTranslation?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !translation.isEmpty {
-                    Text(translation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+            Text(Self.emphasized(context.surface, in: sentence))
+                .font(.subheadline)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 8)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(.tint.opacity(0.5)).frame(width: 2)
                 }
-            }
-            .padding(.leading, 8)
-            .overlay(alignment: .leading) {
-                Capsule().fill(.tint.opacity(0.5)).frame(width: 2)
-            }
-            .padding(.top, 2)
+                .padding(.top, 2)
         }
     }
 
