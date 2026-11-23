@@ -69,10 +69,11 @@ final class ReaderPageText {
     func hit(at point: CGPoint) -> Hit? {
         let layout = stack.layoutManager
         guard layout.numberOfGlyphs > 0 else { return nil }
-        let local = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+        var local = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
         layout.ensureLayout(for: stack.container)
         let used = layout.usedRect(for: stack.container)
         guard local.y >= -4, local.y <= used.maxY + 4, local.x >= -8, local.x <= metrics.bodyWidth + 8 else { return nil }
+        local.y = nearestLineCenter(to: local.y)
 
         var fraction: CGFloat = 0
         let glyph = layout.glyphIndex(for: local, in: stack.container, fractionOfDistanceThroughGlyph: &fraction)
@@ -87,6 +88,20 @@ final class ReaderPageText {
         let offset = character - span.range.location
         let token = onGlyph ? tokens(at: span.position).firstIndex { $0.range.contains(offset) && $0.surface != nil } : nil
         return Hit(position: span.position, token: token)
+    }
+
+    /// 줄 높이 배수(`lineHeightMultiple`)는 남는 높이를 글자 위에 둔다. 그래서 글자 바로 아래를 누르면
+    /// 다음 줄의 칸에 들어가 아랫 문장이 잡혔다. 칸이 아니라 눈에 보이는 글자 줄 중 가장 가까운 줄로 맞춘다.
+    private func nearestLineCenter(to y: CGFloat) -> CGFloat {
+        let layout = stack.layoutManager
+        var best: (distance: CGFloat, center: CGFloat)?
+        layout.enumerateLineFragments(forGlyphRange: NSRange(location: 0, length: layout.numberOfGlyphs)) { lineRect, _, _, glyphs, _ in
+            let baseline = lineRect.minY + layout.location(forGlyphAt: glyphs.location).y
+            let center = baseline - (self.bodyFont.ascender + self.bodyFont.descender) / 2
+            let distance = abs(y - center)
+            if best == nil || distance < best!.distance { best = (distance, center) }
+        }
+        return best?.center ?? y
     }
 
     // MARK: 위치 계산
@@ -325,14 +340,20 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate {
     }
 
     /// 들어 올릴 때 페이지 전체가 아니라 그 문장 줄만 보이게 한다.
-    /// 이 뷰 자체를 넘기면 메뉴가 떠 있는 동안 페이지 글 전체가 숨겨지므로 사본을 넘긴다.
+    /// 페이지 전체 사본을 넘기면 시스템이 "페이지 한가운데"를 누른 것으로 보고 번역 카드와 메뉴를 화면 가운데에 띄워,
+    /// 맨 윗줄을 눌러도 다른 곳이 잡힌 것처럼 보였다. 그 문장 영역만 잘라 그 자리에 붙인다.
     private func sentencePreview() -> UITargetedPreview? {
-        guard let text, let position = menuPosition, let snapshot = snapshotView(afterScreenUpdates: false) else { return nil }
+        guard let text, let position = menuPosition else { return nil }
         let rects = text.sentenceRects(position)
-        guard !rects.isEmpty else { return nil }
-        let parameters = UIPreviewParameters(textLineRects: rects.map { NSValue(cgRect: $0) })
+        guard let first = rects.first else { return nil }
+        let area = rects.dropFirst().reduce(first) { $0.union($1) }.insetBy(dx: -4, dy: -4).intersection(bounds)
+        guard !area.isEmpty,
+              let snapshot = resizableSnapshotView(from: area, afterScreenUpdates: false, withCapInsets: .zero)
+        else { return nil }
+        let lines = rects.map { NSValue(cgRect: $0.offsetBy(dx: -area.minX, dy: -area.minY)) }
+        let parameters = UIPreviewParameters(textLineRects: lines)
         parameters.backgroundColor = UIColor(readerHex: text.palette.page)
-        let target = UIPreviewTarget(container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
+        let target = UIPreviewTarget(container: self, center: CGPoint(x: area.midX, y: area.midY))
         return UITargetedPreview(view: snapshot, parameters: parameters, target: target)
     }
 }
