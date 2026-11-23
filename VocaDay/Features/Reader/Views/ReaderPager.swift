@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// 페이지 나누기 기준. 화면(창) 하나가 페이지 하나다.
 struct ReaderPagerLayout: Equatable {
@@ -36,6 +39,9 @@ struct ReaderPager: View {
     @State private var layoutMetrics: ReaderPageMetrics?
     @State private var texts = ReaderPageTextCache()
     @State private var currentPage: Int?
+    #if os(macOS)
+    @State private var keyMonitor: Any?
+    #endif
 
     var body: some View {
         let metrics = layout.metrics(fontSize: appearance.fontSize, lineHeight: appearance.lineHeight)
@@ -63,6 +69,10 @@ struct ReaderPager: View {
             if pages.isEmpty { ProgressView() }
         }
         .background { pageKeys }
+        #if os(macOS)
+        .onAppear(perform: installKeyMonitor)
+        .onDisappear(perform: removeKeyMonitor)
+        #endif
         .onChange(of: currentPage) { _, index in
             guard let index, pages.indices.contains(index) else { return }
             session.noteVisiblePages([pages[index].positions])
@@ -110,9 +120,13 @@ struct ReaderPager: View {
         withAnimation(.easeInOut(duration: 0.3)) { currentPage = target }
     }
 
-    /// Page Up/Down 으로 페이지 넘기기 (Mac, iPad 키보드).
+    /// ←/→, Page Up/Down 으로 페이지 넘기기 (Mac, iPad 키보드).
     private var pageKeys: some View {
         ZStack {
+            Button("이전 페이지") { turn(by: -1) }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+            Button("다음 페이지") { turn(by: 1) }
+                .keyboardShortcut(.rightArrow, modifiers: [])
             Button("이전 페이지") { turn(by: -1) }
                 .keyboardShortcut(.pageUp, modifiers: [])
             Button("다음 페이지") { turn(by: 1) }
@@ -121,6 +135,32 @@ struct ReaderPager: View {
         .opacity(0)
         .accessibilityHidden(true)
     }
+
+    #if os(macOS)
+    /// Mac: 가로 스크롤 뷰가 ←/→ 를 먼저 가져가서 단축키 버튼까지 오지 않는다.
+    /// 창으로 들어오는 키를 먼저 보고 페이지를 넘긴다. 글 입력 중(첫 응답자가 글 상자)이면 건드리지 않는다.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            guard modifiers.isEmpty, !(event.window?.firstResponder is NSText) else { return event }
+            let keyCode = event.keyCode
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                switch keyCode {
+                case 123, 116: turn(by: -1); return true // ←, Page Up
+                case 124, 121: turn(by: 1); return true // →, Page Down
+                default: return false
+                }
+            }
+            return handled ? nil : event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+    }
+    #endif
 }
 
 final class ReaderPageTextCache {
