@@ -253,12 +253,16 @@ extension ReaderSession {
         let sentence = book.sentence(at: position)
         let revealed = isTranslationRevealed(at: position)
         let isBookmarked = bookmark(at: position) != nil
-        var items = [
-            ReaderSentenceMenuItem(
-                title: revealed ? "번역 숨기기" : "번역 보기",
-                systemImage: "character.bubble",
-                isEnabled: sentence?.translation != nil
-            ) { [weak self] in self?.toggleTranslation(at: position) },
+        var items: [ReaderSentenceMenuItem] = []
+        #if os(macOS)
+        // iPhone은 길게 누르면 미리보기에 번역이 이미 보여서 이 항목을 두지 않는다. Mac 우클릭 메뉴에는 미리보기가 없다.
+        items.append(ReaderSentenceMenuItem(
+            title: revealed ? "번역 숨기기" : "번역 보기",
+            systemImage: "character.bubble",
+            isEnabled: sentence?.translation != nil
+        ) { [weak self] in self?.toggleTranslation(at: position) })
+        #endif
+        items += [
             ReaderSentenceMenuItem(
                 title: "이 문장부터 듣기",
                 systemImage: "play",
