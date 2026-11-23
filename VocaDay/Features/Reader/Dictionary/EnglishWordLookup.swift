@@ -2,7 +2,7 @@ import Foundation
 import NaturalLanguage
 
 // 영어 찾기 단계.
-// 자동: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 전에 기기에서 만든 뜻.
+// 자동: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 전에 기기에서 만든 뜻 → 기기 번역(한국어) → (Mac) 시스템 사전.
 // 버튼(카드 「⋯」): 기기 안 생성. 자세한 뜻은 시스템 사전(단어 글자를 누름)에서 본다.
 
 enum EnglishWordLookup {
@@ -11,6 +11,7 @@ enum EnglishWordLookup {
     static func pipeline(
         bundledWords: @escaping () -> [String: VocaWordJSON] = { BundledWordIndex.shared },
         generatedMeanings: GeneratedMeaningStore = .shared,
+        usesTranslation: Bool = true,
         usesSystemDictionary: Bool = SystemDictionaryLookupStep.isSupported
     ) -> WordLookupPipeline {
         var steps: [any WordLookupStep] = [
@@ -19,6 +20,10 @@ enum EnglishWordLookup {
             BundledPackLookupStep(index: bundledWords),
             GeneratedMeaningLookupStep(store: generatedMeanings),
         ]
+        // 한국어 뜻이 먼저. 번역 언어 팩이 없을 때만 영영사전 글로 넘어간다.
+        if usesTranslation {
+            steps.append(TranslationWordLookupStep())
+        }
         if usesSystemDictionary {
             steps.append(SystemDictionaryLookupStep())
         }

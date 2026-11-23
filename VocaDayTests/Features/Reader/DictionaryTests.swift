@@ -52,7 +52,7 @@ final class DictionaryTests: XCTestCase {
 
     private func pipeline() -> WordLookupPipeline {
         let index = bundled
-        return EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesSystemDictionary: false)
+        return EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesTranslation: false, usesSystemDictionary: false)
     }
 
     private func generation(generator: FakeGenerator = FakeGenerator(), enabled: Bool = true) -> GeneratedWordLookupStep {
@@ -204,7 +204,7 @@ final class DictionaryTests: XCTestCase {
         let index = bundled
         let lookup = WordLookupPipeline(
             lemmatizer: EnglishLemmatizer(),
-            steps: EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesSystemDictionary: false).steps + [step]
+            steps: EnglishWordLookup.pipeline(bundledWords: { index }, generatedMeanings: meanings, usesTranslation: false, usesSystemDictionary: false).steps + [step]
         )
         let found = try result(await lookup.lookup(context, book: book))
         XCTAssertEqual(found.source, .systemDictionary)
@@ -227,7 +227,7 @@ final class DictionaryTests: XCTestCase {
         }
         XCTAssertNotNil(SystemDictionaryEntry(raw))
         let book = try sampleBook()
-        let found = try result(await EnglishWordLookup.pipeline(generatedMeanings: meanings).lookup(tap("arrived", in: book), book: book))
+        let found = try result(await EnglishWordLookup.pipeline(generatedMeanings: meanings, usesTranslation: false).lookup(tap("arrived", in: book), book: book))
         XCTAssertEqual(found.source, .systemDictionary)
         XCTAssertFalse(found.meaning.isEmpty)
     }
@@ -433,7 +433,7 @@ final class DictionaryTests: XCTestCase {
         let words = index
         var book2 = book
         book2.glossary.removeAll { $0.lemma == "review" }
-        let lookup = EnglishWordLookup.pipeline(bundledWords: { words }, generatedMeanings: emptyMeaningStore(), usesSystemDictionary: false)
+        let lookup = EnglishWordLookup.pipeline(bundledWords: { words }, generatedMeanings: emptyMeaningStore(), usesTranslation: false, usesSystemDictionary: false)
         for item in cases {
             let context = tap(item.surface, in: book2)
             let phase: WordLookupCard.Phase
