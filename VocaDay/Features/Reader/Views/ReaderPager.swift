@@ -208,7 +208,8 @@ struct ReaderPageView: View {
             bookmarks: Set(session.bookmarks.map(\.position)).intersection(positions),
             activeWord: onPage,
             activeWordEnd: onPage == nil ? nil : session.activeWord?.endIndex,
-            phraseDraft: session.phraseDraft.flatMap { positions.contains($0.position) ? $0 : nil }
+            phraseDraft: session.phraseDraft.flatMap { positions.contains($0.position) ? $0 : nil },
+            activeSentence: session.activeSentence.flatMap { positions.contains($0.position) ? $0.position : nil }
         )
     }
 
@@ -244,7 +245,45 @@ struct ReaderPageView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+        #if os(iOS)
+        .overlay(alignment: .topLeading) { sentencePopoverAnchor }
+        #endif
     }
+
+    #if os(iOS)
+    /// 문장 카드를 붙일 자리. 단어 카드와 같은 방식으로 보이지 않는 칸에 붙인다.
+    private var sentencePopoverAnchor: some View {
+        let active = session.activeSentence.flatMap { $0.page == page.index ? $0 : nil }
+        let anchor = sentenceAnchor(active)
+        return Color.clear
+            .frame(width: max(anchor.width, 1), height: max(anchor.height, 1))
+            .popover(
+                isPresented: Binding(
+                    get: { active != nil },
+                    set: { if !$0, session.activeSentence == active { session.activeSentence = nil } }
+                ),
+                arrowEdge: anchor.midY < metrics.pageHeight / 2 ? .top : .bottom
+            ) {
+                ReaderSentencePopover(session: session, appearance: appearance)
+            }
+            .padding(.leading, anchor.minX)
+            .padding(.top, anchor.minY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// 문장 전체를 가리지 않게 문장 바깥에 붙인다. 문장이 길어 위아래에 자리가 없으면 누른 줄에 붙인다.
+    private func sentenceAnchor(_ active: ReaderActiveSentence?) -> CGRect {
+        let fallback = CGRect(x: metrics.pageWidth / 2, y: metrics.marginTop, width: 1, height: 1)
+        guard let active else { return fallback }
+        let rects = text.sentenceRects(active.position)
+        guard let first = rects.first else { return fallback }
+        let area = rects.dropFirst().reduce(first) { $0.union($1) }
+        let room = area.midY < metrics.pageHeight / 2 ? metrics.pageHeight - area.maxY : area.minY
+        if room >= 280 { return area }
+        return rects.indices.contains(active.line) ? rects[active.line] : first
+    }
+    #endif
 
     private func popoverBinding(_ active: ReaderTokenRef?) -> Binding<Bool> {
         Binding(
@@ -268,11 +307,6 @@ struct ReaderWordPopover: View {
     let session: ReaderSession
     let appearance: ReaderAppearance
 
-    /// 흰 상자, 밤 테마는 어두운 회색.
-    private var background: Color {
-        appearance.theme == .night ? Color(readerHex: 0x33302C) : .white
-    }
-
     var body: some View {
         Group {
             if let active = session.activeWord {
@@ -280,10 +314,17 @@ struct ReaderWordPopover: View {
                     .frame(width: 300, alignment: .leading)
             }
         }
-        .environment(\.colorScheme, appearance.theme.colorScheme)
-        .tint(appearance.accent)
-        .presentationCompactAdaptation(.popover)
-        .presentationBackground(background)
+        .readerPopoverStyle(appearance)
+    }
+}
+
+extension View {
+    /// 단어·문장 카드 팝오버의 공통 모양. 흰 상자, 밤 테마는 어두운 회색.
+    func readerPopoverStyle(_ appearance: ReaderAppearance) -> some View {
+        environment(\.colorScheme, appearance.theme.colorScheme)
+            .tint(appearance.accent)
+            .presentationCompactAdaptation(.popover)
+            .presentationBackground(appearance.theme == .night ? Color(readerHex: 0x33302C) : .white)
     }
 }
 
@@ -325,25 +366,6 @@ struct ReaderTranslationStrip: View {
             .background(appearance.page)
             .overlay { Rectangle().strokeBorder(appearance.border, lineWidth: 1) }
         }
-    }
-}
-
-/// 길게 누를 때 뜨는 문장 미리보기 (번역 포함).
-struct ReaderSentencePreview: View {
-    let sentence: BookSentence?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(sentence?.text ?? "")
-                .font(.system(.body, design: .serif))
-            if let translation = sentence?.translation {
-                Text(translation)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .frame(width: 320, alignment: .leading)
     }
 }
 

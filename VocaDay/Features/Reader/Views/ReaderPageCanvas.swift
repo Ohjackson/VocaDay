@@ -17,6 +17,8 @@ nonisolated struct ReaderPageDrawState: Equatable {
     var activeWordEnd: Int?
     /// 끌어 고르는 중인 범위.
     var phraseDraft: ReaderPhraseRange?
+    /// 문장 카드가 열린 문장.
+    var activeSentence: ReadingPosition?
 }
 
 /// 페이지 한 장의 조판 결과. 그리기·누른 곳 찾기·단어 위치 계산을 한곳에서 한다. 좌표는 페이지 기준.
@@ -202,6 +204,8 @@ final class ReaderPageText {
             selection = selectionRects(draft.position, from: draft.from, to: draft.to)
         } else if let ref = state.activeWord {
             selection = selectionRects(ref.position, from: ref.index, to: state.activeWordEnd ?? ref.index)
+        } else if let position = state.activeSentence {
+            selection = sentenceRects(position).map { $0.insetBy(dx: 3, dy: 0) }
         } else {
             selection = []
         }
@@ -240,7 +244,8 @@ final class ReaderPageText {
     }
 }
 
-/// 문장 메뉴 항목. iPhone(길게 누르기)·Mac(우클릭)이 같은 목록을 쓴다.
+#if os(macOS)
+/// Mac 우클릭 문장 메뉴 항목. iPhone은 길게 누르면 문장 카드(`ReaderSentenceCard`)가 뜬다.
 struct ReaderSentenceMenuItem {
     var title: String
     var systemImage: String
@@ -253,16 +258,12 @@ extension ReaderSession {
         let sentence = book.sentence(at: position)
         let revealed = isTranslationRevealed(at: position)
         let isBookmarked = bookmark(at: position) != nil
-        var items: [ReaderSentenceMenuItem] = []
-        #if os(macOS)
-        // iPhone은 길게 누르면 미리보기에 번역이 이미 보여서 이 항목을 두지 않는다. Mac 우클릭 메뉴에는 미리보기가 없다.
-        items.append(ReaderSentenceMenuItem(
-            title: revealed ? "번역 숨기기" : "번역 보기",
-            systemImage: "character.bubble",
-            isEnabled: sentence?.translation != nil
-        ) { [weak self] in self?.toggleTranslation(at: position) })
-        #endif
-        items += [
+        var items = [
+            ReaderSentenceMenuItem(
+                title: revealed ? "번역 숨기기" : "번역 보기",
+                systemImage: "character.bubble",
+                isEnabled: sentence?.translation != nil
+            ) { [weak self] in self?.toggleTranslation(at: position) },
             ReaderSentenceMenuItem(
                 title: "이 문장부터 듣기",
                 systemImage: "play",
@@ -281,9 +282,10 @@ extension ReaderSession {
         return items
     }
 }
+#endif
 
 #if os(iOS)
-/// iPhone 페이지 본문. 누르면 단어 카드, 길게 누르면 문장 메뉴(미리보기에 번역).
+/// iPhone 페이지 본문. 누르면 단어 카드, 길게 누르면 문장 카드.
 struct ReaderPageCanvas: UIViewRepresentable {
     let session: ReaderSession
     let text: ReaderPageText
@@ -303,7 +305,7 @@ struct ReaderPageCanvas: UIViewRepresentable {
     }
 }
 
-final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGestureRecognizerDelegate {
+final class ReaderPageCanvasView: UIView, UIGestureRecognizerDelegate {
     var session: ReaderSession?
     var onBackgroundTap: () -> Void = {}
     var text: ReaderPageText? {
@@ -316,10 +318,8 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
     var state = ReaderPageDrawState() {
         didSet { if state != oldValue { setNeedsDisplay() } }
     }
-    private var menuPosition: ReadingPosition?
     /// 끌어 고르기를 시작한 단어.
     private var phraseAnchor: ReaderTokenRef?
-    private var contextMenu: UIContextMenuInteraction?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -329,21 +329,21 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
-        // 단어를 잠깐 누른 채 옆 단어로 끌면 여러 단어를 고른다. 움직이지 않고 더 누르면 문장 메뉴가 뜬다.
-        // 길게 누르기 인식기는 문장 메뉴가 막아서, 누른 시간을 재고 끌기(pan)로 받는다.
+        // 단어를 잠깐 누른 채 옆 단어로 끌면 여러 단어를 고른다. 움직이지 않고 더 누르면 문장 카드가 뜬다.
         // 바로 끌면(페이지 넘기기) 시작하지 않고, 끄는 동안은 `isDraggingSelection`으로 페이지가 넘어가지 않는다.
         let drag = UIPanGestureRecognizer(target: self, action: #selector(dragged(_:)))
         drag.delegate = self
         addGestureRecognizer(drag)
         phraseDrag = drag
-        let menu = UIContextMenuInteraction(delegate: self)
-        contextMenu = menu
-        addInteraction(menu)
+        let press = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
+        addGestureRecognizer(press)
+        sentencePress = press
     }
 
     /// 손가락을 댄 시각과 자리. 끌기를 시작할 때 "단어를 잠깐 누르고 있었는지"를 본다.
     private var touchDown: (time: Date, point: CGPoint)?
     private var phraseDrag: UIPanGestureRecognizer?
+    private var sentencePress: UILongPressGestureRecognizer?
     private static let holdBeforeDrag: TimeInterval = 0.2
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -352,6 +352,9 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === sentencePress {
+            return text?.hit(at: gestureRecognizer.location(in: self)) != nil
+        }
         guard gestureRecognizer === phraseDrag else { return super.gestureRecognizerShouldBegin(gestureRecognizer) }
         guard let touchDown, Date().timeIntervalSince(touchDown.time) >= Self.holdBeforeDrag,
               let hit = text?.hit(at: touchDown.point), hit.token != nil
@@ -371,7 +374,7 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
             guard let start = touchDown?.point, let hit = text.hit(at: start), let token = hit.token else { return }
             phraseAnchor = ReaderTokenRef(position: hit.position, index: token)
             session.isDraggingSelection = true
-            contextMenu?.dismissMenu()
+            sentencePress?.cancel()
             fallthrough
         case .changed:
             // 문장을 넘어가면 마지막으로 고른 범위를 그대로 둔다.
@@ -386,6 +389,18 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
         default:
             endPhraseDrag()
         }
+    }
+
+    @objc private func pressed(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began, let text, let session else { return }
+        let point = recognizer.location(in: self)
+        guard let hit = text.hit(at: point) else { return }
+        // 카드가 뜬 뒤 손가락이 움직여도 구절 선택으로 이어지지 않게 한다.
+        phraseDrag?.cancel()
+        let rects = text.sentenceRects(hit.position)
+        let line = rects.indices.min { abs(rects[$0].midY - point.y) < abs(rects[$1].midY - point.y) } ?? 0
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        session.pressSentence(ReaderActiveSentence(position: hit.position, page: text.page.index, line: line))
     }
 
     private func endPhraseDrag() {
@@ -410,51 +425,13 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGe
         }
         session.tapWord(surface, ref: ReaderTokenRef(position: hit.position, index: token))
     }
+}
 
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard let text, let session, let hit = text.hit(at: location) else { return nil }
-        let position = hit.position
-        menuPosition = position
-        let sentence = session.book.sentence(at: position)
-        return UIContextMenuConfiguration(identifier: nil) {
-            let controller = UIHostingController(rootView: ReaderSentencePreview(sentence: sentence))
-            controller.sizingOptions = .preferredContentSize
-            return controller
-        } actionProvider: { _ in
-            UIMenu(children: session.sentenceMenuItems(at: position).map { item in
-                UIAction(
-                    title: item.title,
-                    image: UIImage(systemName: item.systemImage),
-                    attributes: item.isEnabled ? [] : .disabled
-                ) { _ in item.perform() }
-            })
-        }
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configuration: UIContextMenuConfiguration, highlightPreviewForItemWithIdentifier identifier: any NSCopying) -> UITargetedPreview? {
-        sentencePreview()
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configuration: UIContextMenuConfiguration, dismissalPreviewForItemWithIdentifier identifier: any NSCopying) -> UITargetedPreview? {
-        sentencePreview()
-    }
-
-    /// 들어 올릴 때 페이지 전체가 아니라 그 문장 줄만 보이게 한다.
-    /// 페이지 전체 사본을 넘기면 시스템이 "페이지 한가운데"를 누른 것으로 보고 번역 카드와 메뉴를 화면 가운데에 띄워,
-    /// 맨 윗줄을 눌러도 다른 곳이 잡힌 것처럼 보였다. 그 문장 영역만 잘라 그 자리에 붙인다.
-    private func sentencePreview() -> UITargetedPreview? {
-        guard let text, let position = menuPosition else { return nil }
-        let rects = text.sentenceRects(position)
-        guard let first = rects.first else { return nil }
-        let area = rects.dropFirst().reduce(first) { $0.union($1) }.insetBy(dx: -4, dy: -4).intersection(bounds)
-        guard !area.isEmpty,
-              let snapshot = resizableSnapshotView(from: area, afterScreenUpdates: false, withCapInsets: .zero)
-        else { return nil }
-        let lines = rects.map { NSValue(cgRect: $0.offsetBy(dx: -area.minX, dy: -area.minY)) }
-        let parameters = UIPreviewParameters(textLineRects: lines)
-        parameters.backgroundColor = UIColor(readerHex: text.palette.page)
-        let target = UIPreviewTarget(container: self, center: CGPoint(x: area.midX, y: area.midY))
-        return UITargetedPreview(view: snapshot, parameters: parameters, target: target)
+private extension UIGestureRecognizer {
+    /// 지금 손가락에 대해서만 인식을 그만둔다.
+    func cancel() {
+        isEnabled = false
+        isEnabled = true
     }
 }
 #else

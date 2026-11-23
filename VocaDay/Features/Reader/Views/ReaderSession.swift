@@ -22,6 +22,14 @@ nonisolated struct ReaderActiveWord: Identifiable, Hashable, Sendable {
     var id: String { "\(context.id)#\(ref.index)" }
 }
 
+/// 지금 열려 있는 문장 카드. 문장이 두 페이지에 걸칠 수 있어 누른 페이지와 줄을 함께 둔다.
+nonisolated struct ReaderActiveSentence: Hashable, Sendable {
+    var position: ReadingPosition
+    var page: Int
+    /// 그 페이지 안에서 누른 줄 (`ReaderPageText.sentenceRects`의 순서).
+    var line: Int
+}
+
 /// 책 한 권을 읽는 동안의 상태. 위치·재생·단어 카드·북마크를 한곳에서 바꾼다.
 /// 위치는 바뀔 때마다 `ReadingStore.saveLastPosition` 으로 남긴다.
 @Observable
@@ -39,6 +47,8 @@ final class ReaderSession {
     /// 값이 바뀌면 본문이 이 위치로 스크롤한다.
     private(set) var scrollRequest: ScrollRequest
     var activeWord: ReaderActiveWord?
+    /// 길게 누른 문장 (iPhone). 단어 카드와 함께 열리지 않는다.
+    var activeSentence: ReaderActiveSentence?
     /// 단어를 길게 눌러 옆 단어로 끄는 동안 칠할 범위. 손을 떼면 `selectPhrase`로 카드를 연다.
     var phraseDraft: ReaderPhraseRange?
     /// 끌어 고르는 중. 이동안 페이지가 넘어가지 않게 한다.
@@ -174,6 +184,7 @@ final class ReaderSession {
     /// 단어를 눌렀다. 단어 카드만 연다. 읽는 위치는 옮기지 않는다 (마일드 화면: 누른 단어 외에는 아무것도 바뀌지 않는다).
     func tapWord(_ surface: String, ref: ReaderTokenRef) {
         guard let sentence = book.sentence(at: ref.position) else { return }
+        activeSentence = nil
         activeWord = ReaderActiveWord(
             ref: ref,
             context: WordTapContext(
@@ -198,6 +209,7 @@ final class ReaderSession {
         let phrase = (sentence.text as NSString).substring(with: nsRange)
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         guard !phrase.isEmpty else { return }
+        activeSentence = nil
         activeWord = ReaderActiveWord(
             ref: ReaderTokenRef(position: range.position, index: from),
             context: WordTapContext(
@@ -210,6 +222,12 @@ final class ReaderSession {
             ),
             endIndex: to
         )
+    }
+
+    /// 문장을 길게 눌렀다. 문장 카드만 연다. 읽는 위치는 옮기지 않는다.
+    func pressSentence(_ active: ReaderActiveSentence) {
+        activeWord = nil
+        activeSentence = active
     }
 
     func isTranslationRevealed(at position: ReadingPosition) -> Bool {
