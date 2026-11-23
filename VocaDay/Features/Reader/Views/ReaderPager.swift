@@ -62,6 +62,7 @@ struct ReaderPager: View {
             }
         }
         .scrollTargetBehavior(.paging)
+        .scrollDisabled(session.isDraggingSelection)
         .scrollPosition(id: $currentPage)
         .scrollIndicators(.hidden)
         .background(appearance.page)
@@ -200,11 +201,14 @@ struct ReaderPageView: View {
         let positions = Set(page.positions)
         let speaking = session.speakingPosition
         let active = session.activeWord?.ref
+        let onPage = active.flatMap { positions.contains($0.position) ? $0 : nil }
         return ReaderPageDrawState(
             // 재생하지 않을 때는 읽는 문장을 표시하지 않는다.
             highlight: speaking.flatMap { positions.contains($0) ? $0 : nil },
             bookmarks: Set(session.bookmarks.map(\.position)).intersection(positions),
-            activeWord: active.flatMap { positions.contains($0.position) ? $0 : nil }
+            activeWord: onPage,
+            activeWordEnd: onPage == nil ? nil : session.activeWord?.endIndex,
+            phraseDraft: session.phraseDraft.flatMap { positions.contains($0.position) ? $0 : nil }
         )
     }
 

@@ -42,8 +42,9 @@ struct WordLookupCard: View {
         self.init(
             context: context,
             book: book,
-            pipeline: Self.pipeline(for: context.language),
-            generation: Self.generation(for: context.language)
+            pipeline: context.isPhrase ? EnglishWordLookup.phrasePipeline() : Self.pipeline(for: context.language),
+            // 여러 단어는 기기 생성(단어 하나용)을 쓰지 않는다.
+            generation: context.isPhrase ? nil : Self.generation(for: context.language)
         )
     }
 
@@ -137,21 +138,27 @@ struct WordLookupCard: View {
     private var meaningBox: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Button(action: openSystemDictionary) {
-                    Text(headword)
-                        .font(.title3.bold())
-                        .foregroundStyle(.primary)
+                if context.isPhrase {
+                    Label("구절 번역", systemImage: "text.quote")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button(action: openSystemDictionary) {
+                        Text(headword)
+                            .font(.title3.bold())
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(headword), 사전에서 보기")
+                    .help("사전에서 보기")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(headword), 사전에서 보기")
-                .help("사전에서 보기")
                 if let partOfSpeech = meaningLines.partOfSpeech {
                     Text(partOfSpeech)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                dictionaryBadge
+                if !context.isPhrase { dictionaryBadge }
                 moreMenu
             }
             switch phase {
@@ -162,6 +169,12 @@ struct WordLookupCard: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            case .found(let result) where context.isPhrase:
+                phraseBody(translation: result.meaning, note: result.note, source: result.source.label)
+                if canDownloadKoreanPack { koreanPackButton }
+            case .notFound where context.isPhrase:
+                phraseBody(translation: nil, note: nil, source: nil)
+                if canDownloadKoreanPack { koreanPackButton }
             case .found(let result):
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(meaningLines.lines, id: \.self) { line in
@@ -210,6 +223,35 @@ struct WordLookupCard: View {
         .padding(.top, 2)
         .padding(.bottom, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 끌어 고른 구절: 영어 구절 → 한국어 번역(크게) → 이 구절이 나온 문장과 책 번역.
+    /// 번역 언어 팩이 없으면 번역 자리에 안내를 두고, 문장 번역으로 뜻을 짐작할 수 있게 한다.
+    @ViewBuilder
+    private func phraseBody(translation: String?, note: String?, source: String?) -> some View {
+        Text(context.surface)
+            .font(.title3.weight(.semibold))
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        if let translation {
+            Text(translation)
+                .font(.body)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let note, !note.isEmpty {
+            Label(note, systemImage: "lightbulb")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        contextSentence
+        if let source {
+            Text(source)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만.
@@ -275,6 +317,7 @@ struct WordLookupCard: View {
     }
 
     private var headword: String {
+        if context.isPhrase { return context.surface }
         if case .found(let result) = phase { return result.headword }
         // 찾기 전에는 본문 모양 그대로 (고유명사 대문자 유지).
         return context.surface.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
@@ -412,7 +455,7 @@ struct WordLookupCard: View {
                 Task { await pronunciation.speak(headword) }
             } label: {
                 Label(
-                    pronunciation.isPreparing ? "준비 중…" : "단어 듣기",
+                    pronunciation.isPreparing ? "준비 중…" : (context.isPhrase ? "듣기" : "단어 듣기"),
                     systemImage: pronunciation.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2"
                 )
                 .frame(maxWidth: .infinity)
@@ -436,7 +479,7 @@ struct WordLookupCard: View {
             Button {
                 if let draft { save(draft) }
             } label: {
-                Label("단어 저장", systemImage: "plus").frame(maxWidth: .infinity)
+                Label(context.isPhrase ? "표현 저장" : "단어 저장", systemImage: "plus").frame(maxWidth: .infinity)
             }
             .disabled(draft == nil)
         }

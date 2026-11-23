@@ -13,6 +13,10 @@ nonisolated struct ReaderPageDrawState: Equatable {
     var bookmarks: Set<ReadingPosition> = []
     /// 카드가 열린 단어.
     var activeWord: ReaderTokenRef?
+    /// 여러 단어를 골랐으면 마지막 단어.
+    var activeWordEnd: Int?
+    /// 끌어 고르는 중인 범위.
+    var phraseDraft: ReaderPhraseRange?
 }
 
 /// 페이지 한 장의 조판 결과. 그리기·누른 곳 찾기·단어 위치 계산을 한곳에서 한다. 좌표는 페이지 기준.
@@ -160,6 +164,24 @@ final class ReaderPageText {
         }
     }
 
+    /// 이어진 단어들(`from`…`to`)이 걸친 줄마다의 글자 영역.
+    func selectionRects(_ position: ReadingPosition, from: Int, to: Int) -> [CGRect] {
+        guard let span = span(at: position) else { return [] }
+        let tokens = tokens(at: position)
+        let lowerIndex = min(from, to), upperIndex = max(from, to)
+        guard tokens.indices.contains(lowerIndex), tokens.indices.contains(upperIndex) else { return [] }
+        let lower = span.range.location + tokens[lowerIndex].range.lowerBound
+        let upper = span.range.location + tokens[upperIndex].range.upperBound
+        return segments(for: NSRange(location: lower, length: upper - lower)).map { segment in
+            CGRect(
+                x: segment.rect.minX,
+                y: segment.baseline - bodyFont.ascender,
+                width: segment.rect.width,
+                height: bodyFont.ascender - bodyFont.descender
+            )
+        }
+    }
+
     /// 단어 카드를 붙일 자리 (첫 줄).
     func wordRect(_ ref: ReaderTokenRef) -> CGRect? {
         guard let range = wordRange(ref), let first = segments(for: range).first else { return nil }
@@ -175,10 +197,19 @@ final class ReaderPageText {
             context.setFillColor(ReaderPlatformColor(readerHex: palette.sentence).withAlphaComponent(0.55).cgColor)
             for rect in sentenceRects(highlight) { context.fill(rect) }
         }
-        if let ref = state.activeWord, let rect = wordRect(ref) {
+        let selection: [CGRect]
+        if let draft = state.phraseDraft {
+            selection = selectionRects(draft.position, from: draft.from, to: draft.to)
+        } else if let ref = state.activeWord {
+            selection = selectionRects(ref.position, from: ref.index, to: state.activeWordEnd ?? ref.index)
+        } else {
+            selection = []
+        }
+        if !selection.isEmpty {
             context.setFillColor(ReaderPlatformColor(readerHex: palette.word).withAlphaComponent(0.18).cgColor)
-            let selection = CGPath(roundedRect: rect.insetBy(dx: -3, dy: -2), cornerWidth: 3, cornerHeight: 3, transform: nil)
-            context.addPath(selection)
+            for rect in selection {
+                context.addPath(CGPath(roundedRect: rect.insetBy(dx: -3, dy: -2), cornerWidth: 3, cornerHeight: 3, transform: nil))
+            }
             context.fillPath()
         }
 
@@ -268,7 +299,7 @@ struct ReaderPageCanvas: UIViewRepresentable {
     }
 }
 
-final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate {
+final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate, UIGestureRecognizerDelegate {
     var session: ReaderSession?
     var onBackgroundTap: () -> Void = {}
     var text: ReaderPageText? {
@@ -282,6 +313,9 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate {
         didSet { if state != oldValue { setNeedsDisplay() } }
     }
     private var menuPosition: ReadingPosition?
+    /// 끌어 고르기를 시작한 단어.
+    private var phraseAnchor: ReaderTokenRef?
+    private var contextMenu: UIContextMenuInteraction?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -291,7 +325,69 @@ final class ReaderPageCanvasView: UIView, UIContextMenuInteractionDelegate {
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
-        addInteraction(UIContextMenuInteraction(delegate: self))
+        // 단어를 잠깐 누른 채 옆 단어로 끌면 여러 단어를 고른다. 움직이지 않고 더 누르면 문장 메뉴가 뜬다.
+        // 길게 누르기 인식기는 문장 메뉴가 막아서, 누른 시간을 재고 끌기(pan)로 받는다.
+        // 바로 끌면(페이지 넘기기) 시작하지 않고, 끄는 동안은 `isDraggingSelection`으로 페이지가 넘어가지 않는다.
+        let drag = UIPanGestureRecognizer(target: self, action: #selector(dragged(_:)))
+        drag.delegate = self
+        addGestureRecognizer(drag)
+        phraseDrag = drag
+        let menu = UIContextMenuInteraction(delegate: self)
+        contextMenu = menu
+        addInteraction(menu)
+    }
+
+    /// 손가락을 댄 시각과 자리. 끌기를 시작할 때 "단어를 잠깐 누르고 있었는지"를 본다.
+    private var touchDown: (time: Date, point: CGPoint)?
+    private var phraseDrag: UIPanGestureRecognizer?
+    private static let holdBeforeDrag: TimeInterval = 0.2
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let touch = touches.first { touchDown = (Date(), touch.location(in: self)) }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === phraseDrag else { return super.gestureRecognizerShouldBegin(gestureRecognizer) }
+        guard let touchDown, Date().timeIntervalSince(touchDown.time) >= Self.holdBeforeDrag,
+              let hit = text?.hit(at: touchDown.point), hit.token != nil
+        else { return false }
+        return true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
+
+    @objc private func dragged(_ recognizer: UIPanGestureRecognizer) {
+        guard let text, let session else { return }
+        let point = recognizer.location(in: self)
+        switch recognizer.state {
+        case .began:
+            guard let start = touchDown?.point, let hit = text.hit(at: start), let token = hit.token else { return }
+            phraseAnchor = ReaderTokenRef(position: hit.position, index: token)
+            session.isDraggingSelection = true
+            contextMenu?.dismissMenu()
+            fallthrough
+        case .changed:
+            // 문장을 넘어가면 마지막으로 고른 범위를 그대로 둔다.
+            guard let anchor = phraseAnchor, let hit = text.hit(at: point), hit.position == anchor.position,
+                  let token = hit.token else { return }
+            session.phraseDraft = token == anchor.index
+                ? nil
+                : ReaderPhraseRange(position: anchor.position, from: min(anchor.index, token), to: max(anchor.index, token))
+        case .ended:
+            if let draft = session.phraseDraft { session.selectPhrase(draft) }
+            endPhraseDrag()
+        default:
+            endPhraseDrag()
+        }
+    }
+
+    private func endPhraseDrag() {
+        phraseAnchor = nil
+        session?.phraseDraft = nil
+        session?.isDraggingSelection = false
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -414,9 +510,25 @@ final class ReaderPageCanvasView: NSView {
         mouseDownPoint = convert(event.locationInWindow, from: nil)
     }
 
+    /// 단어에서 시작해 옆 단어로 끌면 여러 단어를 고른다.
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownPoint, let text, let session,
+              let anchor = text.hit(at: start), let from = anchor.token else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard let hit = text.hit(at: point), hit.position == anchor.position, let to = hit.token else { return }
+        session.phraseDraft = from == to
+            ? nil
+            : ReaderPhraseRange(position: anchor.position, from: min(from, to), to: max(from, to))
+    }
+
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         defer { mouseDownPoint = nil }
+        if let draft = session?.phraseDraft {
+            session?.phraseDraft = nil
+            session?.selectPhrase(draft)
+            return
+        }
         guard let start = mouseDownPoint, hypot(point.x - start.x, point.y - start.y) < 4 else { return }
         guard let text, let session, let hit = text.hit(at: point), let token = hit.token,
               let surface = text.tokens(at: hit.position)[token].surface

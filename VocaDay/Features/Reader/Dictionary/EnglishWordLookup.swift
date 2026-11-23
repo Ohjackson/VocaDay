@@ -30,6 +30,16 @@ enum EnglishWordLookup {
         return WordLookupPipeline(lemmatizer: EnglishLemmatizer(), steps: steps)
     }
 
+    /// 끌어 고른 여러 단어. 책 사전에 그 말이 있으면 그것, 아니면 기기 번역으로 덩어리 전체를 옮긴다.
+    static func phrasePipeline() -> WordLookupPipeline {
+        var pipeline = WordLookupPipeline(
+            lemmatizer: EnglishLemmatizer(),
+            steps: [GlossaryLookupStep(usesLemma: false), TranslationWordLookupStep(), PhraseMeaningLookupStep()]
+        )
+        pipeline.notFoundMessage = "이 말을 번역하지 못했어요."
+        return pipeline
+    }
+
     /// 「⋯ → 기기에서 뜻 만들기」. 만든 뜻은 `generatedMeanings`에 남겨 다음부터 바로 보인다.
     static func generation(
         generator: any EnglishWordGenerating = AppleFoundationWordGenerationService(),
@@ -103,6 +113,7 @@ struct EnglishLemmatizer: WordLemmatizing {
     private static let tagger = NLTagger(tagSchemes: [.lemma])
 
     private func lemma(matching key: String, in text: String) -> String? {
+        guard !key.contains(where: \.isWhitespace) else { return nil }
         let tagger = Self.tagger
         tagger.string = text
         tagger.setLanguage(.english, range: text.startIndex..<text.endIndex)

@@ -78,4 +78,7 @@ nonisolated struct WordTapContext: Hashable, Sendable, Identifiable {
     /// 단어가 들어 있는 문장 원문과 번역.
     var sentence: String
     var sentenceTranslation: String?
+
+    /// 끌어 골라 여러 단어가 들어 있다.
+    var isPhrase: Bool { surface.contains(where: \.isWhitespace) }
 }

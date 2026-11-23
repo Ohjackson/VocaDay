@@ -7,10 +7,18 @@ nonisolated struct ReaderTokenRef: Hashable, Sendable {
     var index: Int
 }
 
-/// 지금 열려 있는 단어 카드.
+/// 한 문장 안에서 이어진 여러 단어 (`from`…`to`, 둘 다 포함).
+nonisolated struct ReaderPhraseRange: Hashable, Sendable {
+    var position: ReadingPosition
+    var from: Int
+    var to: Int
+}
+
+/// 지금 열려 있는 단어 카드. 여러 단어를 끌어 골랐으면 `endIndex`가 마지막 단어.
 nonisolated struct ReaderActiveWord: Identifiable, Hashable, Sendable {
     var ref: ReaderTokenRef
     var context: WordTapContext
+    var endIndex: Int? = nil
     var id: String { "\(context.id)#\(ref.index)" }
 }
 
@@ -31,6 +39,10 @@ final class ReaderSession {
     /// 값이 바뀌면 본문이 이 위치로 스크롤한다.
     private(set) var scrollRequest: ScrollRequest
     var activeWord: ReaderActiveWord?
+    /// 단어를 길게 눌러 옆 단어로 끄는 동안 칠할 범위. 손을 떼면 `selectPhrase`로 카드를 연다.
+    var phraseDraft: ReaderPhraseRange?
+    /// 끌어 고르는 중. 이동안 페이지가 넘어가지 않게 한다.
+    var isDraggingSelection = false
     /// 번역을 펼친 문장. 페이지 나누기가 흔들리지 않게 본문 안이 아니라 아래 띠에 보여 준다.
     private(set) var translationPosition: ReadingPosition?
     private(set) var voice = ListeningVoice.fallback
@@ -172,6 +184,31 @@ final class ReaderSession {
                 sentence: sentence.text,
                 sentenceTranslation: sentence.translation
             )
+        )
+    }
+
+    /// 끌어 고른 여러 단어를 한 덩어리로 카드에 연다. 카드는 덩어리 전체를 번역한다.
+    func selectPhrase(_ range: ReaderPhraseRange) {
+        guard let sentence = book.sentence(at: range.position) else { return }
+        let tokens = ReaderTokenizer.tokens(in: sentence.text)
+        let from = min(range.from, range.to), to = max(range.from, range.to)
+        guard tokens.indices.contains(from), tokens.indices.contains(to) else { return }
+        let lower = tokens[from].range.lowerBound
+        let nsRange = NSRange(location: lower, length: tokens[to].range.upperBound - lower)
+        let phrase = (sentence.text as NSString).substring(with: nsRange)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard !phrase.isEmpty else { return }
+        activeWord = ReaderActiveWord(
+            ref: ReaderTokenRef(position: range.position, index: from),
+            context: WordTapContext(
+                surface: phrase,
+                bookID: book.id,
+                language: book.language,
+                position: range.position,
+                sentence: sentence.text,
+                sentenceTranslation: sentence.translation
+            ),
+            endIndex: to
         )
     }
 
