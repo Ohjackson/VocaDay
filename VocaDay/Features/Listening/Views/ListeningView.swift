@@ -80,6 +80,14 @@ struct ListeningView: View {
         .listStyle(.inset)
         #endif
         .navigationTitle(AppSection.listening.title)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(value: AppRoute.listeningSettings) {
+                    Label("사전·음성 설정", systemImage: "gearshape")
+                }
+                .help("사전·음성 모델 받기와 음성 시험")
+            }
+        }
         .task {
             importedStore.refresh()
             BookTranslationService.shared.resumePending()

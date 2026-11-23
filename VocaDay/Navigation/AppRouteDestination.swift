@@ -71,6 +71,8 @@ struct AppRouteDestination: View {
             ReaderView(bookID: id)
         case .pdfImport:
             PDFImportRouteScreen()
+        case .listeningSettings:
+            ListeningSettingsView()
         case .bookFit(let bookID):
             BookFitRouteScreen(bookID: bookID)
         #if DEBUG

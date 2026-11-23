@@ -27,6 +27,8 @@ enum AppRoute: Hashable {
     case book(id: String)
     /// 리스닝 탭: PDF 가져오기.
     case pdfImport
+    /// 리스닝 탭: 사전·번역 언어 팩·음성 모델 준비와 음성 시험 (톱니바퀴).
+    case listeningSettings
     /// 책 적합도 상세. 책은 `BookDocument.id` 로 넘긴다.
     case bookFit(bookID: String)
     #if DEBUG
