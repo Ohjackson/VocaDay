@@ -27,6 +27,8 @@ actor KokoroSynthesizer {
         }
     }
 
+    private static let cacheLimit = 64 * 1024 * 1024
+
     private var tts: KokoroTTS?
     private var styles: [String: MLXArray] = [:]
 
@@ -41,6 +43,9 @@ actor KokoroSynthesizer {
         guard let url = Bundle.main.url(forResource: "kokoro-v1_0", withExtension: "safetensors") else {
             throw Failure.modelMissing
         }
+        // MLX는 쓰고 난 GPU 버퍼를 기본으로 무한정 캐시한다. 문장을 계속 만들면 수 GB까지 커져
+        // iPhone 메모리 한도(EXC_RESOURCE)에 걸려 앱이 죽었다. 캐시를 작게 묶는다.
+        Memory.cacheLimit = Self.cacheLimit
         let engine = KokoroTTS(modelPath: url)
         tts = engine
         let warmUp = ListeningVoice.fallback
@@ -58,6 +63,7 @@ actor KokoroSynthesizer {
             text: text,
             speed: speed
         )
+        Memory.clearCache()
         return samples
     }
 
