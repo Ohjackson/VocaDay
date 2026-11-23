@@ -99,8 +99,11 @@ struct EnglishLemmatizer: WordLemmatizing {
         return result
     }
 
+    /// 만들 때 lemma 모델을 읽느라 느려서 하나를 계속 쓴다.
+    private static let tagger = NLTagger(tagSchemes: [.lemma])
+
     private func lemma(matching key: String, in text: String) -> String? {
-        let tagger = NLTagger(tagSchemes: [.lemma])
+        let tagger = Self.tagger
         tagger.string = text
         tagger.setLanguage(.english, range: text.startIndex..<text.endIndex)
         var found: String?
@@ -116,6 +119,24 @@ struct EnglishLemmatizer: WordLemmatizing {
         }
         guard let found, !found.isEmpty else { return nil }
         return found
+    }
+}
+
+/// 단어를 처음 누를 때 느리지 않게, 책을 열면 찾기에 쓰는 것들을 미리 준비한다.
+/// - 기본 단어장(JSON 약 800KB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
+enum WordLookupWarmUp {
+    private static var started = false
+
+    static func start() {
+        guard !started else { return }
+        started = true
+        Task {
+            // 책 첫 화면이 먼저 그려지게 잠깐 기다린다.
+            try? await Task.sleep(for: .milliseconds(600))
+            _ = BundledWordIndex.shared
+            _ = EnglishLemmatizer().lemmas(of: "arrived", in: "She arrived early.")
+            await TranslationWordLookupStep.warmUp()
+        }
     }
 }
 

@@ -53,6 +53,7 @@ final class ReaderSession {
         position = start
         scrollRequest = ScrollRequest(position: start, serial: 0)
         ignoresVisiblePagesUntil = now().addingTimeInterval(1.2)
+        WordLookupWarmUp.start()
         speaker.onSentenceChange = { [weak self] index in
             guard let self, let index, self.navigator.positions.indices.contains(index) else { return }
             self.setPosition(self.navigator.positions[index], scroll: true)

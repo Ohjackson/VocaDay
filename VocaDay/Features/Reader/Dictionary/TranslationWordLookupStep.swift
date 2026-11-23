@@ -45,9 +45,19 @@ struct TranslationWordLookupStep: WordLookupStep {
     }
 
     private static var session: TranslationSession?
+    /// 한 번 받음으로 확인되면 다시 묻지 않는다 (확인 자체가 매번 시간이 걸린다).
+    private static var packInstalled = false
 
     static func isPackInstalled() async -> Bool {
-        await LanguageAvailability().status(from: source, to: target) == .installed
+        if packInstalled { return true }
+        packInstalled = await LanguageAvailability().status(from: source, to: target) == .installed
+        return packInstalled
+    }
+
+    /// 언어 팩이 있으면 세션을 만들고 한 번 번역해 둔다. 첫 단어 번역이 늦지 않게 하려는 것이다.
+    static func warmUp() async {
+        guard await isPackInstalled() else { return }
+        _ = await translateOnDevice("hello")
     }
 
     static func translateOnDevice(_ term: String) async -> String? {

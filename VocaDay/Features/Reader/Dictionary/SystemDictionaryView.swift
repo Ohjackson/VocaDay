@@ -29,6 +29,17 @@ enum SystemDictionary {
         #endif
     }
 
+    private static var definitionCache: [String: Bool] = [:]
+
+    /// `hasDefinition`을 기억해 두고 쓴다. 같은 단어를 다시 눌러도 사전을 다시 뒤지지 않는다.
+    static func cachedHasDefinition(for term: String) -> Bool {
+        let key = term.lowercased()
+        if let cached = definitionCache[key] { return cached }
+        let found = hasDefinition(for: term)
+        definitionCache[key] = found
+        return found
+    }
+
     static func url(for term: String) -> URL? {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-'"))
         guard let escaped = term.addingPercentEncoding(withAllowedCharacters: allowed), !escaped.isEmpty else { return nil }

@@ -103,9 +103,12 @@ struct WordLookupCard: View {
             await runLookup()
         }
         .task(id: dictionaryTerm) {
-            systemDictionaryHasEntry = SystemDictionary.hasDefinition(for: dictionaryTerm)
+            // 기기 사전 확인(특히 iOS)은 메인 스레드에서 오래 걸린다. 뜻이 먼저 그려지게 조금 미루고, 결과는 기억한다.
+            if case .loading = phase { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            systemDictionaryHasEntry = SystemDictionary.cachedHasDefinition(for: dictionaryTerm)
                 || (dictionaryTerm.lowercased() != context.surface.lowercased()
-                    && SystemDictionary.hasDefinition(for: context.surface))
+                    && SystemDictionary.cachedHasDefinition(for: context.surface))
         }
         .background {
             // 언어 팩이 없으면 시스템이 받기 안내를 띄운다. 받고 나면 한국어 뜻으로 다시 찾는다.
@@ -493,11 +496,21 @@ struct WordLookupCard: View {
         }
     }
 
+    /// 이번 실행에서 찾은 뜻. 같은 문장의 같은 단어를 다시 누르면 바로 보인다.
+    private static var foundCache: [String: WordLookupOutcome] = [:]
+
     private func runLookup() async {
+        let cacheKey = "\(context.bookID)|\(context.surface.lowercased())|\(context.sentence)"
+        if let cached = Self.foundCache[cacheKey] {
+            if case .found(let result) = cached { phase = .found(result) }
+            await checkKoreanPack()
+            return
+        }
         phase = .loading("뜻을 찾는 중…")
         let outcome = await pipeline.lookup(context, book: book) { message in
             phase = .loading(message)
         }
+        if case .found = outcome { Self.foundCache[cacheKey] = outcome }
         switch outcome {
         case .found(let result): phase = .found(result)
         case .notFound(let miss): phase = .notFound(miss)
