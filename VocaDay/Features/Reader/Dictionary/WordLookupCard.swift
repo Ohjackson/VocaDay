@@ -34,6 +34,8 @@ struct WordLookupCard: View {
     /// 영→한 번역 언어 팩을 받을 수 있는데 아직 없다. 한국어 뜻 대신 영영 뜻이나 "없음"이 나올 때 받기 버튼을 보인다.
     @State private var canDownloadKoreanPack = false
     @State private var packConfiguration: TranslationSession.Configuration?
+    /// 카드 내용의 실제 높이. 팝오버가 이 높이를 원하게 한다.
+    @State private var contentHeight: CGFloat = 160
     @Environment(\.openURL) private var openURL
 
     init(context: WordTapContext, book: BookDocument) {
@@ -75,20 +77,27 @@ struct WordLookupCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            meaningBox
-            buttons
-            if let notice {
-                Text(notice)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+        // 뜻이 길어 화면에 다 안 들어가면 팝오버가 내용을 잘라 위쪽(표제어)이 사라졌다.
+        // 내용 높이를 재서 그만큼을 원하되, 자리가 모자라면 잘리지 않고 스크롤된다.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                meaningBox
+                buttons
+                if let notice {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
-        .padding(12)
-        .frame(idealWidth: 300, maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(idealWidth: 300, maxWidth: .infinity, idealHeight: contentHeight, maxHeight: contentHeight)
         .task(id: context.id) {
             guard case .loading = phase else { return }
             await runLookup()
@@ -151,21 +160,37 @@ struct WordLookupCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             case .found(let result):
-                ForEach(meaningLines.lines, id: \.self) { line in
-                    Text(line)
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(meaningLines.lines, id: \.self) { line in
+                        meaningRow(line)
+                    }
                 }
                 if let note = result.note, !note.isEmpty {
-                    Text(note)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Label {
+                        Text(note)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "lightbulb")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
-                Text(result.source.label)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityLabel("출처: \(result.source.label)")
+                contextSentence
+                HStack(spacing: 6) {
+                    if let tag = result.toeicTag, !tag.isEmpty {
+                        Text(tag)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.tint)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.tint.opacity(0.12), in: Capsule())
+                    }
+                    Text(result.source.label)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityLabel("출처: \(result.source.label)")
+                }
                 if canDownloadKoreanPack { koreanPackButton }
             case .notFound(let miss):
                 Text(miss.message)
@@ -178,13 +203,72 @@ struct WordLookupCard: View {
                 if canDownloadKoreanPack { koreanPackButton }
             }
         }
-        .padding(14)
+        .padding(.horizontal, 4)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.innerCornerRadius, style: .continuous)
-                .stroke(AppTheme.softStroke)
+    }
+
+    /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만.
+    @ViewBuilder
+    private func meaningRow(_ line: String) -> some View {
+        let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+        if parts.count == 2, parts[0].hasSuffix("."), parts[0].count <= 7 {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(parts[0])
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                Text(parts[1])
+                    .font(.body)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            Text(line)
+                .font(.body)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// 이 단어가 나온 책 문장(단어 강조)과 번역. 사전 뜻 중 어느 쓰임인지 바로 맞춰 볼 수 있다.
+    @ViewBuilder
+    private var contextSentence: some View {
+        let sentence = context.sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !sentence.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Self.emphasized(context.surface, in: sentence))
+                    .font(.subheadline)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let translation = context.sentenceTranslation?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !translation.isEmpty {
+                    Text(translation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.leading, 8)
+            .overlay(alignment: .leading) {
+                Capsule().fill(.tint.opacity(0.5)).frame(width: 2)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private static func emphasized(_ surface: String, in sentence: String) -> AttributedString {
+        var text = AttributedString(sentence)
+        guard let range = WordHighlighter.range(of: surface, in: sentence),
+              let lower = AttributedString.Index(range.lowerBound, within: text),
+              let upper = AttributedString.Index(range.upperBound, within: text)
+        else { return text }
+        text[lower..<upper].font = .subheadline.bold()
+        return text
     }
 
     private var headword: String {
