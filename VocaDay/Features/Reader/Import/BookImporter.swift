@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import UniformTypeIdentifiers
 
-/// PDF 파일 → 책 저장 → 번역 시작. 가져오기 화면의 상태를 들고 있다.
+/// PDF·TXT 파일 → 책 저장 → 번역 시작. 가져오기 화면의 상태를 들고 있다.
 @MainActor
 @Observable
 final class BookImporter {
@@ -13,7 +13,7 @@ final class BookImporter {
         case failed(String)
     }
 
-    static let allowedContentTypes: [UTType] = [.pdf]
+    static let allowedContentTypes: [UTType] = [.pdf, .plainText]
 
     private(set) var phase: Phase = .idle
     private let store: ImportedBookStore
@@ -36,7 +36,8 @@ final class BookImporter {
     func importFile(at url: URL) async {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        guard Self.isPDF(url) else {
+        let isPDF = Self.isPDF(url)
+        guard isPDF || Self.isText(url) else {
             phase = .failed(BookImportError.unsupportedFormat.localizedDescription)
             return
         }
@@ -48,7 +49,9 @@ final class BookImporter {
             }
         }
         do {
-            let book = try await Self.makeBook(pdfAt: url, progress: report)
+            let book = isPDF
+                ? try await Self.makeBook(pdfAt: url, progress: report)
+                : try await Self.makeBook(textAt: url)
             let alreadyImported = store.contains(id: book.id)
             let summary = try await store.add(book)
             phase = .finished(summary, alreadyImported: alreadyImported)
@@ -64,6 +67,16 @@ final class BookImporter {
 
     static func isPDF(_ url: URL) -> Bool {
         UTType(filenameExtension: url.pathExtension.lowercased())?.conforms(to: .pdf) == true
+    }
+
+    static func isText(_ url: URL) -> Bool {
+        UTType(filenameExtension: url.pathExtension.lowercased())?.conforms(to: .plainText) == true
+    }
+
+    /// 메인 밖에서 TXT를 읽고 문장으로 나눈다.
+    @concurrent
+    static func makeBook(textAt url: URL) async throws -> BookDocument {
+        try ImportedBookBuilder.makeBook(from: TextBookParser.parse(url: url))
     }
 
     /// 메인 밖에서 PDF를 읽고(필요하면 OCR) 문장으로 나눈다.

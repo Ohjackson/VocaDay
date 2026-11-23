@@ -2,7 +2,7 @@ import SwiftUI
 import Translation
 import UniformTypeIdentifiers
 
-/// PDF 가져오기 화면 조각. 파일 고르기, 진행률, 결과(장·문장 수, 번역 상태), 가져온 책 목록.
+/// 책 가져오기(PDF·TXT) 화면 조각. 파일 고르기, 진행률, 결과(장·문장 수, 번역 상태), 가져온 책 목록.
 /// 화면 이동은 하지 않는다. 책을 열 때는 `onOpen(bookID)`를 부르므로 붙이는 쪽이 `AppRoute`로 push 한다.
 struct BookImportView: View {
     var onOpen: ((String) -> Void)?
@@ -34,7 +34,7 @@ struct BookImportView: View {
             importedBooksSection
         }
         .formStyle(.grouped)
-        .navigationTitle("PDF 가져오기")
+        .navigationTitle("책 가져오기")
         .fileImporter(isPresented: $isPickingFile, allowedContentTypes: BookImporter.allowedContentTypes) { result in
             if case .success(let url) = result {
                 Task { await importer.importFile(at: url) }
@@ -71,13 +71,13 @@ struct BookImportView: View {
             Button {
                 isPickingFile = true
             } label: {
-                Label("PDF 고르기", systemImage: "doc.badge.plus")
+                Label("파일 고르기 (PDF·TXT)", systemImage: "doc.badge.plus")
             }
             .disabled(importer.isWorking)
         } header: {
-            Text("PDF에서")
+            Text("파일에서")
         } footer: {
-            Text("글자가 있는 PDF는 바로, 직접 스캔한 PDF는 기기 안에서 글자를 읽어(OCR) 가져와요. 쪽 번호와 쪽마다 반복되는 머리말은 빼요.")
+            Text("PDF: 글자가 있으면 바로, 스캔본은 기기 안에서 글자를 읽어(OCR) 가져와요. 쪽 번호와 반복되는 머리말은 빼요.\nTXT: 빈 줄로 문단을, \"Chapter 1\" 같은 줄로 장을 나눠요.")
         }
     }
 

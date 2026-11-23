@@ -31,7 +31,7 @@ nonisolated enum BookImportError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .lockedPDF: "암호가 걸린 PDF는 가져올 수 없어요."
-        case .unsupportedFormat: "PDF 파일만 가져올 수 있어요."
+        case .unsupportedFormat: "PDF나 TXT 파일만 가져올 수 있어요."
         case .unreadable(let detail): "파일을 읽지 못했어요. (\(detail))"
         case .noText: "가져올 본문을 찾지 못했어요."
         }

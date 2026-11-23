@@ -25,8 +25,8 @@ struct ListeningView: View {
                 NavigationLink(value: AppRoute.pdfImport) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("PDF 가져오기")
-                            Text("가진 책의 PDF나 스캔본을 책으로 만들어요")
+                            Text("책 가져오기")
+                            Text("PDF·TXT 파일을 책으로 만들어요")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
