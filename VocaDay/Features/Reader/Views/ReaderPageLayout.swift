@@ -60,8 +60,6 @@ nonisolated struct ReaderPageMetrics: Hashable, Sendable {
 
 /// 페이지 안의 한 덩어리.
 nonisolated enum ReaderPageBlock: Hashable, Sendable {
-    /// 장 첫 페이지의 가운데 장 제목.
-    case chapterTitle(chapter: Int)
     /// 문단 전체 또는 문장 경계에서 잘린 일부. `indented` 는 첫 줄 들여쓰기.
     case paragraph(chapter: Int, paragraph: Int, sentences: Range<Int>, indented: Bool)
 }
@@ -99,8 +97,6 @@ nonisolated struct ReaderPageComposer {
     var secondaryColor: ReaderPlatformColor
 
     let bodyFont: ReaderPlatformFont
-    private let titleFont: ReaderPlatformFont
-    private let labelFont: ReaderPlatformFont
 
     init(
         book: BookDocument,
@@ -115,8 +111,6 @@ nonisolated struct ReaderPageComposer {
         self.textColor = textColor
         self.secondaryColor = secondaryColor
         bodyFont = Self.serifFont(size: fontSize, bold: false)
-        titleFont = Self.serifFont(size: (fontSize * 1.45).rounded(), bold: true)
-        labelFont = ReaderPlatformFont.systemFont(ofSize: max(10, (fontSize * 0.62).rounded()), weight: .semibold)
     }
 
     /// Iowan Old Style, 없으면 시스템 세리프(New York).
@@ -154,31 +148,6 @@ nonisolated struct ReaderPageComposer {
         ]
     }
 
-    func appendChapterTitle(_ chapter: Int, to text: NSMutableAttributedString) {
-        let label = NSMutableParagraphStyle()
-        label.alignment = .center
-        label.paragraphSpacing = fontSize * 0.5
-        let title = NSMutableParagraphStyle()
-        title.alignment = .center
-        title.lineHeightMultiple = 1.15
-        title.paragraphSpacing = (fontSize * lineHeight * 1.6).rounded()
-
-        appendParagraphBreakIfNeeded(to: text)
-        text.append(NSAttributedString(string: "CHAPTER \(chapter + 1)", attributes: [
-            .font: labelFont,
-            .foregroundColor: secondaryColor,
-            .kern: fontSize * 0.12,
-            .paragraphStyle: label,
-        ]))
-        text.append(NSAttributedString(string: "\n", attributes: [.font: labelFont, .paragraphStyle: label]))
-        text.append(NSAttributedString(string: book.chapters[chapter].title, attributes: [
-            .font: titleFont,
-            .foregroundColor: textColor,
-            .paragraphStyle: title,
-            languageKey: book.language,
-        ]))
-    }
-
     /// 문장 하나를 붙인다. `startsParagraph` 면 새 문단으로, 아니면 앞 문장 뒤에 띄어 붙인다.
     @discardableResult
     func appendSentence(
@@ -213,8 +182,6 @@ nonisolated struct ReaderPageComposer {
         var spans: [ReaderSentenceSpan] = []
         for block in blocks {
             switch block {
-            case .chapterTitle(let chapter):
-                appendChapterTitle(chapter, to: text)
             case .paragraph(let chapter, let paragraph, let sentences, let indented):
                 for sentence in sentences {
                     let position = ReadingPosition(chapter: chapter, paragraph: paragraph, sentence: sentence)
@@ -290,10 +257,6 @@ nonisolated enum ReaderPaginator {
         for chapter in book.chapters.indices {
             closePage()
             pageChapter = chapter
-            if !book.chapters[chapter].title.isEmpty {
-                composer.appendChapterTitle(chapter, to: stack.storage)
-                blocks.append(.chapterTitle(chapter: chapter))
-            }
             for paragraph in book.chapters[chapter].paragraphs.indices {
                 for sentence in book.chapters[chapter].paragraphs[paragraph].sentences.indices {
                     let position = ReadingPosition(chapter: chapter, paragraph: paragraph, sentence: sentence)

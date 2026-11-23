@@ -66,15 +66,14 @@ final class ReaderPaginatorTests: XCTestCase {
         }
     }
 
-    func testChaptersStartNewPageWithTitle() {
+    func testChaptersStartNewPageWithoutTitle() {
         let book = Self.longBook()
         let pages = ReaderPaginator.paginate(book: book, metrics: phone)
         for chapter in book.chapters.indices {
             let first = pages.first { $0.chapter == chapter }
-            XCTAssertEqual(first?.blocks.first, .chapterTitle(chapter: chapter))
             XCTAssertEqual(first?.firstPosition, ReadingPosition(chapter: chapter, paragraph: 0, sentence: 0))
+            if case .paragraph? = first?.blocks.first {} else { XCTFail("장 첫 페이지는 본문으로 시작해야 한다") }
         }
-        XCTAssertEqual(pages.flatMap(\.blocks).filter { if case .chapterTitle = $0 { return true } else { return false } }.count, book.chapters.count)
     }
 
     func testIndentsOnlyParagraphStartsAfterTheFirst() {
