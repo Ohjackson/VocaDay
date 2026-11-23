@@ -20,6 +20,15 @@ enum SystemDictionary {
         #endif
     }
 
+    /// 책 테마가 덮어쓴 값이 아니라 기기 화면의 실제 모드. 시스템 창(사전·번역 언어 팩 받기)은 이 모드로 그려진다.
+    static var deviceColorScheme: ColorScheme {
+        #if os(iOS)
+        SystemDictionarySheet.deviceStyle == .dark ? .dark : .light
+        #else
+        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+        #endif
+    }
+
     static func url(for term: String) -> URL? {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-'"))
         guard let escaped = term.addingPercentEncoding(withAllowedCharacters: allowed), !escaped.isEmpty else { return nil }
@@ -46,9 +55,7 @@ struct SystemDictionarySheet: UIViewControllerRepresentable {
         return scene?.screen.traitCollection.userInterfaceStyle ?? .unspecified
     }
 
-    static var deviceColorScheme: ColorScheme {
-        deviceStyle == .dark ? .dark : .light
-    }
+    static var deviceColorScheme: ColorScheme { SystemDictionary.deviceColorScheme }
 
     func updateUIViewController(_ controller: UIReferenceLibraryViewController, context: Context) {}
 }

@@ -98,11 +98,16 @@ struct WordLookupCard: View {
                 || (dictionaryTerm.lowercased() != context.surface.lowercased()
                     && SystemDictionary.hasDefinition(for: context.surface))
         }
-        .translationTask(packConfiguration) { session in
+        .background {
             // 언어 팩이 없으면 시스템이 받기 안내를 띄운다. 받고 나면 한국어 뜻으로 다시 찾는다.
-            do { try await session.prepareTranslation() } catch {}
-            await checkKoreanPack()
-            if !canDownloadKoreanPack { await runLookup() }
+            // 시스템 창은 기기 모드로 그려지므로, 책 테마(세피아 등)가 아니라 기기 모드를 넘겨야 글자가 보인다.
+            Color.clear
+                .translationTask(packConfiguration) { session in
+                    do { try await session.prepareTranslation() } catch {}
+                    await checkKoreanPack()
+                    if !canDownloadKoreanPack { await runLookup() }
+                }
+                .environment(\.colorScheme, SystemDictionary.deviceColorScheme)
         }
         .onDisappear { pronunciation.stop() }
         #if os(iOS)
