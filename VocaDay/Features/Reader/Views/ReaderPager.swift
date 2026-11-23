@@ -228,7 +228,11 @@ struct ReaderPageView: View {
             let anchor = popoverAnchor(state.activeWord)
             Color.clear
                 .frame(width: max(anchor.width, 1), height: max(anchor.height, 1))
-                .popover(isPresented: popoverBinding(state.activeWord), arrowEdge: .bottom) {
+                // 위쪽 절반의 단어는 아래로, 아래쪽 절반은 위로 띄운다. 위에 자리가 없으면 상자가 눌려 잘린다.
+                .popover(
+                    isPresented: popoverBinding(state.activeWord),
+                    arrowEdge: anchor.midY < metrics.pageHeight / 2 ? .top : .bottom
+                ) {
                     ReaderWordPopover(session: session, appearance: appearance)
                 }
                 .padding(.leading, anchor.minX)
