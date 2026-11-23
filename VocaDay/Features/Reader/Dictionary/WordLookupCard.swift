@@ -520,6 +520,8 @@ struct WordLookupCard: View {
         let request = pipeline.request(for: context, book: book)
         do {
             if let result = try await generation.lookup(request) {
+                // 새로 만든 뜻이 전에 찾은 뜻을 대신한다.
+                remember(result)
                 phase = .found(result)
             } else {
                 phase = previous
@@ -532,12 +534,19 @@ struct WordLookupCard: View {
     }
 
     /// 이번 실행에서 찾은 뜻. 같은 문장의 같은 단어를 다시 누르면 바로 보인다.
-    private static var foundCache: [String: WordLookupOutcome] = [:]
+    private static var foundCache: [String: WordLookupResult] = [:]
+
+    private var cacheKey: String { "\(context.bookID)|\(context.surface.lowercased())|\(context.sentence)" }
+
+    /// 영영사전 글은 남기지 않는다. 번역 언어 팩을 받은 뒤에는 한국어 뜻으로 다시 찾아야 한다.
+    private func remember(_ result: WordLookupResult) {
+        guard result.source != .systemDictionary else { return }
+        Self.foundCache[cacheKey] = result
+    }
 
     private func runLookup() async {
-        let cacheKey = "\(context.bookID)|\(context.surface.lowercased())|\(context.sentence)"
         if let cached = Self.foundCache[cacheKey] {
-            if case .found(let result) = cached { phase = .found(result) }
+            phase = .found(cached)
             await checkKoreanPack()
             return
         }
@@ -545,9 +554,10 @@ struct WordLookupCard: View {
         let outcome = await pipeline.lookup(context, book: book) { message in
             phase = .loading(message)
         }
-        if case .found = outcome { Self.foundCache[cacheKey] = outcome }
         switch outcome {
-        case .found(let result): phase = .found(result)
+        case .found(let result):
+            remember(result)
+            phase = .found(result)
         case .notFound(let miss): phase = .notFound(miss)
         }
         await checkKoreanPack()
