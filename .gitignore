@@ -40,6 +40,7 @@ secrets.plist
 
 # Bundled word data (kept local, not pushed)
 VocaDay/Resources/BundledWords.json
+VocaDay/Resources/MeaningExamples.json
 docs/vocab/toeic_vocab_source.json
 
 # Kokoro speech model for Listening (scripts/fetch_kokoro_model.sh)
