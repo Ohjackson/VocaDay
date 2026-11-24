@@ -170,10 +170,10 @@ struct WordLookupCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             case .found(let result) where context.isPhrase:
-                phraseBody(translation: result.meaning, note: result.note, source: result.source.label)
+                phraseBody(translation: result.meaning, note: result.note)
                 if canDownloadKoreanPack { koreanPackButton }
             case .notFound where context.isPhrase:
-                phraseBody(translation: nil, note: nil, source: nil)
+                phraseBody(translation: nil, note: nil)
                 Text("이 말을 번역하지 못했어요.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -195,16 +195,16 @@ struct WordLookupCard: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
-                contextSentence
-                HStack(spacing: 6) {
-                    if let tag = result.toeicTag, !tag.isEmpty {
-                        Text(tag)
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.tint)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.tint.opacity(0.12), in: Capsule())
-                    }
+                if let tag = result.toeicTag, !tag.isEmpty {
+                    Text(tag)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.tint)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.tint.opacity(0.12), in: Capsule())
+                }
+                // 만든 뜻은 틀릴 수 있어 출처를 남긴다.
+                if result.source == .generated {
                     Text(result.source.label)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -228,9 +228,9 @@ struct WordLookupCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 끌어 고른 구절: 영어 구절 → 한국어 번역 → 이 구절이 나온 문장.
+    /// 끌어 고른 구절: 영어 구절 → 한국어 번역.
     @ViewBuilder
-    private func phraseBody(translation: String?, note: String?, source: String?) -> some View {
+    private func phraseBody(translation: String?, note: String?) -> some View {
         Text(context.surface)
             .font(.title3.weight(.semibold))
             .lineLimit(3)
@@ -247,12 +247,6 @@ struct WordLookupCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        contextSentence
-        if let source {
-            Text(source)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
     }
 
@@ -279,33 +273,6 @@ struct WordLookupCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    /// 이 단어가 나온 책 문장(단어 강조). 번역은 문장 카드(길게 누르기)에서 보여 준다.
-    @ViewBuilder
-    private var contextSentence: some View {
-        let sentence = context.sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !sentence.isEmpty {
-            Text(Self.emphasized(context.surface, in: sentence))
-                .font(.subheadline)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, 8)
-                .overlay(alignment: .leading) {
-                    Capsule().fill(.tint.opacity(0.5)).frame(width: 2)
-                }
-                .padding(.top, 2)
-        }
-    }
-
-    private static func emphasized(_ surface: String, in sentence: String) -> AttributedString {
-        var text = AttributedString(sentence)
-        guard let range = WordHighlighter.range(of: surface, in: sentence),
-              let lower = AttributedString.Index(range.lowerBound, within: text),
-              let upper = AttributedString.Index(range.upperBound, within: text)
-        else { return text }
-        text[lower..<upper].font = .subheadline.bold()
-        return text
     }
 
     private var headword: String {
