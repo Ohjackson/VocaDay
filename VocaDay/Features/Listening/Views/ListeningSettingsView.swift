@@ -78,7 +78,7 @@ struct ListeningSettingsView: View {
         } header: {
             Text("앱 사전")
         } footer: {
-            Text("앱에 들어 있어서 따로 받지 않아요. 한국어 위키낱말사전 기여자들이 쓴 글에서 영어 뜻만 골라 짧게 다듬었어요. (\(dictionary.dumpDate) 기준, kaikki.org 추출)")
+            Text("앱에 들어 있어서 따로 받지 않아요. 한국어 위키낱말사전 기여자들이 쓴 글에서 영어 뜻과 예문만 골라 짧게 다듬었어요. (\(dictionary.dumpDate) 기준, kaikki.org 추출) 예문 가운데 일부는 앱 안의 문장이에요.")
         }
     }
 

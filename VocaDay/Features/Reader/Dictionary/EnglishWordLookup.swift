@@ -11,6 +11,7 @@ enum EnglishWordLookup {
     static func pipeline(
         bundledWords: @escaping () -> [String: VocaWordJSON] = { BundledWordIndex.shared },
         wiktionary: @escaping () -> [String: String] = { WiktionaryDictionary.shared.words },
+        wiktionaryExamples: @escaping (String) -> [WordMeaningExample] = WiktionaryDictionary.examples(for:),
         generatedMeanings: GeneratedMeaningStore = .shared,
         usesTranslation: Bool = true,
         usesSystemDictionary: Bool = SystemDictionaryLookupStep.isSupported
@@ -20,18 +21,18 @@ enum EnglishWordLookup {
             GlossaryLookupStep(usesLemma: true),
             BundledPackLookupStep(index: bundledWords),
             GeneratedMeaningLookupStep(store: generatedMeanings),
-            WiktionaryLookupStep(index: wiktionary, requiresMatchingPartOfSpeech: true),
+            WiktionaryLookupStep(index: wiktionary, examples: wiktionaryExamples, requiresMatchingPartOfSpeech: true),
         ]
         // 한국어 뜻이 먼저. 번역 언어 팩이 없을 때만 영영사전 글로 넘어간다.
         if usesTranslation {
             steps.append(TranslationWordLookupStep())
         }
         // 번역이 안 되면 품사가 달라도 위키낱말사전 뜻을 쓴다.
-        steps.append(WiktionaryLookupStep(index: wiktionary, requiresMatchingPartOfSpeech: false))
+        steps.append(WiktionaryLookupStep(index: wiktionary, examples: wiktionaryExamples, requiresMatchingPartOfSpeech: false))
         if usesSystemDictionary {
             steps.append(SystemDictionaryLookupStep())
         }
-        return WordLookupPipeline(lemmatizer: EnglishLemmatizer(), steps: steps)
+        return WordLookupPipeline(lemmatizer: EnglishLemmatizer(), steps: steps, examples: wiktionaryExamples)
     }
 
     /// 끌어 고른 여러 단어. 책 사전이나 위키낱말사전에 그 말(숙어)이 있으면 그것, 아니면 기기 번역으로 덩어리 전체를 옮긴다.
@@ -42,11 +43,13 @@ enum EnglishWordLookup {
                 GlossaryLookupStep(usesLemma: false),
                 WiktionaryLookupStep(
                     index: { WiktionaryDictionary.shared.words },
+                    examples: WiktionaryDictionary.examples(for:),
                     requiresMatchingPartOfSpeech: false
                 ),
                 TranslationWordLookupStep(),
                 PhraseMeaningLookupStep(),
-            ]
+            ],
+            examples: WiktionaryDictionary.examples(for:)
         )
         pipeline.notFoundMessage = "이 말을 번역하지 못했어요."
         return pipeline
@@ -221,7 +224,7 @@ enum EnglishPartOfSpeech {
 }
 
 /// 단어를 처음 누를 때 느리지 않게, 책을 열면 찾기에 쓰는 것들을 미리 준비한다.
-/// - 기본 단어장과 위키낱말사전(JSON, 합쳐 약 2MB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
+/// - 기본 단어장과 위키낱말사전·예문(JSON, 합쳐 약 2MB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
 enum WordLookupWarmUp {
     private static var started = false
 
@@ -232,7 +235,7 @@ enum WordLookupWarmUp {
             // 책 첫 화면이 먼저 그려지게 잠깐 기다린다.
             try? await Task.sleep(for: .milliseconds(600))
             _ = BundledWordIndex.shared
-            _ = await Task.detached { WiktionaryDictionary.shared.words.count + EnglishWordForms.shared.count }.value
+            _ = await Task.detached { WiktionaryDictionary.shared.words.count + EnglishWordForms.shared.count + AppMeaningExamples.shared.examples.count }.value
             _ = EnglishLemmatizer().lemmas(of: "arrived", in: "She arrived early.")
             _ = EnglishPartOfSpeech.abbreviation(of: "arrived", in: "She arrived early.", meaning: "도착하다")
             await TranslationWordLookupStep.warmUp()
@@ -275,7 +278,8 @@ struct BundledPackLookupStep: WordLookupStep {
             meaning: word.meaningKo,
             note: note.isEmpty ? nil : note,
             toeicTag: tag.isEmpty ? nil : tag,
-            source: .bundledPack
+            source: .bundledPack,
+            examples: WordMeaningExample.whole(english: word.exampleEn, korean: word.exampleKo)
         )
     }
 }
@@ -324,7 +328,8 @@ struct GeneratedWordLookupStep: WordLookupStep {
                 meaning: draft.meaningKo,
                 note: draft.note.isEmpty ? nil : draft.note,
                 toeicTag: draft.toeicTag.isEmpty ? nil : draft.toeicTag,
-                source: .generated
+                source: .generated,
+                examples: WordMeaningExample.whole(english: draft.exampleEn, korean: draft.exampleKo)
             )
             store.save(result)
             return result
@@ -351,7 +356,8 @@ struct GeneratedMeaningLookupStep: WordLookupStep {
             meaning: stored.meaning,
             note: stored.note,
             toeicTag: stored.toeicTag,
-            source: .generated
+            source: .generated,
+            examples: stored.examples ?? []
         )
     }
 }
@@ -364,6 +370,8 @@ nonisolated final class GeneratedMeaningStore: @unchecked Sendable {
         var meaning: String
         var note: String?
         var toeicTag: String?
+        /// 예문을 남기기 전에 만든 뜻에는 없다.
+        var examples: [WordMeaningExample]?
     }
 
     static let shared = GeneratedMeaningStore(defaults: .standard)
@@ -386,7 +394,8 @@ nonisolated final class GeneratedMeaningStore: @unchecked Sendable {
             partOfSpeech: result.partOfSpeech,
             meaning: result.meaning,
             note: result.note,
-            toeicTag: result.toeicTag
+            toeicTag: result.toeicTag,
+            examples: result.examples
         )
         lock.withLock {
             var map = all()

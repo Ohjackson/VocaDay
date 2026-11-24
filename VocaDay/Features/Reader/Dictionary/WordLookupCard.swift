@@ -186,6 +186,7 @@ struct WordLookupCard: View {
                 .foregroundStyle(.secondary)
             case .found(let result) where context.isPhrase:
                 phraseBody(translation: result.meaning, note: result.note)
+                if let example = result.examples.first { exampleRow(example) }
                 if canDownloadKoreanPack { koreanPackButton }
             case .notFound where context.isPhrase:
                 phraseBody(translation: nil, note: nil)
@@ -196,7 +197,11 @@ struct WordLookupCard: View {
             case .found(let result):
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(meaningLines.lines, id: \.self) { line in
-                        meaningRow(line)
+                        meaningRow(line, examples: result.examples)
+                    }
+                    // 뜻에 묶이지 않은 예문 (기본 단어장·기기 생성)
+                    ForEach(result.examples.filter { $0.meaning == nil }, id: \.self) { example in
+                        exampleRow(example)
                     }
                     if hiddenMeaningCount > 0 {
                         Button(showsAllMeanings ? "접기" : "뜻 \(hiddenMeaningCount)개 더 보기") {
@@ -274,9 +279,9 @@ struct WordLookupCard: View {
         }
     }
 
-    /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만. 뜻이 여럿이면 뜻마다 줄을 나눈다.
+    /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만. 뜻이 여럿이거나 예문이 있으면 뜻마다 줄을 나눈다.
     @ViewBuilder
-    private func meaningRow(_ line: String) -> some View {
+    private func meaningRow(_ line: String, examples: [WordMeaningExample]) -> some View {
         if let parts = MeaningLines.partOfSpeechAndText(line) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(parts.partOfSpeech)
@@ -285,14 +290,14 @@ struct WordLookupCard: View {
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                senseRows(parts.text)
+                senseRows(parts.text, examples: examples)
             }
         } else {
-            senseRows(line)
+            senseRows(line, examples: examples)
         }
     }
 
-    private func senseRows(_ text: String) -> some View {
+    private func senseRows(_ text: String, examples: [WordMeaningExample]) -> some View {
         let senses = MeaningLines.senses(text)
         return VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(senses.prefix(showsAllMeanings ? senses.count : Self.meaningLimit).enumerated()), id: \.offset) { index, sense in
@@ -302,10 +307,15 @@ struct WordLookupCard: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
-                    Text(sense)
-                        .font(.body)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(sense)
+                            .font(.body)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let example = examples.first(where: { $0.meaning == sense }) {
+                            exampleRow(example)
+                        }
+                    }
                 }
             }
         }
@@ -319,6 +329,24 @@ struct WordLookupCard: View {
             let text = MeaningLines.partOfSpeechAndText(line)?.text ?? line
             return count + max(0, MeaningLines.senses(text).count - Self.meaningLimit)
         }
+    }
+
+    /// 예문: 영어(단어 강조) 아래 한국어.
+    private func exampleRow(_ example: WordMeaningExample) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(WordHighlighter.emphasized(headword, in: example.english))
+                .font(.footnote)
+            Text(example.korean)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.leading, 8)
+        .overlay(alignment: .leading) {
+            Capsule().fill(.tint.opacity(0.4)).frame(width: 2)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("예문: \(example.english) \(example.korean)")
     }
 
     private var headword: String {
@@ -797,6 +825,26 @@ enum WordHighlighter {
         text[lower..<upper].foregroundColor = .accentColor
         text[lower..<upper].underlineStyle = .single
         return text
+    }
+
+    /// 예문 속 단어(변화형 포함)를 굵게. 못 찾으면 그냥 보인다.
+    static func emphasized(_ headword: String, in sentence: String) -> AttributedString {
+        var text = AttributedString(sentence)
+        guard let range = range(of: headword, in: sentence) ?? rangeOfForm(of: headword, in: sentence),
+              let lower = AttributedString.Index(range.lowerBound, within: text),
+              let upper = AttributedString.Index(range.upperBound, within: text)
+        else { return text }
+        text[lower..<upper].inlinePresentationIntent = .stronglyEmphasized
+        return text
+    }
+
+    /// 문장에서 이 원형의 변화형(hold → holding, held)을 찾는다.
+    static func rangeOfForm(of headword: String, in sentence: String) -> Range<String.Index>? {
+        let key = headword.lowercased()
+        return sentence.split { !$0.isLetter }.first { token in
+            let form = token.lowercased()
+            return EnglishWordForms.shared[form] == key || EnglishLemmatizer.ruleLemmas(of: form).contains(key)
+        }.map { $0.startIndex..<$0.endIndex }
     }
 
     /// 단어 경계로 찾는다 (review가 preview 안에서 걸리지 않게).

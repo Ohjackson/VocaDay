@@ -57,6 +57,42 @@ nonisolated struct WordLookupRequest: Hashable, Sendable {
     }
 }
 
+/// 뜻 하나에 붙는 예문.
+nonisolated struct WordMeaningExample: Codable, Hashable, Sendable {
+    /// 예문이 보여 주는 뜻 (`WordLookupResult.meaning` 안의 한 조각). 단어 전체의 예문이면 nil.
+    var meaning: String?
+    var english: String
+    var korean: String
+
+    /// 다른 사전에서 찾은 뜻에 맞는 예문. 뜻 글이 같거나, 쉼표로 나눈 낱말 뜻이 하나라도 겹치면 그 뜻의 예문으로 본다
+    /// ("외투, 코트"에 "코트, 외투"의 예문).
+    static func matching(_ senses: [String], in examples: [WordMeaningExample]) -> [WordMeaningExample] {
+        senses.compactMap { sense in
+            let words = glosses(sense)
+            let found = examples.first { $0.meaning == sense }
+                ?? examples.first { $0.meaning.map { !glosses($0).isDisjoint(with: words) } ?? false }
+            guard var found else { return nil }
+            found.meaning = sense
+            return found
+        }
+    }
+
+    private static func glosses(_ text: String) -> Set<String> {
+        let bare = text.replacingOccurrences(of: #"\([^()]*\)"#, with: "", options: .regularExpression)
+        return Set(bare.split { ",;/·".contains($0) }.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+    }
+
+    /// 단어 전체의 예문 하나. 둘 중 하나라도 비면 없음. 여러 줄이면 첫 줄만.
+    static func whole(english: String, korean: String) -> [WordMeaningExample] {
+        func firstLine(_ text: String) -> String {
+            (text.split(whereSeparator: \.isNewline).first.map(String.init) ?? "").trimmingCharacters(in: .whitespaces)
+        }
+        let (english, korean) = (firstLine(english), firstLine(korean))
+        guard !english.isEmpty, !korean.isEmpty else { return [] }
+        return [WordMeaningExample(meaning: nil, english: english, korean: korean)]
+    }
+}
+
 /// 찾은 뜻 한 개.
 nonisolated struct WordLookupResult: Hashable, Sendable {
     /// 단어장에 넣을 표제어 (원형). 예: "allocate"
@@ -70,6 +106,7 @@ nonisolated struct WordLookupResult: Hashable, Sendable {
     var note: String?
     var toeicTag: String?
     var source: WordLookupSource
+    var examples: [WordMeaningExample] = []
 
     /// 원형이 본문 모양과 달라 카드에 따로 보여 줄지.
     var showsLemma: Bool { headword.lowercased() != surface.lowercased() }
@@ -126,6 +163,8 @@ extension WordLookupStep {
 struct WordLookupPipeline {
     var lemmatizer: any WordLemmatizing
     var steps: [any WordLookupStep]
+    /// 예문 없이 나온 뜻(책 사전·번역)에 붙일 예문을 낱말로 찾는다.
+    var examples: (_ word: String) -> [WordMeaningExample] = { _ in [] }
     /// 끝까지 못 찾았을 때의 설명. 카드 제목("뜻을 찾지 못했어요") 아래에 보인다.
     var notFoundMessage = "책 사전과 기본 단어장, 위키낱말사전에 없는 단어예요."
 
@@ -156,7 +195,7 @@ struct WordLookupPipeline {
             if let message = step.progressMessage { progress(message) }
             do {
                 if let result = try await step.lookup(request) {
-                    return .found(result)
+                    return .found(addingExamples(to: result, sentence: request.sentence))
                 }
             } catch let failure as WordLookupStepFailure {
                 lastMiss = failure.miss
@@ -165,5 +204,18 @@ struct WordLookupPipeline {
             }
         }
         return .notFound(lastMiss ?? WordLookupMiss(message: notFoundMessage))
+    }
+
+    /// 지금 읽는 문장과 같은 예문은 빼고, 예문이 없으면 같은 뜻의 다른 예문을 붙인다.
+    private func addingExamples(to result: WordLookupResult, sentence: String) -> WordLookupResult {
+        var result = result
+        result.examples.removeAll { $0.english == sentence }
+        if result.examples.isEmpty {
+            let senses = MeaningLines(result).lines.flatMap {
+                MeaningLines.senses(MeaningLines.partOfSpeechAndText($0)?.text ?? $0)
+            }
+            result.examples = WordMeaningExample.matching(senses, in: examples(result.headword).filter { $0.english != sentence })
+        }
+        return result
     }
 }
