@@ -40,6 +40,19 @@ enum SystemDictionary {
         return found
     }
 
+    #if os(macOS)
+    private static var articleCache: [String: SystemDictionaryArticle] = [:]
+
+    /// 사전 글을 품사·뜻·예문으로 나눈 것. 사전에 없으면 nil.
+    static func article(for term: String) -> SystemDictionaryArticle? {
+        let key = term.lowercased()
+        if let cached = articleCache[key] { return cached }
+        let article = SystemDictionaryLookupStep.systemDefinition(term).flatMap(SystemDictionaryArticle.init)
+        articleCache[key] = article
+        return article
+    }
+    #endif
+
     static func url(for term: String) -> URL? {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-'"))
         guard let escaped = term.addingPercentEncoding(withAllowedCharacters: allowed), !escaped.isEmpty else { return nil }
@@ -69,5 +82,61 @@ struct SystemDictionarySheet: UIViewControllerRepresentable {
     static var deviceColorScheme: ColorScheme { SystemDictionary.deviceColorScheme }
 
     func updateUIViewController(_ controller: UIReferenceLibraryViewController, context: Context) {}
+}
+
+/// 단어 카드 안에 펼치는 사전. 사전 화면을 카드의 일부로 넣는다.
+struct InlineSystemDictionary: UIViewControllerRepresentable {
+    let term: String
+
+    func makeUIViewController(context: Context) -> InlineSystemDictionaryController {
+        InlineSystemDictionaryController(term: term)
+    }
+
+    func updateUIViewController(_ controller: InlineSystemDictionaryController, context: Context) {}
+}
+
+/// 사전 화면 위쪽의 제목과 X를 가린다. 카드에 이미 단어가 있고, X는 사전이 아니라 바깥 화면(책)을 닫아 버린다.
+final class InlineSystemDictionaryController: UIViewController {
+    /// 사전 화면의 제목 줄 높이.
+    private static let headerHeight: CGFloat = 64
+    private let dictionary: UIReferenceLibraryViewController
+
+    init(term: String) {
+        dictionary = UIReferenceLibraryViewController(term: term)
+        super.init(nibName: nil, bundle: nil)
+        // 사전 글자는 기기 모드로 그려진다. 책 테마를 따르면 글자와 바탕이 섞인다.
+        overrideUserInterfaceStyle = SystemDictionarySheet.deviceStyle
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func loadView() {
+        view = HeaderBlockingView()
+        view.clipsToBounds = true
+        view.backgroundColor = .systemBackground
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        addChild(dictionary)
+        view.addSubview(dictionary.view)
+        dictionary.didMove(toParent: self)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        dictionary.view.frame = CGRect(
+            x: 0, y: -Self.headerHeight,
+            width: view.bounds.width, height: view.bounds.height + Self.headerHeight
+        )
+    }
+
+    /// X의 터치 영역은 보이는 것보다 아래까지 내려온다. 맨 위 터치는 사전에 넘기지 않는다.
+    private final class HeaderBlockingView: UIView {
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            point.y < 16 && bounds.contains(point) ? self : super.hitTest(point, with: event)
+        }
+    }
 }
 #endif

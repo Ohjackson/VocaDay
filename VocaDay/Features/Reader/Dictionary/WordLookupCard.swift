@@ -31,6 +31,15 @@ struct WordLookupCard: View {
     @State private var copiedPrompt = false
     /// 기기 사전에 이 단어가 있는지. nil = 아직 확인 전.
     @State private var systemDictionaryHasEntry: Bool?
+    #if os(iOS)
+    /// 카드 안 사전에 넘길 말. 사전에 없으면 nil (줄을 보이지 않는다).
+    @State private var inlineDictionaryTerm: String?
+    @State private var showsInlineDictionary = false
+    #else
+    /// 사전 글을 품사·뜻·예문으로 나눈 것.
+    @State private var dictionaryArticle: SystemDictionaryArticle?
+    @State private var showsAllSenses = false
+    #endif
     /// 영→한 번역 언어 팩을 받을 수 있는데 아직 없다. 한국어 뜻 대신 영영 뜻이나 "없음"이 나올 때 받기 버튼을 보인다.
     @State private var canDownloadKoreanPack = false
     @State private var packConfiguration: TranslationSession.Configuration?
@@ -98,7 +107,7 @@ struct WordLookupCard: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(idealWidth: 300, maxWidth: .infinity, idealHeight: contentHeight, maxHeight: contentHeight)
+        .frame(idealWidth: 300, maxWidth: .infinity, idealHeight: cardHeight, maxHeight: cardHeight)
         .task(id: context.id) {
             guard case .loading = phase else { return }
             await runLookup()
@@ -107,9 +116,13 @@ struct WordLookupCard: View {
             // 기기 사전 확인(특히 iOS)은 메인 스레드에서 오래 걸린다. 뜻이 먼저 그려지게 조금 미루고, 결과는 기억한다.
             if case .loading = phase { try? await Task.sleep(for: .milliseconds(250)) }
             guard !Task.isCancelled else { return }
-            systemDictionaryHasEntry = SystemDictionary.cachedHasDefinition(for: dictionaryTerm)
-                || (dictionaryTerm.lowercased() != context.surface.lowercased()
-                    && SystemDictionary.cachedHasDefinition(for: context.surface))
+            let found = [dictionaryTerm, context.surface].first { SystemDictionary.cachedHasDefinition(for: $0) }
+            systemDictionaryHasEntry = found != nil
+            #if os(iOS)
+            inlineDictionaryTerm = found
+            #else
+            dictionaryArticle = found.flatMap { SystemDictionary.article(for: $0) }
+            #endif
         }
         .background {
             // 언어 팩이 없으면 시스템이 받기 안내를 띄운다. 받고 나면 한국어 뜻으로 다시 찾는다.
@@ -221,6 +234,7 @@ struct WordLookupCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if canDownloadKoreanPack { koreanPackButton }
             }
+            if !context.isPhrase, !isLoading { dictionarySection }
         }
         .padding(.horizontal, 4)
         .padding(.top, 2)
@@ -283,9 +297,114 @@ struct WordLookupCard: View {
     }
 
     private var meaningLines: MeaningLines {
-        guard case .found(let result) = phase else { return MeaningLines(partOfSpeech: nil, lines: []) }
+        guard case .found(let result) = phase, !repeatsArticle(result) else { return MeaningLines(partOfSpeech: nil, lines: []) }
         return MeaningLines(result)
     }
+
+    /// 뜻이 사전 글의 첫 줄이면 아래 사전과 겹치므로 따로 보이지 않는다 (Mac).
+    private func repeatsArticle(_ result: WordLookupResult) -> Bool {
+        #if os(macOS)
+        result.source == .systemDictionary && dictionaryArticle != nil
+        #else
+        false
+        #endif
+    }
+
+    /// 카드 높이. Mac은 사전 글이 길어도 이만큼까지만 커지고 안에서 스크롤된다.
+    private var cardHeight: CGFloat {
+        #if os(macOS)
+        min(contentHeight, 440)
+        #else
+        contentHeight
+        #endif
+    }
+
+    // MARK: - 기기 사전
+
+    #if os(iOS)
+    /// 누르면 카드 안에서 사전을 펼친다. 사전 글을 꺼내는 API가 없어 사전 화면을 그대로 넣는다.
+    @ViewBuilder
+    private var dictionarySection: some View {
+        if let term = inlineDictionaryTerm {
+            Divider().padding(.top, 2)
+            Button {
+                showsInlineDictionary.toggle()
+            } label: {
+                HStack {
+                    Text(showsInlineDictionary ? "기기 사전 접기" : "기기 사전에서 더 보기")
+                        .font(.subheadline)
+                    Spacer(minLength: 4)
+                    Image(systemName: showsInlineDictionary ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.tint)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showsInlineDictionary {
+                InlineSystemDictionary(term: term)
+                    .id(term)
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+    #else
+    private static let shortSenseCount = 3
+
+    /// 사전 글: 품사마다 뜻과 예문. 길면 품사마다 앞의 몇 개만 보이고 「더 보기」로 편다.
+    @ViewBuilder
+    private var dictionarySection: some View {
+        if let article = dictionaryArticle {
+            let short = article.prefix(Self.shortSenseCount)
+            let hiddenCount = article.senseCount - short.reduce(0) { $0 + $1.senses.count }
+            if !meaningLines.lines.isEmpty { Divider().padding(.vertical, 2) }
+            ForEach(Array((showsAllSenses ? article.sections : short).enumerated()), id: \.offset) { _, section in
+                if let partOfSpeech = section.partOfSpeech {
+                    Text(partOfSpeech)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .padding(.top, 2)
+                }
+                ForEach(Array(section.senses.enumerated()), id: \.offset) { _, sense in
+                    senseRow(sense)
+                }
+            }
+            if hiddenCount > 0 {
+                Button(showsAllSenses ? "접기" : "뜻 \(hiddenCount)개 더 보기") {
+                    showsAllSenses.toggle()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            }
+        }
+    }
+
+    private func senseRow(_ sense: SystemDictionaryArticle.Sense) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(sense.number ?? "•")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 12, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sense.text)
+                    .font(.callout)
+                ForEach(sense.examples.prefix(2), id: \.self) { example in
+                    Text(example)
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .textSelection(.enabled)
+    }
+    #endif
 
     // MARK: - 사전 표시 (오른쪽 위)
 
