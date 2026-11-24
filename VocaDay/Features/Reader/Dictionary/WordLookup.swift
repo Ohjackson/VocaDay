@@ -7,6 +7,8 @@ import Foundation
 nonisolated enum WordLookupSource: String, Hashable, Sendable {
     case bookGlossary
     case bundledPack
+    /// 앱에 들어 있는 위키낱말사전 (영→한).
+    case wiktionary
     case generated
     /// 기기 안 번역(영→한)으로 채운 뜻.
     case translation
@@ -17,6 +19,7 @@ nonisolated enum WordLookupSource: String, Hashable, Sendable {
         switch self {
         case .bookGlossary: "책 사전"
         case .bundledPack: "기본 단어장"
+        case .wiktionary: "위키낱말사전"
         case .generated: "기기 안 생성"
         case .translation: "기기 번역"
         case .systemDictionary: "시스템 사전"
@@ -27,6 +30,7 @@ nonisolated enum WordLookupSource: String, Hashable, Sendable {
         switch self {
         case .bookGlossary: "book.closed"
         case .bundledPack: "text.book.closed"
+        case .wiktionary: "books.vertical"
         case .generated: "sparkles"
         case .translation: "translate"
         case .systemDictionary: "character.book.closed"
@@ -71,7 +75,13 @@ nonisolated struct WordLookupResult: Hashable, Sendable {
     var showsLemma: Bool { headword.lowercased() != surface.lowercased() }
 
     /// 단어장에 저장하는 뜻. 품사 약어를 앞에 붙인다 (기존 단어 형식: "v. 할당하다").
+    /// 사전 뜻은 품사마다 두 개까지만 남긴다 (학습 카드에는 길다).
     var meaningForSaving: String {
+        if source == .wiktionary {
+            return meaning.components(separatedBy: " / ")
+                .map { $0.components(separatedBy: "; ").prefix(2).joined(separator: "; ") }
+                .joined(separator: " / ")
+        }
         guard let partOfSpeech, !partOfSpeech.isEmpty else { return meaning }
         return "\(partOfSpeech) \(meaning)"
     }
@@ -117,7 +127,7 @@ struct WordLookupPipeline {
     var lemmatizer: any WordLemmatizing
     var steps: [any WordLookupStep]
     /// 끝까지 못 찾았을 때의 설명. 카드 제목("뜻을 찾지 못했어요") 아래에 보인다.
-    var notFoundMessage = "책 사전과 기본 단어장에 없는 단어예요."
+    var notFoundMessage = "책 사전과 기본 단어장, 위키낱말사전에 없는 단어예요."
 
     func request(for context: WordTapContext, book: BookDocument) -> WordLookupRequest {
         let surface = lemmatizer.normalize(context.surface)

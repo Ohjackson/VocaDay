@@ -29,6 +29,8 @@ struct WordLookupCard: View {
     @State private var saveError: String?
     @State private var showsSystemDictionary = false
     @State private var copiedPrompt = false
+    /// 품사마다 뜻을 두 개만 보이다가 다 펼쳤는지.
+    @State private var showsAllMeanings = false
     /// 기기 사전에 이 단어가 있는지. nil = 아직 확인 전.
     @State private var systemDictionaryHasEntry: Bool?
     #if os(iOS)
@@ -196,6 +198,14 @@ struct WordLookupCard: View {
                     ForEach(meaningLines.lines, id: \.self) { line in
                         meaningRow(line)
                     }
+                    if hiddenMeaningCount > 0 {
+                        Button(showsAllMeanings ? "접기" : "뜻 \(hiddenMeaningCount)개 더 보기") {
+                            showsAllMeanings.toggle()
+                        }
+                        .font(.footnote)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tint)
+                    }
                 }
                 if let note = result.note, !note.isEmpty {
                     Label {
@@ -264,28 +274,50 @@ struct WordLookupCard: View {
         }
     }
 
-    /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만.
+    /// "v. 협상하다" → 품사 칩 + 뜻. 품사가 없으면 뜻만. 뜻이 여럿이면 뜻마다 줄을 나눈다.
     @ViewBuilder
     private func meaningRow(_ line: String) -> some View {
-        let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
-        if parts.count == 2, parts[0].hasSuffix("."), parts[0].count <= 7 {
+        if let parts = MeaningLines.partOfSpeechAndText(line) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(parts[0])
+                Text(parts.partOfSpeech)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tint)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                Text(parts[1])
-                    .font(.body)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                senseRows(parts.text)
             }
         } else {
-            Text(line)
-                .font(.body)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+            senseRows(line)
+        }
+    }
+
+    private func senseRows(_ text: String) -> some View {
+        let senses = MeaningLines.senses(text)
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(senses.prefix(showsAllMeanings ? senses.count : Self.meaningLimit).enumerated()), id: \.offset) { index, sense in
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    if senses.count > 1 {
+                        Text("\(index + 1)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(sense)
+                        .font(.body)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private static let meaningLimit = 2
+
+    /// 접혀 있는 뜻 수 (펼쳐도 그대로다).
+    private var hiddenMeaningCount: Int {
+        meaningLines.lines.reduce(0) { count, line in
+            let text = MeaningLines.partOfSpeechAndText(line)?.text ?? line
+            return count + max(0, MeaningLines.senses(text).count - Self.meaningLimit)
         }
     }
 
@@ -440,6 +472,13 @@ struct WordLookupCard: View {
         Menu {
             Button(action: openSystemDictionary) {
                 Label("사전에서 보기", systemImage: "character.book.closed")
+            }
+            if case .found(let result) = phase, result.source == .wiktionary,
+               let url = WiktionaryDictionary.pageURL(for: result.headword) {
+                Button { openURL(url) } label: {
+                    Label("위키낱말사전에서 보기", systemImage: "books.vertical")
+                    Text("CC BY-SA 4.0")
+                }
             }
             if let generation {
                 let reason = generation.unavailableReason
@@ -692,6 +731,18 @@ struct WordLookupCard: View {
 struct MeaningLines: Equatable {
     var partOfSpeech: String?
     var lines: [String]
+
+    /// "v. 협상하다" → ("v.", "협상하다"). 품사로 시작하지 않으면 nil.
+    static func partOfSpeechAndText(_ line: String) -> (partOfSpeech: String, text: String)? {
+        let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+        guard parts.count == 2, parts[0].hasSuffix("."), parts[0].count <= 7 else { return nil }
+        return (parts[0], parts[1])
+    }
+
+    /// 품사 한 줄 안의 뜻들: "기도; (법률) 청구" → ["기도", "(법률) 청구"].
+    static func senses(_ text: String) -> [String] {
+        text.components(separatedBy: "; ").filter { !$0.isEmpty }
+    }
 
     init(partOfSpeech: String?, lines: [String]) {
         self.partOfSpeech = partOfSpeech

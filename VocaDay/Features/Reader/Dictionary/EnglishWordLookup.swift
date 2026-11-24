@@ -2,7 +2,7 @@ import Foundation
 import NaturalLanguage
 
 // 영어 찾기 단계.
-// 자동: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 전에 기기에서 만든 뜻 → 기기 번역(한국어) → (Mac) 시스템 사전.
+// 자동: 책 사전 → 원형으로 책 사전 → 기본 단어장 → 전에 기기에서 만든 뜻 → 위키낱말사전 → 기기 번역(한국어) → (Mac) 시스템 사전.
 // 버튼(카드 「⋯」): 기기 안 생성. 자세한 뜻은 시스템 사전(단어 글자를 누름)에서 본다.
 
 enum EnglishWordLookup {
@@ -10,6 +10,7 @@ enum EnglishWordLookup {
     /// `usesSystemDictionary`: macOS에서 마지막으로 사전 앱의 글을 꺼내 보인다 (iOS는 꺼낼 API가 없어 항상 꺼짐).
     static func pipeline(
         bundledWords: @escaping () -> [String: VocaWordJSON] = { BundledWordIndex.shared },
+        wiktionary: @escaping () -> [String: String] = { WiktionaryDictionary.shared.words },
         generatedMeanings: GeneratedMeaningStore = .shared,
         usesTranslation: Bool = true,
         usesSystemDictionary: Bool = SystemDictionaryLookupStep.isSupported
@@ -19,22 +20,33 @@ enum EnglishWordLookup {
             GlossaryLookupStep(usesLemma: true),
             BundledPackLookupStep(index: bundledWords),
             GeneratedMeaningLookupStep(store: generatedMeanings),
+            WiktionaryLookupStep(index: wiktionary, requiresMatchingPartOfSpeech: true),
         ]
         // 한국어 뜻이 먼저. 번역 언어 팩이 없을 때만 영영사전 글로 넘어간다.
         if usesTranslation {
             steps.append(TranslationWordLookupStep())
         }
+        // 번역이 안 되면 품사가 달라도 위키낱말사전 뜻을 쓴다.
+        steps.append(WiktionaryLookupStep(index: wiktionary, requiresMatchingPartOfSpeech: false))
         if usesSystemDictionary {
             steps.append(SystemDictionaryLookupStep())
         }
         return WordLookupPipeline(lemmatizer: EnglishLemmatizer(), steps: steps)
     }
 
-    /// 끌어 고른 여러 단어. 책 사전에 그 말이 있으면 그것, 아니면 기기 번역으로 덩어리 전체를 옮긴다.
+    /// 끌어 고른 여러 단어. 책 사전이나 위키낱말사전에 그 말(숙어)이 있으면 그것, 아니면 기기 번역으로 덩어리 전체를 옮긴다.
     static func phrasePipeline() -> WordLookupPipeline {
         var pipeline = WordLookupPipeline(
             lemmatizer: EnglishLemmatizer(),
-            steps: [GlossaryLookupStep(usesLemma: false), TranslationWordLookupStep(), PhraseMeaningLookupStep()]
+            steps: [
+                GlossaryLookupStep(usesLemma: false),
+                WiktionaryLookupStep(
+                    index: { WiktionaryDictionary.shared.words },
+                    requiresMatchingPartOfSpeech: false
+                ),
+                TranslationWordLookupStep(),
+                PhraseMeaningLookupStep(),
+            ]
         )
         pipeline.notFoundMessage = "이 말을 번역하지 못했어요."
         return pipeline
@@ -174,6 +186,21 @@ enum EnglishPartOfSpeech {
         }
     }
 
+    /// 문장 속 쓰임만 본 품사 약어. 알 수 없으면 nil.
+    static func abbreviation(of surface: String, in sentence: String) -> String? {
+        guard !surface.isEmpty, !surface.contains(where: \.isWhitespace) else { return nil }
+        switch lexicalClass(of: surface, in: sentence) {
+        case .noun: return "n."
+        case .verb: return "v."
+        case .adjective: return "adj."
+        case .adverb: return "adv."
+        case .preposition: return "prep."
+        case .conjunction: return "conj."
+        case .pronoun: return "pron."
+        default: return nil
+        }
+    }
+
     private static func lexicalClass(of surface: String, in sentence: String) -> NLTag? {
         let key = EnglishLemmatizer().normalize(surface)
         tagger.string = sentence
@@ -194,7 +221,7 @@ enum EnglishPartOfSpeech {
 }
 
 /// 단어를 처음 누를 때 느리지 않게, 책을 열면 찾기에 쓰는 것들을 미리 준비한다.
-/// - 기본 단어장(JSON 약 800KB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
+/// - 기본 단어장과 위키낱말사전(JSON, 합쳐 약 2MB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
 enum WordLookupWarmUp {
     private static var started = false
 
@@ -205,6 +232,7 @@ enum WordLookupWarmUp {
             // 책 첫 화면이 먼저 그려지게 잠깐 기다린다.
             try? await Task.sleep(for: .milliseconds(600))
             _ = BundledWordIndex.shared
+            _ = await Task.detached { WiktionaryDictionary.shared.words.count + EnglishWordForms.shared.count }.value
             _ = EnglishLemmatizer().lemmas(of: "arrived", in: "She arrived early.")
             _ = EnglishPartOfSpeech.abbreviation(of: "arrived", in: "She arrived early.", meaning: "도착하다")
             await TranslationWordLookupStep.warmUp()

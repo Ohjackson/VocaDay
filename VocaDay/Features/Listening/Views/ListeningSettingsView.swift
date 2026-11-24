@@ -3,6 +3,7 @@ import Translation
 
 /// 리스닝 탭 톱니바퀴 화면. 책 읽기에 필요한 것들을 한곳에서 받고 확인한다.
 /// - 기기 사전: 단어 카드의 사전 버튼이 여는 Apple 사전. 한국어-영어 사전을 받으면 영한 뜻이 나온다.
+/// - 앱 사전: 앱에 들어 있는 위키낱말사전의 출처와 라이선스.
 /// - 번역 언어 팩: 가져온 책 문장 번역(영→한, 기기 안).
 /// - 음성 모델: Kokoro. 앱에 들어 있어서 받을 것은 없고, 불러오기와 시험만 한다.
 struct ListeningSettingsView: View {
@@ -25,6 +26,7 @@ struct ListeningSettingsView: View {
 
     var body: some View {
         Form {
+            appDictionarySection
             dictionarySection
             translationSection
             voiceModelSection
@@ -52,6 +54,32 @@ struct ListeningSettingsView: View {
         }
         #endif
         .onDisappear { player.stop() }
+    }
+
+    // MARK: - 앱 사전
+
+    /// CC BY-SA 4.0 조건: 출처, 라이선스, 다듬었다는 사실을 밝힌다.
+    private var appDictionarySection: some View {
+        let dictionary = WiktionaryDictionary.shared
+        return Section {
+            HStack {
+                Text("위키낱말사전 (영어 → 한국어)")
+                Spacer()
+                Text("\(dictionary.words.count.formatted())개")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Link(destination: WiktionaryDictionary.siteURL) {
+                Label("한국어 위키낱말사전", systemImage: "books.vertical")
+            }
+            Link(destination: WiktionaryDictionary.licenseURL) {
+                Label("라이선스 \(dictionary.license)", systemImage: "doc.text")
+            }
+        } header: {
+            Text("앱 사전")
+        } footer: {
+            Text("앱에 들어 있어서 따로 받지 않아요. 한국어 위키낱말사전 기여자들이 쓴 글에서 영어 뜻만 골라 짧게 다듬었어요. (\(dictionary.dumpDate) 기준, kaikki.org 추출)")
+        }
     }
 
     // MARK: - 사전
@@ -113,7 +141,7 @@ struct ListeningSettingsView: View {
         } header: {
             Text("번역 언어 팩")
         } footer: {
-            Text("PDF로 가져온 책의 문장을 기기 안에서 한국어로 번역할 때 써요.")
+            Text("PDF로 가져온 책의 문장과, 앱 사전에 없는 단어를 기기 안에서 한국어로 번역할 때 써요.")
         }
     }
 
