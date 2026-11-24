@@ -74,13 +74,13 @@ struct EnglishLemmatizer: WordLemmatizing {
         return word
     }
 
-    /// `NLTagger` lemma가 먼저, 그다음 규칙 변화(-s, -ed, -ing …)를 되돌린 후보.
-    /// lemma 모델이 없는 환경(iOS 시뮬레이터 등)에서는 tagger가 nil을 주므로 규칙 후보로 찾는다.
+    /// `NLTagger` lemma가 먼저, 그다음 규칙 변화(-s, -ed, -ing …)를 되돌린 후보, 끝으로 흔한 단어의 변화형 표(held → hold).
+    /// lemma 모델이 없는 환경(iOS 시뮬레이터 등)에서는 tagger가 nil을 주므로 규칙·표 후보로 찾는다.
     func lemmas(of surface: String, in sentence: String) -> [String] {
         let key = normalize(surface)
         guard !key.isEmpty else { return [] }
         let tagged = lemma(matching: key, in: sentence) ?? lemma(matching: key, in: key)
-        return ([tagged].compactMap { $0 } + Self.ruleLemmas(of: key)).filter { $0 != key }
+        return ([tagged].compactMap { $0 } + Self.ruleLemmas(of: key) + [EnglishWordForms.shared[key]].compactMap { $0 }).filter { $0 != key }
     }
 
     /// 규칙 변화만 되돌린다. 틀린 후보(allocat)도 섞이지만 사전에서 못 찾으면 그냥 지나간다.
@@ -130,6 +130,27 @@ struct EnglishLemmatizer: WordLemmatizing {
         }
         guard let found, !found.isEmpty else { return nil }
         return found
+    }
+}
+
+/// 흔한 단어의 변화형 → 원형 (앱에 있는 NGSL 목록: "hold,holds,held,…"). 불규칙 변화를 되돌릴 때 쓴다.
+nonisolated enum EnglishWordForms {
+    static let shared: [String: String] = {
+        guard let url = Bundle.main.url(forResource: "NGSL", withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8)
+        else { return [:] }
+        return parse(text)
+    }()
+
+    /// 여러 단어에 걸친 변화형은 앞(더 흔한 단어)의 것.
+    static func parse(_ text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in text.split(whereSeparator: \.isNewline) where !line.hasPrefix("#") {
+            let forms = line.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            guard let headword = forms.first else { continue }
+            for form in forms.dropFirst() where form.count > 1 && result[form] == nil { result[form] = headword }
+        }
+        return result
     }
 }
 
