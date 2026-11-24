@@ -133,6 +133,45 @@ struct EnglishLemmatizer: WordLemmatizing {
     }
 }
 
+/// 문장 안 쓰임으로 품사 약어를 고른다 (번역 뜻에는 품사가 없다).
+enum EnglishPartOfSpeech {
+    private static let tagger = NLTagger(tagSchemes: [.lexicalClass])
+
+    /// `meaning`(한국어 뜻)과 어긋나는 품사는 쓰지 않는다: 동사 뜻은 "-다"로 끝나고 명사 뜻은 그렇지 않다.
+    static func abbreviation(of surface: String, in sentence: String, meaning: String) -> String? {
+        guard !surface.isEmpty, !surface.contains(where: \.isWhitespace) else { return nil }
+        let endsLikeVerb = meaning.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).hasSuffix("다")
+        switch lexicalClass(of: surface, in: sentence) {
+        case .noun: return endsLikeVerb ? nil : "n."
+        case .verb: return endsLikeVerb ? "v." : nil
+        case .adjective: return "adj."
+        case .adverb: return endsLikeVerb ? nil : "adv."
+        case .preposition: return endsLikeVerb ? nil : "prep."
+        case .conjunction: return endsLikeVerb ? nil : "conj."
+        case .pronoun: return endsLikeVerb ? nil : "pron."
+        default: return nil
+        }
+    }
+
+    private static func lexicalClass(of surface: String, in sentence: String) -> NLTag? {
+        let key = EnglishLemmatizer().normalize(surface)
+        tagger.string = sentence
+        tagger.setLanguage(.english, range: sentence.startIndex..<sentence.endIndex)
+        var found: NLTag?
+        tagger.enumerateTags(
+            in: sentence.startIndex..<sentence.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitWhitespace, .omitPunctuation]
+        ) { tag, range in
+            guard EnglishLemmatizer().normalize(String(sentence[range])) == key else { return true }
+            found = tag
+            return false
+        }
+        return found
+    }
+}
+
 /// 단어를 처음 누를 때 느리지 않게, 책을 열면 찾기에 쓰는 것들을 미리 준비한다.
 /// - 기본 단어장(JSON 약 800KB) 읽기, lemma 모델 읽기, 번역 언어 팩 확인과 번역 세션 준비.
 enum WordLookupWarmUp {
@@ -146,6 +185,7 @@ enum WordLookupWarmUp {
             try? await Task.sleep(for: .milliseconds(600))
             _ = BundledWordIndex.shared
             _ = EnglishLemmatizer().lemmas(of: "arrived", in: "She arrived early.")
+            _ = EnglishPartOfSpeech.abbreviation(of: "arrived", in: "She arrived early.", meaning: "도착하다")
             await TranslationWordLookupStep.warmUp()
         }
     }

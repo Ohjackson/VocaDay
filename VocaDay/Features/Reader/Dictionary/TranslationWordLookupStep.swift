@@ -27,7 +27,7 @@ struct TranslationWordLookupStep: WordLookupStep {
             return WordLookupResult(
                 headword: term,
                 surface: request.surface,
-                partOfSpeech: nil,
+                partOfSpeech: EnglishPartOfSpeech.abbreviation(of: request.surface, in: request.sentence, meaning: meaning),
                 meaning: meaning,
                 note: nil,
                 toeicTag: nil,
