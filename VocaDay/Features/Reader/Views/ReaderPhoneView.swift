@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// iPhone 책 화면 (마일드): 화면 전체가 페이지 색이고 글만 있다. 페이지는 좌우로 넘긴다.
-/// 평소에는 오른쪽 위 버튼 하나만 보이고, 누르면 위·아래 막대가 나온다. 단어 뜻은 단어 옆 팝오버.
+/// 평소에는 오른쪽 위 버튼 하나만 보이고, 누르면 위·아래 막대가 나온다. 단어 뜻은 단어 옆 카드.
 struct ReaderPhoneView: View {
     @Bindable var session: ReaderSession
     let settings: ReaderSettingsBindings
@@ -61,6 +61,7 @@ struct ReaderPhoneView: View {
                     .ignoresSafeArea()
             }
         }
+        .onChange(of: showsChrome) { session.closeCards() }
         .modifier(ReaderSpeechSettingsSync(session: session, settings: settings))
         .environment(\.colorScheme, appearance.theme.colorScheme)
         .tint(appearance.accent)

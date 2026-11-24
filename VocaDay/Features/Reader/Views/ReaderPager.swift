@@ -76,6 +76,9 @@ struct ReaderPager: View {
         #endif
         .onChange(of: currentPage) { _, index in
             guard let index, pages.indices.contains(index) else { return }
+            #if os(iOS)
+            session.closeCards()
+            #endif
             session.noteVisiblePages([pages[index].positions])
         }
         .onChange(of: session.scrollRequest) { _, request in
@@ -227,6 +230,9 @@ struct ReaderPageView: View {
                 .accessibilityLabel("\(page.index + 1)쪽")
         }
         .frame(width: metrics.pageWidth, height: metrics.pageHeight)
+        #if os(iOS)
+        .overlay(alignment: .topLeading) { floatingCard(state) }
+        #else
         .overlay(alignment: .topLeading) {
             // 단어 자리에 보이지 않는 칸을 두고 거기에 팝오버를 붙인다.
             // `attachmentAnchor: .rect(...)`는 macOS에서 세로 위치가 어긋나 다른 줄을 가리켰다.
@@ -245,46 +251,38 @@ struct ReaderPageView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        #if os(iOS)
-        .overlay(alignment: .topLeading) { sentencePopoverAnchor }
         #endif
     }
 
     #if os(iOS)
-    /// 문장 카드를 붙일 자리. 단어 카드와 같은 방식으로 보이지 않는 칸에 붙인다.
-    private var sentencePopoverAnchor: some View {
-        let active = session.activeSentence.flatMap { $0.page == page.index ? $0 : nil }
-        let anchor = sentenceAnchor(active)
-        return Color.clear
-            .frame(width: max(anchor.width, 1), height: max(anchor.height, 1))
-            .popover(
-                isPresented: Binding(
-                    get: { active != nil },
-                    set: { if !$0, session.activeSentence == active { session.activeSentence = nil } }
-                ),
-                arrowEdge: anchor.midY < metrics.pageHeight / 2 ? .top : .bottom
-            ) {
-                ReaderSentencePopover(session: session, appearance: appearance)
+    /// 단어·문장 카드. 시스템 팝오버가 아니라 페이지 위에 직접 그려, 카드가 열려 있어도 다른 단어를 한 번에 누를 수 있다.
+    @ViewBuilder
+    private func floatingCard(_ state: ReaderPageDrawState) -> some View {
+        if let active = session.activeWord, state.activeWord != nil, let anchor = text.wordRect(active.ref) {
+            ReaderFloatingCard(anchor: anchor, metrics: metrics, appearance: appearance, width: 300, onClose: session.closeCards) {
+                WordLookupCard(context: active.context, book: session.book)
             }
-            .padding(.leading, anchor.minX)
-            .padding(.top, anchor.minY)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            .id(active.id)
+        } else if let active = session.activeSentence, active.page == page.index {
+            ReaderFloatingCard(anchor: sentenceAnchor(active), metrics: metrics, appearance: appearance, width: 320, onClose: session.closeCards) {
+                ReaderSentenceCard(session: session, position: active.position)
+            }
+            .id(active)
+        }
     }
 
     /// 문장 전체를 가리지 않게 문장 바깥에 붙인다. 문장이 길어 위아래에 자리가 없으면 누른 줄에 붙인다.
-    private func sentenceAnchor(_ active: ReaderActiveSentence?) -> CGRect {
-        let fallback = CGRect(x: metrics.pageWidth / 2, y: metrics.marginTop, width: 1, height: 1)
-        guard let active else { return fallback }
+    private func sentenceAnchor(_ active: ReaderActiveSentence) -> CGRect {
         let rects = text.sentenceRects(active.position)
-        guard let first = rects.first else { return fallback }
+        guard let first = rects.first else {
+            return CGRect(x: metrics.pageWidth / 2, y: metrics.marginTop, width: 1, height: 1)
+        }
         let area = rects.dropFirst().reduce(first) { $0.union($1) }
         let room = area.midY < metrics.pageHeight / 2 ? metrics.pageHeight - area.maxY : area.minY
         if room >= 280 { return area }
         return rects.indices.contains(active.line) ? rects[active.line] : first
     }
-    #endif
-
+    #else
     private func popoverBinding(_ active: ReaderTokenRef?) -> Binding<Bool> {
         Binding(
             get: { active != nil },
@@ -299,10 +297,12 @@ struct ReaderPageView: View {
     private func popoverAnchor(_ active: ReaderTokenRef?) -> CGRect {
         active.flatMap { text.wordRect($0) } ?? CGRect(x: metrics.pageWidth / 2, y: metrics.marginTop, width: 1, height: 1)
     }
+    #endif
 }
 
-/// 단어를 누르면 그 단어 옆에 뜨는 뜻 상자. 내용은 `WordLookupCard` 가 그린다.
-/// iPhone도 시트가 아니라 팝오버로 띄운다.
+#if os(macOS)
+/// Mac에서 단어를 누르면 그 단어 옆에 뜨는 뜻 상자. 내용은 `WordLookupCard` 가 그린다.
+/// iPhone은 `ReaderFloatingCard` 를 쓴다.
 struct ReaderWordPopover: View {
     let session: ReaderSession
     let appearance: ReaderAppearance
@@ -314,19 +314,12 @@ struct ReaderWordPopover: View {
                     .frame(width: 300, alignment: .leading)
             }
         }
-        .readerPopoverStyle(appearance)
+        .environment(\.colorScheme, appearance.theme.colorScheme)
+        .tint(appearance.accent)
+        .presentationBackground(appearance.theme == .night ? Color(readerHex: 0x33302C) : .white)
     }
 }
-
-extension View {
-    /// 단어·문장 카드 팝오버의 공통 모양. 흰 상자, 밤 테마는 어두운 회색.
-    func readerPopoverStyle(_ appearance: ReaderAppearance) -> some View {
-        environment(\.colorScheme, appearance.theme.colorScheme)
-            .tint(appearance.accent)
-            .presentationCompactAdaptation(.popover)
-            .presentationBackground(appearance.theme == .night ? Color(readerHex: 0x33302C) : .white)
-    }
-}
+#endif
 
 struct ReaderTranslationStrip: View {
     let session: ReaderSession

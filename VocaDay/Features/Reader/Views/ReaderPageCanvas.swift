@@ -376,6 +376,7 @@ final class ReaderPageCanvasView: UIView, UIGestureRecognizerDelegate {
             guard let start = touchDown?.point, let hit = text.hit(at: start), let token = hit.token else { return }
             phraseAnchor = ReaderTokenRef(position: hit.position, index: token)
             session.isDraggingSelection = true
+            session.closeCards()
             sentencePress?.cancel()
             fallthrough
         case .changed:
@@ -422,10 +423,21 @@ final class ReaderPageCanvasView: UIView, UIGestureRecognizerDelegate {
         guard let text, let session, let hit = text.hit(at: recognizer.location(in: self)), let token = hit.token,
               let surface = text.tokens(at: hit.position)[token].surface
         else {
-            onBackgroundTap()
+            // 카드가 열려 있으면 카드만 닫는다.
+            if let session, session.activeWord != nil || session.activeSentence != nil {
+                session.closeCards()
+            } else {
+                onBackgroundTap()
+            }
             return
         }
-        session.tapWord(surface, ref: ReaderTokenRef(position: hit.position, index: token))
+        let ref = ReaderTokenRef(position: hit.position, index: token)
+        if session.activeWord?.ref == ref, session.activeWord?.endIndex == nil {
+            // 열려 있는 단어를 다시 누르면 닫는다.
+            session.closeCards()
+        } else {
+            session.tapWord(surface, ref: ref)
+        }
     }
 }
 

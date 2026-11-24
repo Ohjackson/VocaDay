@@ -230,6 +230,11 @@ final class ReaderSession {
         activeSentence = active
     }
 
+    func closeCards() {
+        activeWord = nil
+        activeSentence = nil
+    }
+
     func isTranslationRevealed(at position: ReadingPosition) -> Bool {
         translationPosition == position
     }

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 문장을 길게 누르면 그 문장 옆에 뜨는 카드: 번역 → 듣기·북마크·복사.
 /// 영어 문장은 본문에 칠해져 있으므로 카드에는 넣지 않는다.
-/// 단어 카드(`WordLookupCard`)와 같은 팝오버로 띄우지만 사전·저장은 없다.
+/// 단어 카드(`WordLookupCard`)와 같은 상자(`ReaderFloatingCard`)로 띄우지만 사전·저장은 없다.
 struct ReaderSentenceCard: View {
     let session: ReaderSession
     let position: ReadingPosition
@@ -74,21 +74,5 @@ struct ReaderSentenceCard: View {
         .controlSize(.large)
         .buttonBorderShape(.capsule)
         .font(.subheadline.weight(.semibold))
-    }
-}
-
-/// `ReaderSentenceCard` 를 단어 카드와 같은 모양의 팝오버로 감싼다.
-struct ReaderSentencePopover: View {
-    let session: ReaderSession
-    let appearance: ReaderAppearance
-
-    var body: some View {
-        Group {
-            if let active = session.activeSentence {
-                ReaderSentenceCard(session: session, position: active.position)
-                    .frame(width: 320, alignment: .leading)
-            }
-        }
-        .readerPopoverStyle(appearance)
     }
 }
