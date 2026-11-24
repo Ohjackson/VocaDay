@@ -341,14 +341,16 @@ final class ReaderPageCanvasView: UIView, UIGestureRecognizerDelegate {
     }
 
     /// 손가락을 댄 시각과 자리. 끌기를 시작할 때 "단어를 잠깐 누르고 있었는지"를 본다.
-    private var touchDown: (time: Date, point: CGPoint)?
+    private var touchDown: (time: TimeInterval, point: CGPoint)?
     private var phraseDrag: UIPanGestureRecognizer?
     private var sentencePress: UILongPressGestureRecognizer?
     private static let holdBeforeDrag: TimeInterval = 0.2
 
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let touch = touches.first { touchDown = (Date(), touch.location(in: self)) }
-        super.touchesBegan(touches, with: event)
+    /// `touchesBegan`은 스크롤 뷰가 늦추거나 건너뛰어서, 지난 터치의 시각이 남아 스와이프가 끌어 고르기로 잡혔다.
+    /// 인식기가 터치를 받는 순간은 빠지지 않는다.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if gestureRecognizer === phraseDrag { touchDown = (touch.timestamp, touch.location(in: self)) }
+        return true
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -356,7 +358,7 @@ final class ReaderPageCanvasView: UIView, UIGestureRecognizerDelegate {
             return text?.hit(at: gestureRecognizer.location(in: self)) != nil
         }
         guard gestureRecognizer === phraseDrag else { return super.gestureRecognizerShouldBegin(gestureRecognizer) }
-        guard let touchDown, Date().timeIntervalSince(touchDown.time) >= Self.holdBeforeDrag,
+        guard let touchDown, ProcessInfo.processInfo.systemUptime - touchDown.time >= Self.holdBeforeDrag,
               let hit = text?.hit(at: touchDown.point), hit.token != nil
         else { return false }
         return true
